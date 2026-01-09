@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Tables</title>
+</head>
+<body>
+    <h2>Select Tables for Project: {{ project.name }}</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save Selected Tables</button>
+    </form>
+</body>
+</html>

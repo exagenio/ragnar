@@ -1,0 +1,11 @@
+<h2>{{ project.name }}</h2>
+
+<p>{{ project.description }}</p>
+
+{% if not project.is_initialized %}
+    <a href="{% url 'select_tables' project.id %}">
+        Select Tables for This Project
+    </a>
+{% else %}
+    <p><strong>Project ready for metadata generation.</strong></p>
+{% endif %}

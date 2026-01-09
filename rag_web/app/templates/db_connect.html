@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect Database</title>
+</head>
+<body>
+    <h2>Connect Database for Project: {{ project.name }}</h2>
+
+    {% if messages %}
+        <ul>
+            {% for message in messages %}
+                <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Test & Save Connection</button>
+    </form>
+
+    <br>
+    <a href="{% url 'project_detail' project.id %}">Back to Project</a>
+</body>
+</html>
