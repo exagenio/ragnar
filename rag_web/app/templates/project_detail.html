@@ -9,3 +9,26 @@
 {% else %}
     <p><strong>Project ready for metadata generation.</strong></p>
 {% endif %}
+
+{% if project.is_initialized %}
+    <a href="{% url 'column_introspection' project.id %}">
+        View Column Introspection
+    </a>
+{% endif %}
+
+{% if project.is_initialized %}
+    <ul>
+        <li>
+            <a href="{% url 'column_introspection' project.id %}">
+                View Column Introspection
+            </a>
+        </li>
+        <li>
+            <a href="{% url 'row_sampling' project.id %}">
+                View Sample Rows
+            </a>
+        </li>
+    </ul>
+{% endif %}
+
+

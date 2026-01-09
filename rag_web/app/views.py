@@ -25,11 +25,7 @@ def create_project_and_connect_db(request):
                 )
             except Exception as e:
                 messages.error(request, f"Database connection failed: {e}")
-                return render(
-                    request,
-                    "project_create.html",
-                    {"form": form}
-                )
+                return render(request, "project_create.html", {"form": form})
 
             # 🔹 2. Create Project
             project = Project.objects.create(
@@ -51,27 +47,22 @@ def create_project_and_connect_db(request):
                 is_active=True,
             )
 
-            messages.success(request, "Project created and database connected successfully.")
+            messages.success(
+                request, "Project created and database connected successfully."
+            )
             return redirect("project_detail", project_id=project.id)
 
     else:
         form = ProjectDBConnectionForm()
 
-    return render(
-        request,
-        "project_create.html",
-        {"form": form}
-    )
+    return render(request, "project_create.html", {"form": form})
 
 
 def project_detail(request, project_id):
     project = get_object_or_404(Project, id=project_id)
 
-    return render(
-        request,
-        "project_detail.html",
-        {"project": project}
-    )
+    return render(request, "project_detail.html", {"project": project})
+
 
 from .models import Project, SelectedTable
 from .services.schema_introspector import get_tables
@@ -97,10 +88,7 @@ def select_tables(request, project_id):
 
             # Save new selections
             for table in selected:
-                SelectedTable.objects.create(
-                    project=project,
-                    table_name=table
-                )
+                SelectedTable.objects.create(project=project, table_name=table)
 
             project.is_initialized = True
             project.save()
@@ -110,11 +98,59 @@ def select_tables(request, project_id):
     else:
         form = TableSelectionForm(table_choices=table_choices)
 
+    return render(request, "select_tables.html", {"project": project, "form": form})
+
+
+from django.shortcuts import render, get_object_or_404
+from .models import Project, SelectedTable
+from .services.column_introspector import get_table_columns
+
+
+def column_introspection(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+
+    # Safety check
+    if not project.is_initialized:
+        return render(
+            request, "error.html", {"message": "Project is not initialized yet."}
+        )
+
+    db_conn = project.db_connection
+    selected_tables = SelectedTable.objects.filter(project=project)
+
+    schema_info = []
+
+    for table in selected_tables:
+        columns = get_table_columns(db_conn, table.table_name)
+        schema_info.append({"table_name": table.table_name, "columns": columns})
+
     return render(
         request,
-        "select_tables.html",
-        {
-            "project": project,
-            "form": form
-        }
+        "column_introspection.html",
+        {"project": project, "schema_info": schema_info},
+    )
+
+
+from .services.row_sampler import sample_table_rows
+
+
+def row_sampling(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+
+    if not project.is_initialized:
+        return render(
+            request, "error.html", {"message": "Project is not initialized yet."}
+        )
+
+    db_conn = project.db_connection
+    selected_tables = SelectedTable.objects.filter(project=project)
+
+    sampled_data = []
+
+    for table in selected_tables:
+        rows = sample_table_rows(db_conn, table.table_name, limit=10)
+        sampled_data.append({"table_name": table.table_name, "rows": rows})
+
+    return render(
+        request, "row_sampling.html", {"project": project, "sampled_data": sampled_data}
     )
