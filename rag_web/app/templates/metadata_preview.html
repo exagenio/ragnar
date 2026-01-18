@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Metadata Preview</title>
+</head>
+<body>
+
+<h2>Metadata Preview</h2>
+<p>Project: <strong>{{ project.name }}</strong></p>
+
+{% for item in metadata_results %}
+    <h3>Table: {{ item.table_name }}</h3>
+
+    <pre>
+{{ item.metadata|safe }}
+    </pre>
+{% endfor %}
+
+<p><em>This metadata is AI-generated and must be reviewed before approval.</em></p>
+
+<a href="{% url 'project_detail' project.id %}">
+    Back to Project
+</a>
+
+</body>
+</html>

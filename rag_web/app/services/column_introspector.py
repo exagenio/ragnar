@@ -31,11 +31,13 @@ def get_table_columns(db_connection, table_name):
 
     columns = []
     for name, data_type, is_nullable in cursor.fetchall():
-        columns.append({
-            "name": name,
-            "type": data_type,
-            "nullable": (is_nullable == "YES"),
-        })
+        columns.append(
+            {
+                "name": name,
+                "type": data_type.strip('"'),
+                "nullable": (is_nullable == "YES"),
+            }
+        )
 
     cursor.close()
     conn.close()

@@ -154,3 +154,30 @@ def row_sampling(request, project_id):
     return render(
         request, "row_sampling.html", {"project": project, "sampled_data": sampled_data}
     )
+
+
+from .services.llm_metadata_generator import generate_table_metadata
+from .services.column_introspector import get_table_columns
+from .services.row_sampler import sample_table_rows
+from .services.background_tasks import run_in_background
+from .services.metadata_job import run_metadata_generation
+
+def metadata_generation(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+
+    if not project.is_initialized:
+        return render(request, "error.html", {
+            "message": "Project is not initialized yet."
+        })
+
+    run_in_background(run_metadata_generation, project.id)
+
+    return render(
+        request,
+        "metadata_preview.html",
+        {
+            "project": project,
+            "metadata_results": [],
+            "message": "Metadata generation started in background. Please wait."
+        }
+    )

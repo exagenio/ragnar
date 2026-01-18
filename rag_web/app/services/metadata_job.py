@@ -1,0 +1,23 @@
+from .llm_metadata_generator import generate_table_metadata
+from .column_introspector import get_table_columns
+from .row_sampler import sample_table_rows
+from ..models import Project, SelectedTable
+
+
+def run_metadata_generation(project_id):
+    project = Project.objects.get(id=project_id)
+    db_conn = project.db_connection
+
+    for table in SelectedTable.objects.filter(project=project)[:1]:
+        columns = get_table_columns(db_conn, table.table_name)
+        rows = sample_table_rows(db_conn, table.table_name, limit=5)
+
+        # IMPORTANT: small inputs
+        metadata = generate_table_metadata(
+            table_name=table.table_name,
+            columns=columns,
+            rows=rows,
+        )
+
+        # TEMP: just print (later store in DB)
+        print("METADATA RESULT:", metadata)

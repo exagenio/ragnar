@@ -19,4 +19,9 @@ urlpatterns = [
         views.row_sampling,
         name="row_sampling",
     ),
+    path(
+        "projects/<int:project_id>/generate-metadata/",
+        views.metadata_generation,
+        name="metadata_generation",
+    ),
 ]
