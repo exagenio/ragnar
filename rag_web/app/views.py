@@ -181,3 +181,51 @@ def metadata_generation(request, project_id):
             "message": "Metadata generation started in background. Please wait."
         }
     )
+
+from .models import TableMetadata
+import json
+
+
+def review_metadata(request, project_id, table_name):
+    project = get_object_or_404(Project, id=project_id)
+    metadata_obj = get_object_or_404(
+        TableMetadata, project=project, table_name=table_name
+    )
+
+    if request.method == "POST":
+        table_description = request.POST.get("table_description")
+
+        columns = {}
+        for key, value in request.POST.items():
+            if key.startswith("column__"):
+                col_name = key.replace("column__", "")
+                columns[col_name] = value
+
+        confidence_notes_raw = request.POST.get("confidence_notes", "")
+        confidence_notes = [
+            line.strip("- ").strip()
+            for line in confidence_notes_raw.splitlines()
+            if line.strip()
+        ]
+
+        approved_metadata = {
+            "table_description": table_description,
+            "columns": columns,
+            "confidence_notes": confidence_notes,
+        }
+
+        metadata_obj.approved_metadata = approved_metadata
+        metadata_obj.status = "approved"
+        metadata_obj.save()
+
+        return redirect("project_detail", project_id=project.id)
+
+    return render(
+        request,
+        "review_metadata.html",
+        {
+            "project": project,
+            "table_name": table_name,
+            "metadata": metadata_obj,
+        },
+    )

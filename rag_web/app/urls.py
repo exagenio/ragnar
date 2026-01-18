@@ -24,4 +24,9 @@ urlpatterns = [
         views.metadata_generation,
         name="metadata_generation",
     ),
+    path(
+        "projects/<int:project_id>/metadata/<str:table_name>/review/",
+        views.review_metadata,
+        name="review_metadata",
+    ),
 ]

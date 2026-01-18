@@ -1,7 +1,7 @@
 from .llm_metadata_generator import generate_table_metadata
 from .column_introspector import get_table_columns
 from .row_sampler import sample_table_rows
-from ..models import Project, SelectedTable
+from ..models import Project, SelectedTable, TableMetadata
 
 
 def run_metadata_generation(project_id):
@@ -21,3 +21,11 @@ def run_metadata_generation(project_id):
 
         # TEMP: just print (later store in DB)
         print("METADATA RESULT:", metadata)
+        TableMetadata.objects.update_or_create(
+            project=project,
+            table_name=table.table_name,
+            defaults={
+                "generated_metadata": metadata,
+                "status": "completed",
+            },
+        )

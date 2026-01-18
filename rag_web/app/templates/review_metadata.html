@@ -1,0 +1,68 @@
+<h2>Review Metadata</h2>
+
+<p><strong>Project:</strong> {{ project.name }}</p>
+<p><strong>Table:</strong> {{ table_name }}</p>
+
+<form method="post" id="metadata-form">
+  {% csrf_token %}
+
+  <!-- TABLE DESCRIPTION -->
+  <h3>Table Description</h3>
+  <textarea name="table_description" rows="3" style="width:100%;">
+{{ metadata.generated_metadata.table_description }}
+  </textarea>
+
+  <hr>
+
+  <!-- COLUMN DESCRIPTIONS -->
+  <h3>Column Descriptions</h3>
+
+  <table border="1" cellpadding="8" cellspacing="0" width="100%">
+    <thead>
+      <tr>
+        <th>Column Name</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for col, desc in metadata.generated_metadata.columns.items %}
+      <tr>
+        <td><strong>{{ col }}</strong></td>
+        <td>
+          <textarea
+            name="column__{{ col }}"
+            rows="2"
+            style="width:100%;"
+          >{{ desc }}</textarea>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <hr>
+
+  <!-- CONFIDENCE NOTES -->
+  <h3>Confidence / Uncertainty Notes</h3>
+  <textarea name="confidence_notes" rows="4" style="width:100%;">
+{% for note in metadata.generated_metadata.confidence_notes %}
+- {{ note }}
+{% endfor %}
+  </textarea>
+
+  <hr>
+
+  <!-- ADVANCED JSON (OPTIONAL) -->
+  <details>
+    <summary><strong>Advanced: Raw JSON</strong></summary>
+    <textarea name="raw_json" rows="12" style="width:100%;">
+{{ metadata.generated_metadata|json_script:"raw_json_data" }}
+    </textarea>
+  </details>
+
+  <br><br>
+
+  <button type="submit">
+    Approve Metadata
+  </button>
+</form>

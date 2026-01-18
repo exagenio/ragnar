@@ -25,8 +25,24 @@
 </ul>
 {% endif %}
 
-<li>
-  <a href="{% url 'metadata_generation' project.id %}">
+<h3>Metadata Generation</h3>
+
+{% if project.metadata.exists %}
+    <ul>
+        {% for item in project.metadata.all %}
+            <li>
+                <strong>{{ item.table_name }}</strong> —
+                Status: {{ item.status }}
+                <a href="{% url 'review_metadata' project.id item.table_name %}">
+                    Review
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No metadata generated yet.</p>
+{% endif %}
+
+<a href="{% url 'metadata_generation' project.id %}">
     Generate Metadata (AI)
-  </a>
-</li>
+</a>
