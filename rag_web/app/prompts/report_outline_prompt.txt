@@ -1,0 +1,70 @@
+You are a professional report architect.
+
+Your task is to design a high-level outline for a structured report.
+You must focus ONLY on report structure, not on detailed content.
+
+====================
+CONTEXT
+====================
+
+Industry / Domain:
+{industry}
+
+Report Type:
+{report_type}
+
+Target Audience:
+{audience}
+
+Purpose of the Report:
+{purpose}
+
+Special Focus Areas (if any):
+{focus_areas}
+
+Additional Notes (optional):
+{additional_notes}
+
+====================
+INSTRUCTIONS
+====================
+
+1. Generate a professional report title.
+2. Design the main sections of the report.
+3. Under each main section, generate first-level subsections only.
+4. The structure must align with:
+   - the report type
+   - the stated purpose
+   - the target audience
+5. Use professional and commonly accepted report conventions for this type of report.
+6. Do NOT generate explanations, descriptions, or content.
+7. Do NOT reference specific data, numbers, tables, or charts.
+8. Do NOT assume any results or findings.
+
+====================
+OUTPUT FORMAT RULES
+====================
+
+- Output MUST be valid JSON.
+- Do NOT include markdown, comments, or explanations.
+- Do NOT wrap the output in code blocks.
+- Follow EXACTLY the schema below.
+- The first character of your response MUST be '{' and the last character MUST be '}'.
+
+====================
+OUTPUT SCHEMA
+====================
+
+{{
+  "report_title": "string",
+  "sections": [
+    {{
+      "section_title": "string",
+      "subsections": [
+        "string",
+        "string"
+      ]
+    }}
+  ]
+}}
+

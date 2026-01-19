@@ -29,4 +29,14 @@ urlpatterns = [
         views.review_metadata,
         name="review_metadata",
     ),
+    path(
+        "projects/<int:project_id>/report/start/",
+        views.start_report,
+        name="start_report",
+    ),
+    path(
+        "reports/<int:report_id>/outline/review/",
+        views.review_outline,
+        name="review_outline",
+    ),
 ]

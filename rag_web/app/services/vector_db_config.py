@@ -13,3 +13,4 @@ db = os.getenv("VECTOR_DB_NAME")
 VECTOR_DB_CONNECTION_STRING = (
     f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}"
 )
+

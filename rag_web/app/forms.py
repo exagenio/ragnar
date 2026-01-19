@@ -70,3 +70,18 @@ class TableSelectionForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["tables"].choices = table_choices
 
+from django import forms
+
+
+class ReportIntentForm(forms.Form):
+    industry = forms.CharField(max_length=100)
+    report_type = forms.CharField(max_length=150)
+    audience = forms.CharField(max_length=150)
+    purpose = forms.CharField(widget=forms.Textarea)
+    focus_areas = forms.CharField(
+        widget=forms.Textarea, required=False
+    )
+    additional_notes = forms.CharField(
+        widget=forms.Textarea, required=False
+    )
+

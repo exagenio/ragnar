@@ -1,0 +1,112 @@
+<h2>Review & Edit Report Outline</h2>
+
+<form method="post">
+  {% csrf_token %}
+
+  <h3>Report Title</h3>
+  <input
+    type="text"
+    name="report_title"
+    value="{{ outline.report_title }}"
+    style="width: 100%; font-size: 1.1em;"
+    required
+  />
+
+  <hr />
+
+  <div id="sections">
+    {% for section in outline.sections %}
+      <div class="section-block" data-section-index="{{ forloop.counter0 }}">
+        <h4>Section</h4>
+
+        <input
+          type="text"
+          name="section_title_{{ forloop.counter0 }}"
+          value="{{ section.section_title }}"
+          style="width: 100%;"
+          required
+        />
+
+        <ul>
+          {% for sub in section.subsections %}
+            <li>
+              <input
+                type="text"
+                name="sub_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
+                value="{{ sub }}"
+                style="width: 90%;"
+                required
+              />
+              <button type="button" onclick="removeItem(this)">✖</button>
+            </li>
+          {% endfor %}
+        </ul>
+
+        <button type="button" onclick="addSubsection(this)">
+          + Add Subsection
+        </button>
+
+        <button type="button" onclick="removeItem(this)">
+          Remove Section
+        </button>
+
+        <hr />
+      </div>
+    {% endfor %}
+  </div>
+
+  <button type="button" onclick="addSection()">+ Add Section</button>
+
+  <br /><br />
+
+  <button type="submit" name="action" value="save">
+    Save Changes
+  </button>
+
+  <button type="submit" name="action" value="approve">
+    Approve Outline
+  </button>
+</form>
+<script>
+function removeItem(button) {
+  button.closest("li, .section-block").remove();
+}
+
+function addSection() {
+  const sections = document.getElementById("sections");
+  const index = sections.children.length;
+
+  const div = document.createElement("div");
+  div.className = "section-block";
+  div.innerHTML = `
+    <h4>Section</h4>
+    <input type="text" name="section_title_${index}" placeholder="Section title" required />
+
+    <ul></ul>
+
+    <button type="button" onclick="addSubsection(this)">+ Add Subsection</button>
+    <button type="button" onclick="removeItem(this)">Remove Section</button>
+    <hr />
+  `;
+  sections.appendChild(div);
+}
+
+function addSubsection(button) {
+  const section = button.closest(".section-block");
+  const sectionIndex = [...section.parentNode.children].indexOf(section);
+  const ul = section.querySelector("ul");
+  const subIndex = ul.children.length;
+
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <input
+      type="text"
+      name="sub_${sectionIndex}_${subIndex}"
+      placeholder="Subsection title"
+      required
+    />
+    <button type="button" onclick="removeItem(this)">✖</button>
+  `;
+  ul.appendChild(li);
+}
+</script>

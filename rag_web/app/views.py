@@ -3,8 +3,13 @@ from django.contrib import messages
 import psycopg2
 from django.shortcuts import render, get_object_or_404
 
-from .models import Project, DBConnection
+from .models import Project, DBConnection,Report, ReportOutline
 from .forms import ProjectDBConnectionForm
+
+from .forms import ReportIntentForm
+from .models import Report, ReportOutline
+from .services.report_outline_generator import generate_report_outline
+
 
 
 def create_project_and_connect_db(request):
@@ -234,3 +239,137 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
+
+def start_report(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+
+    if request.method == "POST":
+        form = ReportIntentForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+
+            outline = generate_report_outline(data)
+
+            report = Report.objects.create(
+                project=project,
+                title=outline["report_title"],
+                industry=data["industry"],
+                report_type=data["report_type"],
+                audience=data["audience"],
+                purpose=data["purpose"],
+                focus_areas=data.get("focus_areas", ""),
+                additional_notes=data.get("additional_notes", ""),
+            )
+
+            ReportOutline.objects.create(
+                report=report,
+                outline_json=outline,
+            )
+
+            return redirect("review_outline", report_id=report.id)
+    else:
+        form = ReportIntentForm()
+
+    return render(
+        request,
+        "report_start.html",
+        {"project": project, "form": form},
+    )
+
+def review_outline(request, report_id):
+    report = get_object_or_404(Report, id=report_id)
+    outline_obj = report.outline
+    outline = outline_obj.outline_json
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        # 🔹 Handle SAVE (edit only)
+        if action == "save":
+            updated_outline = {
+                "report_title": request.POST.get("report_title", "").strip(),
+                "sections": [],
+            }
+
+            section_index = 0
+            while f"section_title_{section_index}" in request.POST:
+                section_title = request.POST.get(
+                    f"section_title_{section_index}", ""
+                ).strip()
+
+                if not section_title:
+                    section_index += 1
+                    continue
+
+                subsections = []
+                sub_index = 0
+                while f"sub_{section_index}_{sub_index}" in request.POST:
+                    sub_value = request.POST.get(
+                        f"sub_{section_index}_{sub_index}", ""
+                    ).strip()
+                    if sub_value:
+                        subsections.append(sub_value)
+                    sub_index += 1
+
+                updated_outline["sections"].append({
+                    "section_title": section_title,
+                    "subsections": subsections,
+                })
+
+                section_index += 1
+
+            outline_obj.outline_json = updated_outline
+            outline_obj.save()
+
+            messages.success(request, "Outline updated successfully.")
+            return redirect("review_outline", report_id=report.id)
+        # 🔹 Handle APPROVE
+        if action == "approve":
+            outline_obj.approved = True
+            outline_obj.save()
+
+            report.status = "outline_approved"
+            report.save()
+
+            messages.success(request, "Outline approved.")
+            return redirect("project_detail", project_id=report.project.id)
+
+    return render(
+        request,
+        "report_outline_review.html",
+        {
+            "report": report,
+            "outline": outline,
+        },
+    )
+
+def generate_subsection_topics_view(request, report_id, section_title, subsection_title):
+    report = get_object_or_404(Report, id=report_id)
+
+    context = {
+        "industry": report.industry,
+        "report_type": report.report_type,
+        "audience": report.audience,
+        "purpose": report.purpose,
+        "section_title": section_title,
+        "subsection_title": subsection_title,
+    }
+
+    result = generate_subsection_topics(context)
+
+    obj, _ = SubsectionTopics.objects.update_or_create(
+        report=report,
+        section_title=section_title,
+        subsection_title=subsection_title,
+        defaults={"topics_json": result}
+    )
+
+    return render(request, "subsection_topics_review.html", {
+        "report": report,
+        "topics": result["topics"],
+        "section_title": section_title,
+        "subsection_title": subsection_title,
+    })
+
+
+
