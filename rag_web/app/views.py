@@ -184,6 +184,8 @@ def metadata_generation(request, project_id):
 
 from .models import TableMetadata
 import json
+from .services.vector_store import get_vector_store
+from .services.metadata_to_documents import metadata_to_documents
 
 
 def review_metadata(request, project_id, table_name):
@@ -217,7 +219,10 @@ def review_metadata(request, project_id, table_name):
         metadata_obj.approved_metadata = approved_metadata
         metadata_obj.status = "approved"
         metadata_obj.save()
+        vector_store = get_vector_store()
+        docs = metadata_to_documents(metadata_obj)
 
+        vector_store.add_documents(docs)
         return redirect("project_detail", project_id=project.id)
 
     return render(
