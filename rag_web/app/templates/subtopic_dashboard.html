@@ -1,0 +1,54 @@
+
+
+{% block content %}
+<h2>Subtopic Dashboard</h2>
+
+<p>
+  <strong>Report:</strong> {{ report.report_title }}
+</p>
+
+<hr>
+
+{% if outline.sections %}
+  {% for section in outline.sections %}
+
+    <h3>{{ section.section_title }}</h3>
+
+    <ul>
+      {% for subsection in section.subsections %}
+        <li>
+          <strong>{{ subsection }}</strong>
+
+          {% with key=section.section_title|add:"|||"|add:subsection %}
+            {% if approved_lookup.key %}
+              —
+              <a href="{% url 'view_subsection_topics'
+                           project.id
+                           report.id
+                           section.section_title|slugify
+                           subsection|slugify %}">
+                View Topics
+              </a>
+            {% else %}
+              —
+              <a href="{% url 'generate_subsection_topics' project.id report.id section.section_title|slugify subsection|slugify %}">
+                Generate Topics
+              </a>
+            {% endif %}
+          {% endwith %}
+        </li>
+      {% endfor %}
+    </ul>
+
+  {% endfor %}
+{% else %}
+  <p>No outline sections found.</p>
+{% endif %}
+
+<hr>
+
+<a href="{% url 'project_detail' project.id %}">
+  ← Back to Project
+</a>
+
+{% endblock %}

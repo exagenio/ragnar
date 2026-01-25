@@ -2,14 +2,15 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 import psycopg2
 from django.shortcuts import render, get_object_or_404
+from django.utils.text import slugify
 
-from .models import Project, DBConnection,Report, ReportOutline
+from .models import Project, DBConnection, Report, ReportOutline
 from .forms import ProjectDBConnectionForm
 
 from .forms import ReportIntentForm
-from .models import Report, ReportOutline
+from .models import Report, ReportOutline, SubsectionTopics
 from .services.report_outline_generator import generate_report_outline
-
+from .services.subsection_topic_generator import generate_subsection_topics
 
 
 def create_project_and_connect_db(request):
@@ -65,8 +66,15 @@ def create_project_and_connect_db(request):
 
 def project_detail(request, project_id):
     project = get_object_or_404(Project, id=project_id)
-
-    return render(request, "project_detail.html", {"project": project})
+    reports = project.reports.all()
+    return render(
+        request,
+        "project_detail.html",
+        {
+            "project": project,
+            "reports": reports,
+        },
+    )
 
 
 from .models import Project, SelectedTable
@@ -167,13 +175,14 @@ from .services.row_sampler import sample_table_rows
 from .services.background_tasks import run_in_background
 from .services.metadata_job import run_metadata_generation
 
+
 def metadata_generation(request, project_id):
     project = get_object_or_404(Project, id=project_id)
 
     if not project.is_initialized:
-        return render(request, "error.html", {
-            "message": "Project is not initialized yet."
-        })
+        return render(
+            request, "error.html", {"message": "Project is not initialized yet."}
+        )
 
     run_in_background(run_metadata_generation, project.id)
 
@@ -183,9 +192,10 @@ def metadata_generation(request, project_id):
         {
             "project": project,
             "metadata_results": [],
-            "message": "Metadata generation started in background. Please wait."
-        }
+            "message": "Metadata generation started in background. Please wait.",
+        },
     )
+
 
 from .models import TableMetadata
 import json
@@ -240,6 +250,7 @@ def review_metadata(request, project_id, table_name):
         },
     )
 
+
 def start_report(request, project_id):
     project = get_object_or_404(Project, id=project_id)
 
@@ -276,6 +287,7 @@ def start_report(request, project_id):
         {"project": project, "form": form},
     )
 
+
 def review_outline(request, report_id):
     report = get_object_or_404(Report, id=report_id)
     outline_obj = report.outline
@@ -311,10 +323,12 @@ def review_outline(request, report_id):
                         subsections.append(sub_value)
                     sub_index += 1
 
-                updated_outline["sections"].append({
-                    "section_title": section_title,
-                    "subsections": subsections,
-                })
+                updated_outline["sections"].append(
+                    {
+                        "section_title": section_title,
+                        "subsections": subsections,
+                    }
+                )
 
                 section_index += 1
 
@@ -329,10 +343,13 @@ def review_outline(request, report_id):
             outline_obj.save()
 
             report.status = "outline_approved"
+            report.outline_approved = True
             report.save()
 
             messages.success(request, "Outline approved.")
-            return redirect("project_detail", project_id=report.project.id)
+            return redirect(
+                "subtopic_dashboard", project_id=report.project.id, report_id=report.id
+            )
 
     return render(
         request,
@@ -343,33 +360,151 @@ def review_outline(request, report_id):
         },
     )
 
-def generate_subsection_topics_view(request, report_id, section_title, subsection_title):
+
+def generate_subsection_topics_view(
+    request,
+    project_id,
+    report_id,
+    section,
+    subsection,
+):
     report = get_object_or_404(Report, id=report_id)
 
-    context = {
-        "industry": report.industry,
-        "report_type": report.report_type,
-        "audience": report.audience,
-        "purpose": report.purpose,
-        "section_title": section_title,
-        "subsection_title": subsection_title,
-    }
+    # 🔒 Guard: outline must be approved
+    if not report.outline_approved:
+        return render(request, "error.html", {
+            "message": "Outline must be approved before generating topics."
+        })
 
-    result = generate_subsection_topics(context)
+    # Normalize titles (important if you are using slugs in URLs)
+    section_title = section.replace("-", " ")
+    subsection_title = subsection.replace("-", " ")
 
-    obj, _ = SubsectionTopics.objects.update_or_create(
+    # Fetch or create SubsectionTopics object
+    obj, created = SubsectionTopics.objects.get_or_create(
         report=report,
         section_title=section_title,
         subsection_title=subsection_title,
-        defaults={"topics_json": result}
+        defaults={"topics_json": {"topics": []}},
     )
 
-    return render(request, "subsection_topics_review.html", {
-        "report": report,
-        "topics": result["topics"],
-        "section_title": section_title,
-        "subsection_title": subsection_title,
-    })
+    # ==========================
+    # POST → Save / Approve
+    # ==========================
+    if request.method == "POST":
+        action = request.POST.get("action")
 
+        topics = []
+        index = 0
+        while f"topic_{index}" in request.POST:
+            value = request.POST.get(f"topic_{index}", "").strip()
+            if value:
+                topics.append(value)
+            index += 1
 
+        obj.topics_json = {"topics": topics}
+
+        # 🔹 SAVE (stay on same page)
+        if action == "save":
+            obj.save()
+            messages.success(request, "Topics saved successfully.")
+
+            return redirect(
+                "generate_subsection_topics",
+                project_id=project_id,
+                report_id=report_id,
+                section=section,
+                subsection=subsection,
+            )
+
+        # 🔹 APPROVE (redirect to dashboard)
+        if action == "approve":
+            obj.is_approved = True
+            obj.save()
+            messages.success(request, "Topics approved.")
+
+            return redirect(
+                "subtopic_dashboard",
+                project_id=project_id,
+                report_id=report_id,
+            )
+
+    # ==========================
+    # GET → Generate if needed
+    # ==========================
+    if not obj.topics_json.get("topics"):
+        context = {
+            "industry": report.industry,
+            "report_type": report.report_type,
+            "audience": report.audience,
+            "purpose": report.purpose,
+            "section_title": section_title,
+            "subsection_title": subsection_title,
+        }
+
+        result = generate_subsection_topics(context)
+        obj.topics_json = result
+        obj.save()
+
+    return render(
+        request,
+        "subsection_topics_review.html",
+        {
+            "report": report,
+            "topics": obj.topics_json["topics"],
+            "section_title": section_title,
+            "subsection_title": subsection_title,
+            "is_approved": obj.is_approved,
+        },
+    )
+
+def subtopic_dashboard(request, project_id, report_id):
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+
+    outline = report.outline.outline_json
+
+    approved_qs = SubsectionTopics.objects.filter(
+        report=report,
+        is_approved=True
+    )
+
+    # Build lookup dict for template
+    approved_lookup = {
+        f"{obj.section_title}|||{obj.subsection_title}": True
+        for obj in approved_qs
+    }
+
+    return render(
+        request,
+        "subtopic_dashboard.html",
+        {
+            "project": project,
+            "report": report,
+            "outline": outline,
+            "approved_lookup": approved_lookup,
+        },
+    )
+
+def view_subsection_topics(request, project_id, report_id, section, subsection):
+    report = get_object_or_404(Report, id=report_id)
+
+    obj = get_object_or_404(
+        SubsectionTopics,
+        report=report,
+        section_title__iexact=section.replace("-", " "),
+        subsection_title__iexact=subsection.replace("-", " "),
+        is_approved=True,
+    )
+
+    return render(
+        request,
+        "subsection_topics_view.html",
+        {
+            "report": report,
+            "section": obj.section_title,
+            "subsection": obj.subsection_title,
+            "topics": obj.topics_json["topics"],
+        }
+    )
 

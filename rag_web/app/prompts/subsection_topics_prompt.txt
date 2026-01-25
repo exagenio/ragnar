@@ -20,6 +20,8 @@ Instructions:
 - DO NOT generate metrics or numbers
 - DO NOT assume availability of specific fields
 - Titles must be suitable as report headings
+- The first character of your response MUST be '{' and the last character MUST be '}'.
+
 
 Output format (STRICT JSON ONLY):
 

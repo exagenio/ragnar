@@ -39,4 +39,20 @@ urlpatterns = [
         views.review_outline,
         name="review_outline",
     ),
+    path(
+        "projects/<int:project_id>/report/<int:report_id>/topics/",
+        views.subtopic_dashboard,
+        name="subtopic_dashboard",
+    ),
+    path(
+        "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/",
+        views.generate_subsection_topics_view,
+        name="generate_subsection_topics",
+    ),
+    path(
+    "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/view/",
+    views.view_subsection_topics,
+    name="view_subsection_topics",
+),
+
 ]

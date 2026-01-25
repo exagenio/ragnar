@@ -1,0 +1,11 @@
+<h2>Approved Topics</h2>
+
+<h3>{{ section }} → {{ subsection }}</h3>
+
+<ul>
+  {% for topic in topics %}
+    <li>{{ topic }}</li>
+  {% endfor %}
+</ul>
+
+<a href="javascript:history.back()">← Back</a>

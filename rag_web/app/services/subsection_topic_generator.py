@@ -9,6 +9,21 @@ llm = ChatOllama(
     temperature=0.2,
 )
 
+import json
+import re
+
+
+def extract_json(text: str) -> dict:
+    """
+    Extract first JSON object from LLM output.
+    """
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        raise ValueError("No JSON object found in LLM response")
+
+    return json.loads(match.group(0))
+
+
 def generate_subsection_topics(context):
     prompt = PROMPT_PATH.read_text()
 
@@ -16,9 +31,9 @@ def generate_subsection_topics(context):
         prompt = prompt.replace(f"{{{{{key}}}}}", value)
 
     response = llm.invoke(prompt)
-    content = response.content.strip()
+    raw_output = response.content.strip()
 
     try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON returned from LLM")
+        return extract_json(raw_output)
+    except Exception as e:
+        raise ValueError(f"Invalid JSON returned from LLM: {e}")

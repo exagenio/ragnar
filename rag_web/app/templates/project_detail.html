@@ -46,3 +46,45 @@
 <a href="{% url 'metadata_generation' project.id %}">
     Generate Metadata (AI)
 </a>
+
+<h3>Reports</h3>
+
+{% if reports %}
+  <ul class="list-group">
+    {% for report in reports %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <strong>{{ report.title }}</strong><br>
+          <small>Status:
+            {% if report.outline_approved %}
+              Outline Approved
+            {% else %}
+              Draft
+            {% endif %}
+          </small>
+        </div>
+
+        <div class="btn-group">
+          <a
+            href="{% url 'review_outline' report.id %}"
+            class="btn btn-sm btn-outline-secondary"
+          >
+            Outline
+          </a>
+
+          {% if report.outline_approved %}
+            <a
+              href="{% url 'subtopic_dashboard' project.id report.id %}"
+              class="btn btn-sm btn-primary"
+            >
+              Topics
+            </a>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No reports created yet.</p>
+{% endif %}
+
