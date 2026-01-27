@@ -88,10 +88,6 @@ class TableMetadata(models.Model):
 
     def __str__(self):
         return f"{self.project.name} - {self.table_name} ({self.status})"
-    
-
-    from django.db import models
-
 
 class Report(models.Model):
     project = models.ForeignKey(
@@ -129,17 +125,49 @@ class ReportOutline(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-class SubsectionTopics(models.Model):
+class Section(models.Model):
     report = models.ForeignKey(
-        Report, on_delete=models.CASCADE, related_name="subsection_topics"
+        Report, on_delete=models.CASCADE, related_name="sections"
     )
-
-    section_title = models.CharField(max_length=255)
-    subsection_title = models.CharField(max_length=255)
-
-    topics_json = models.JSONField()
-    is_approved = models.BooleanField(default=False)
-
+    title = models.CharField(max_length=255)
+    is_sub_sec_appvroved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class SubSection(models.Model):
+    report = models.ForeignKey(
+        Report, on_delete=models.CASCADE, related_name="sub_sections"
+    )
+    section = models.ForeignKey(
+        Section, on_delete=models.CASCADE, related_name="sub_sections"
+    )
+    title = models.CharField(max_length=255)
+    is_topics_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TopicAnalysisPlan(models.Model):
+    report = models.ForeignKey(
+        Report, on_delete=models.CASCADE, related_name="topic_plans"
+    )
+    topic = models.OneToOneField(
+        "Topic",
+        on_delete=models.CASCADE,
+        related_name="analysis_plan",
+    )
+    plan_json = models.JSONField()
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class Topic(models.Model):
+    subsection = models.ForeignKey(
+        SubSection, on_delete=models.CASCADE, related_name="topics"
+    )
+    report = models.ForeignKey(
+        Report, on_delete=models.CASCADE, related_name="topics"
+    )
+    title = models.CharField(max_length=255)
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

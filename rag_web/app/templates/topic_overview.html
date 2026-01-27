@@ -1,0 +1,46 @@
+{% block content %}
+
+<h2>Topic Overview</h2>
+
+<p><strong>Report:</strong> {{ report.report_title }}</p>
+<hr>
+
+{% for section in outline.sections %}
+  <h3>{{ section.section_title }}</h3>
+
+  {% for subsection in section.subsections %}
+    <h4 style="margin-left:20px;">{{ subsection.title }}</h4>
+
+    {% if subsection.topics %}
+      <ul style="margin-left:40px;">
+        {% for topic in subsection.topics %}
+          <li>
+            {{ topic }}
+
+            {% with tkey=section.section_title|add:"|||"|add:subsection.title|add:"|||"|add:topic %}
+              {% if topic_plan_lookup.tkey %}
+                — <span style="color:green;">Plan exists</span>
+              {% else %}
+                — <span style="color:red;">No plan</span>
+              {% endif %}
+            {% endwith %}
+
+            —
+            <a href="{% url 'topic_analysis_plan' project.id report.id section.section_title|slugify subsection.title|slugify topic|slugify %}">
+              Open Topic Analysis
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="margin-left:40px; color:#999;">
+        No approved topics yet.
+      </p>
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+<hr>
+<a href="{% url 'subtopic_dashboard' project.id report.id %}">← Back</a>
+
+{% endblock %}

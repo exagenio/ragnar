@@ -44,15 +44,34 @@ urlpatterns = [
         views.subtopic_dashboard,
         name="subtopic_dashboard",
     ),
+    # path(
+    #     "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/",
+    #     views.generate_subsection_topics_view,
+    #     name="generate_subsection_topics",
+    # ),
+    # path(
+    #     "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/view/",
+    #     views.view_subsection_topics,
+    #     name="view_subsection_topics",
+    # ),
     path(
-        "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/",
-        views.generate_subsection_topics_view,
-        name="generate_subsection_topics",
+        "projects/<int:project_id>/report/<int:report_id>/topics/<int:topic_id>/plan/",
+        views.generate_topic_analysis_plan_view,
+        name="topic_analysis_plan",
     ),
     path(
-    "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/view/",
-    views.view_subsection_topics,
-    name="view_subsection_topics",
-),
-
+        "projects/<int:project_id>/report/<int:report_id>/topics/overview/",
+        views.topic_overview,
+        name="topic_overview",
+    ),
+    path(
+        "projects/<int:project_id>/report/<int:report_id>/subsections/<int:subsection_id>/topics/generate/",
+        views.generate_topics,
+        name="generate_topics",
+    ),
+    path(
+        "projects/<int:project_id>/report/<int:report_id>/subsections/<int:subsection_id>/topics/view/",
+        views.view_topics,
+        name="view_topics",
+    ),
 ]

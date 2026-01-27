@@ -82,9 +82,16 @@
           {% endif %}
         </div>
       </li>
+      <li>
+        <a href="{% url 'topic_overview' project.id report.id %}">
+          Topic Overview
+        </a>
+      </li>
+
     {% endfor %}
   </ul>
 {% else %}
   <p>No reports created yet.</p>
 {% endif %}
+
 

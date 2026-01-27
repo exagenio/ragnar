@@ -1,8 +1,8 @@
 import json
 import requests
 from pathlib import Path
-
 from .industry_guidance import get_industry_guidance
+from collections import defaultdict
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "llama3.1:8b"
@@ -32,15 +32,15 @@ def generate_report_outline(data: dict) -> dict:
 
     industry_guidance = get_industry_guidance(data["industry"])
 
-    prompt = prompt_template.format(
-        industry=data["industry"],
-        report_type=data["report_type"],
-        audience=data["audience"],
-        purpose=data["purpose"],
-        focus_areas=data.get("focus_areas", ""),
-        additional_notes=data.get("additional_notes", ""),
-        industry_guidance=industry_guidance,
-    )
+    prompt = prompt_template.format_map(defaultdict(str, {
+        "industry": data["industry"],
+        "report_type": data["report_type"],
+        "audience": data["audience"],
+        "purpose": data["purpose"],
+        "focus_areas": data.get("focus_areas", ""),
+        "additional_notes": data.get("additional_notes", ""),
+        "industry_guidance": industry_guidance,
+    }))
 
     payload = {
         "model": MODEL_NAME,

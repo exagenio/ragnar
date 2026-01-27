@@ -49,7 +49,7 @@ OUTPUT FORMAT RULES
 - Do NOT include markdown, comments, or explanations.
 - Do NOT wrap the output in code blocks.
 - Follow EXACTLY the schema below.
-- The first character of your response MUST be '{' and the last character MUST be '}'.
+- The first character of your response MUST be '{{' and the last character MUST be '}}'.
 
 ====================
 OUTPUT SCHEMA

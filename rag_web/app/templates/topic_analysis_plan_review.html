@@ -1,0 +1,96 @@
+{% block content %}
+
+<h2>Topic Analysis Plan</h2>
+
+<p>
+  <strong>Report:</strong> {{ report.title }}<br>
+  <strong>Section:</strong> {{ topic.subsection.section.title }}<br>
+  <strong>Subsection:</strong> {{ topic.subsection.title }}<br>
+  <strong>Topic:</strong> {{ topic.title }}
+</p>
+
+<hr>
+
+<form method="post">
+  {% csrf_token %}
+
+  <h3>Intent</h3>
+  <textarea name="intent" rows="3" style="width:100%;">{{ plan.intent }}</textarea>
+
+  <h3>Required Elements</h3>
+  <ul id="required_elements">
+    {% for el in plan.required_elements %}
+      <li>
+        <input type="text" name="required_elements_{{ forloop.counter0 }}"
+               value="{{ el }}" style="width:90%;">
+        <button type="button" onclick="this.parentElement.remove()">✖</button>
+      </li>
+    {% endfor %}
+  </ul>
+  <button type="button" onclick="addItem('required_elements')">+ Add</button>
+
+  <h3>Business Questions</h3>
+  <ul id="business_questions">
+    {% for q in plan.business_questions %}
+      <li>
+        <input type="text" name="business_questions_{{ forloop.counter0 }}"
+               value="{{ q }}" style="width:90%;">
+        <button type="button" onclick="this.parentElement.remove()">✖</button>
+      </li>
+    {% endfor %}
+  </ul>
+  <button type="button" onclick="addItem('business_questions')">+ Add</button>
+
+  <h3>Data Requirements</h3>
+<textarea name="data_requirements"
+          rows="10"
+          style="width:100%; font-family: monospace;">
+{{ data_requirements_json }}
+</textarea>
+  <p style="color:#777;font-size:0.9em;">
+    JSON array — editable
+  </p>
+
+  <h3>Visual Requirements</h3>
+  <ul id="visual_requirements">
+    {% for v in plan.visual_requirements %}
+      <li>
+        <input type="text" name="visual_requirements_{{ forloop.counter0 }}"
+               value="{{ v }}" style="width:90%;">
+        <button type="button" onclick="this.parentElement.remove()">✖</button>
+      </li>
+    {% endfor %}
+  </ul>
+  <button type="button" onclick="addItem('visual_requirements')">+ Add</button>
+
+  <hr>
+
+  <button type="submit" name="action" value="save">
+    💾 Save Changes
+  </button>
+
+  <button type="submit" name="action" value="approve"
+          style="margin-left:15px;background:#2e7d32;color:white;">
+    ✅ Approve Plan
+  </button>
+
+  <a href="{% url 'subtopic_dashboard' project.id report.id %}"
+     style="margin-left:15px;">
+    Cancel
+  </a>
+</form>
+
+<script>
+function addItem(listId) {
+  const ul = document.getElementById(listId);
+  const index = ul.children.length;
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <input type="text" name="${listId}_${index}" style="width:90%;">
+    <button type="button" onclick="this.parentElement.remove()">✖</button>
+  `;
+  ul.appendChild(li);
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,64 @@
+{% block content %}
+
+<h2>Review Topics</h2>
+
+<h3>
+  {{ section.title }} → {{ subsection.title }}
+</h3>
+
+<form method="post">
+  {% csrf_token %}
+
+  <ul id="topics">
+    {% for topic in topics %}
+      <li>
+        <input
+          type="text"
+          name="topic_{{ forloop.counter0 }}"
+          value="{{ topic.title }}"
+          style="width: 80%;"
+          required
+        />
+        <button type="button" onclick="removeItem(this)">✖</button>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <button type="button" onclick="addTopic()">+ Add Topic</button>
+
+  <br /><br />
+
+  <button type="submit" name="action" value="save">
+    Save Changes
+  </button>
+
+  <button type="submit" name="action" value="approve">
+    Approve Topics
+  </button>
+</form>
+
+<script>
+function removeItem(button) {
+  button.closest("li").remove();
+}
+
+function addTopic() {
+  const ul = document.getElementById("topics");
+  const index = ul.children.length;
+
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <input
+      type="text"
+      name="topic_${index}"
+      placeholder="Topic title"
+      style="width: 80%;"
+      required
+    />
+    <button type="button" onclick="removeItem(this)">✖</button>
+  `;
+  ul.appendChild(li);
+}
+</script>
+
+{% endblock %}
