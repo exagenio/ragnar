@@ -74,4 +74,10 @@ urlpatterns = [
         views.view_topics,
         name="view_topics",
     ),
+    path(
+    "projects/<int:project_id>/report/<int:report_id>/topics/<int:topic_id>/content/",
+    views.generate_topic_content_view,
+    name="topic_content",
+    )
+
 ]

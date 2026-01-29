@@ -4,15 +4,20 @@
 
 <ul>
   {% for topic in topics %}
-    <li>
-      {{ topic.title }}
-      —
-      <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}">
-        Open Analysis Plan
-      </a>
-    </li>
+  <li>
+    {{ topic.title }} —
+    <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}">
+      Open Analysis Plan
+    </a>
+    {% if topic.analysis_plan and topic.analysis_plan.is_approved %} —
+    <a
+      href="{% url 'topic_content' project.id report.id topic.id %}">
+      Generate Content
+    </a>
+    {% endif %}
+  </li>
   {% empty %}
-    <li>No approved topics yet.</li>
+  <li>No approved topics yet.</li>
   {% endfor %}
 </ul>
 

@@ -171,3 +171,26 @@ class Topic(models.Model):
     title = models.CharField(max_length=255)
     is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TopicContent(models.Model):
+    topic = models.OneToOneField(
+        Topic,
+        on_delete=models.CASCADE,
+        related_name="content"
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("draft", "Draft"),
+            ("in_progress", "In Progress"),
+            ("generated", "Generated"),
+            ("approved", "Approved"),
+        ],
+        default="draft"
+    )
+    iteration_count = models.IntegerField(default=0)
+    content_json = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+

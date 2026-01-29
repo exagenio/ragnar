@@ -16,7 +16,7 @@ from .models import (
 from .forms import ProjectDBConnectionForm
 
 from .forms import ReportIntentForm, TableSelectionForm
-from .models import Report, ReportOutline, TopicAnalysisPlan, Section, SubSection
+from .models import Report, ReportOutline, TopicAnalysisPlan, Section, SubSection, TopicContent
 from .services.report_outline_generator import generate_report_outline
 from .services.subsection_topic_generator import generate_subsection_topics
 from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
@@ -712,3 +712,45 @@ def topic_overview(request, project_id, report_id):
             "outline": outline,
         },
     )
+
+def generate_topic_content_view(
+    request,
+    project_id,
+    report_id,
+    topic_id,
+):
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+    topic = get_object_or_404(Topic, id=topic_id, report=report)
+
+    # Guardrails
+    if not topic.is_approved:
+        return render(request, "error.html", {
+            "message": "Topic must be approved before content generation."
+        })
+
+    if not hasattr(topic, "analysis_plan") or not topic.analysis_plan.is_approved:
+        return render(request, "error.html", {
+            "message": "Topic analysis plan must be approved first."
+        })
+
+    content_obj, _ = TopicContent.objects.get_or_create(
+        topic=topic,
+        defaults={
+            "content_json": {},
+            "status": "draft",
+        }
+    )
+
+    return render(
+        request,
+        "topic_content_generation.html",
+        {
+            "project": project,
+            "report": report,
+            "topic": topic,
+            "content": content_obj,
+        },
+    )
+
+
