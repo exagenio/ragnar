@@ -713,6 +713,13 @@ def topic_overview(request, project_id, report_id):
         },
     )
 
+from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib import messages
+
+from .models import Project, Report, Topic, TopicContent
+from .services.topic_content_generator import generate_topic_content
+
+
 def generate_topic_content_view(
     request,
     project_id,
@@ -723,7 +730,9 @@ def generate_topic_content_view(
     report = get_object_or_404(Report, id=report_id)
     topic = get_object_or_404(Topic, id=topic_id, report=report)
 
+    # ------------------------
     # Guardrails
+    # ------------------------
     if not topic.is_approved:
         return render(request, "error.html", {
             "message": "Topic must be approved before content generation."
@@ -739,9 +748,50 @@ def generate_topic_content_view(
         defaults={
             "content_json": {},
             "status": "draft",
+            "iteration_count": 0,
         }
     )
 
+    # ------------------------
+    # POST → Generate / Continue
+    # ------------------------
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "generate":
+            content_obj.status = "in_progress"
+            content_obj.save()
+
+            result = generate_topic_content(
+                project_id=project.id,
+                industry=report.industry,
+                report_type=report.report_type,
+                audience=report.audience,
+                purpose=report.purpose,
+                section_title=topic.subsection.section.title,
+                subsection_title=topic.subsection.title,
+                topic_title=topic.title,
+                topic_plan=topic.analysis_plan.plan_json,
+                existing_content=content_obj.content_json or None,
+            )
+
+            print(result)
+
+            content_obj.content_json = result
+            content_obj.iteration_count = result.get("iteration_count", 0)
+            content_obj.status = result.get("status", "draft")
+            content_obj.save()
+
+            messages.success(
+                request,
+                f"Content generation iteration {content_obj.iteration_count} completed."
+            )
+
+            return redirect(request.path)
+
+    # ------------------------
+    # GET → Render
+    # ------------------------
     return render(
         request,
         "topic_content_generation.html",

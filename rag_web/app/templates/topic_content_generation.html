@@ -1,27 +1,69 @@
+{% block content %}
+
 <h2>Topic Content Generation</h2>
 
 <p>
-  <strong>Topic:</strong> {{ topic.title }} <br />
-  <strong>Status:</strong> {{ content.status }}
+  <strong>Topic:</strong> {{ topic.title }}<br>
+  <strong>Status:</strong> {{ content.status }}<br>
+  <strong>Iterations:</strong> {{ content.iteration_count }}
 </p>
 
-<hr />
+<hr>
 
-{% if content.content_json %}
-<pre style="background: #f5f5f5; padding: 15px">
-{{ content.content_json|safe }}
-  </pre
->
+{% if content.content_json.sections %}
+  {% for section in content.content_json.sections %}
+    <h3>{{ section.heading }}</h3>
+
+    {% for block in section.content_blocks %}
+      {% if block.type == "paragraph" %}
+        <p>{{ block.content }}</p>
+
+      {% elif block.type == "bullet_list" %}
+        <ul>
+          {% for item in block.content %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+
+      {% elif block.type == "sql_placeholder" %}
+        <pre style="background:#fff3cd; padding:10px;">
+{{ block.content }}
+        </pre>
+
+      {% elif block.type == "visual_placeholder" %}
+        <pre style="background:#e3f2fd; padding:10px;">
+{{ block.content }}
+        </pre>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
 {% else %}
-<p>No content generated yet.</p>
+  <p style="color:#777;">No content generated yet.</p>
 {% endif %}
+
+<hr>
 
 <form method="post">
   {% csrf_token %}
-  <button type="submit" name="action" value="generate">
-    ▶ Generate Content
-  </button>
+
+  {% if content.status != "generated" %}
+    <button type="submit"
+            name="action"
+            value="generate"
+            style="padding:10px 18px;">
+      ▶ Run Next Iteration
+    </button>
+  {% else %}
+    <p style="color:green;">
+      ✅ Content generation complete.
+    </p>
+  {% endif %}
 </form>
-<a href="{% url 'view_topics' project.id report.id topic.subsection_id %}">
-  ← Back
+
+<br>
+
+<a href="{% url 'view_topics' project.id report.id topic.subsection.id %}">
+  ← Back to Topics
 </a>
+
+{% endblock %}

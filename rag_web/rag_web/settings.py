@@ -133,3 +133,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+if not GOOGLE_API_KEY:
+    raise RuntimeError("GOOGLE_API_KEY is not set in environment variables")
+
+
+# Default behavior (can be changed per request)
+DEFAULT_LLM_BACKEND = "cloud"   # or "local"
+
