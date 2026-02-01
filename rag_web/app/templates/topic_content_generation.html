@@ -41,6 +41,25 @@
   <p style="color:#777;">No content generated yet.</p>
 {% endif %}
 
+{% if limitations %}
+<hr>
+
+<div style="
+  border: 1px solid #f5c6cb;
+  background: #fff5f5;
+  padding: 14px 18px;
+  border-radius: 6px;
+">
+  <strong>⚠ Data & Analysis Limitations</strong>
+  <ul style="margin-top: 10px;">
+    {% for item in limitations %}
+      <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+
 <hr>
 
 <form method="post">

@@ -789,6 +789,11 @@ def generate_topic_content_view(
 
             return redirect(request.path)
 
+    limitations = (
+    content_obj.content_json.get("limitations", [])
+    if content_obj.content_json
+    else []
+    )
     # ------------------------
     # GET → Render
     # ------------------------
@@ -800,6 +805,7 @@ def generate_topic_content_view(
             "report": report,
             "topic": topic,
             "content": content_obj,
+            "limitations": limitations,
         },
     )
 
