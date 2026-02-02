@@ -5,7 +5,6 @@
 <p>
   <strong>Topic:</strong> {{ topic.title }}<br>
   <strong>Status:</strong> {{ content.status }}<br>
-  <strong>Iterations:</strong> {{ content.iteration_count }}
 </p>
 
 <hr>
@@ -15,26 +14,50 @@
     <h3>{{ section.heading }}</h3>
 
     {% for block in section.content_blocks %}
-      {% if block.type == "paragraph" %}
-        <p>{{ block.content }}</p>
+      {% with section_index=forloop.parentloop.counter0 block_index=forloop.counter0 %}
 
-      {% elif block.type == "bullet_list" %}
-        <ul>
-          {% for item in block.content %}
-            <li>{{ item }}</li>
-          {% endfor %}
-        </ul>
+        {% if block.type == "paragraph" %}
+          <p>{{ block.content }}</p>
 
-      {% elif block.type == "sql_placeholder" %}
-        <pre style="background:#fff3cd; padding:10px;">
+        {% elif block.type == "bullet_list" %}
+          <ul>
+            {% for item in block.content %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+
+        {% elif block.type == "sql_placeholder" %}
+
+          {# ================================ #}
+          {# SQL PLACEHOLDER (HIDDEN IF DONE) #}
+          {# ================================ #}
+
+          {% if not block.generated_result or block.generated_result.status != "ok" %}
+
+            <pre style="background:#fff3cd; padding:10px;">
 {{ block.content }}
-        </pre>
+            </pre>
 
-      {% elif block.type == "visual_placeholder" %}
-        <pre style="background:#e3f2fd; padding:10px;">
+            <form method="post" style="margin-top:6px;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="compute_sql">
+              <input type="hidden" name="section_index" value="{{ section_index }}">
+              <input type="hidden" name="block_index" value="{{ block_index }}">
+              <button type="submit" style="padding:6px 12px;">
+                ⚙ Compute
+              </button>
+            </form>
+
+          {% endif %}
+
+        {% elif block.type == "visual_placeholder" %}
+          <pre style="background:#e3f2fd; padding:10px;">
 {{ block.content }}
-        </pre>
-      {% endif %}
+          </pre>
+
+        {% endif %}
+
+      {% endwith %}
     {% endfor %}
   {% endfor %}
 {% else %}
@@ -59,12 +82,10 @@
 </div>
 {% endif %}
 
-
 <hr>
 
 <form method="post">
   {% csrf_token %}
-
   {% if content.status != "generated" %}
     <button type="submit"
             name="action"
@@ -73,9 +94,7 @@
       ▶ Run Next Iteration
     </button>
   {% else %}
-    <p style="color:green;">
-      ✅ Content generation complete.
-    </p>
+    <p style="color:green;">✅ Content generation complete.</p>
   {% endif %}
 </form>
 

@@ -3,6 +3,9 @@ from django.contrib import messages
 import psycopg2
 from django.shortcuts import render, get_object_or_404
 from django.utils.text import slugify
+from app.services.sql_agent import generate_sql_from_placeholder
+from app.services.sql_executor import execute_sql_safely
+
 
 from .models import (
     Project,
@@ -16,13 +19,21 @@ from .models import (
 from .forms import ProjectDBConnectionForm
 
 from .forms import ReportIntentForm, TableSelectionForm
-from .models import Report, ReportOutline, TopicAnalysisPlan, Section, SubSection, TopicContent
+from .models import (
+    Report,
+    ReportOutline,
+    TopicAnalysisPlan,
+    Section,
+    SubSection,
+    TopicContent,
+)
 from .services.report_outline_generator import generate_report_outline
 from .services.subsection_topic_generator import generate_subsection_topics
 from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
 
 from .services.schema_introspector import get_tables
 from .services.column_introspector import get_table_columns
+from app.services.sql_result_interpreter import interpret_sql_result
 
 
 def create_project_and_connect_db(request):
@@ -567,7 +578,7 @@ def generate_topic_analysis_plan_view(
     # ==========================
     # POST → Approve existing plan
     # ==========================
-    print("request method = ",request.method)
+    print("request method = ", request.method)
     if request.method == "POST":
         action = request.POST.get("action")
 
@@ -620,7 +631,6 @@ def generate_topic_analysis_plan_view(
             report_id=report.id,
         )
 
-
     # ==========================
     # GET → Generate or load plan
     # ==========================
@@ -657,9 +667,8 @@ def generate_topic_analysis_plan_view(
             "topic": topic,
             "plan": plan,
             "data_requirements_json": json.dumps(
-            plan.get("data_requirements", []),
-            indent=2
-        ),
+                plan.get("data_requirements", []), indent=2
+            ),
             "is_approved": plan_obj.is_approved,
         },
     )
@@ -713,6 +722,7 @@ def topic_overview(request, project_id, report_id):
         },
     )
 
+
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 
@@ -734,14 +744,18 @@ def generate_topic_content_view(
     # Guardrails
     # ------------------------
     if not topic.is_approved:
-        return render(request, "error.html", {
-            "message": "Topic must be approved before content generation."
-        })
+        return render(
+            request,
+            "error.html",
+            {"message": "Topic must be approved before content generation."},
+        )
 
     if not hasattr(topic, "analysis_plan") or not topic.analysis_plan.is_approved:
-        return render(request, "error.html", {
-            "message": "Topic analysis plan must be approved first."
-        })
+        return render(
+            request,
+            "error.html",
+            {"message": "Topic analysis plan must be approved first."},
+        )
 
     content_obj, _ = TopicContent.objects.get_or_create(
         topic=topic,
@@ -749,7 +763,7 @@ def generate_topic_content_view(
             "content_json": {},
             "status": "draft",
             "iteration_count": 0,
-        }
+        },
     )
 
     # ------------------------
@@ -784,15 +798,83 @@ def generate_topic_content_view(
 
             messages.success(
                 request,
-                f"Content generation iteration {content_obj.iteration_count} completed."
+                f"Content generation iteration {content_obj.iteration_count} completed.",
             )
 
             return redirect(request.path)
 
+        if action == "compute_sql":
+            print("start compute sql")
+            section_index = int(request.POST.get("section_index"))
+            block_index = int(request.POST.get("block_index"))
+            content_json = content_obj.content_json
+            sections = content_json.get("sections", [])
+            sql_block = None
+            try:
+                sql_block = sections[section_index]["content_blocks"][block_index]
+            except (IndexError, KeyError, TypeError):
+                messages.error(request, "Invalid SQL placeholder reference.")
+                return redirect(request.path)
+
+            if sql_block.get("type") != "sql_placeholder":
+                messages.error(request, "Selected block is not a SQL placeholder.")
+                return redirect(request.path)
+            
+            tables = SelectedTable.objects.filter(project=project)
+
+            schema_context = []
+            for t in tables:
+                columns = get_table_columns(project.db_connection, t.table_name)
+                schema_context.append(
+                    {
+                        "table": t.table_name,
+                        "columns": [
+                            {"name": col["name"], "type": col["type"]} for col in columns
+                        ],
+                    }
+                )
+
+            generated_sql = generate_sql_from_placeholder(
+                sql_placeholder=sql_block,
+                metadata_context=content_json.get("metadata_context"),
+                database_schema=schema_context,
+            )
+            print("\ngenerated sql query = ", generated_sql)
+            result = execute_sql_safely(
+                generated_sql["sql"],
+                project_id=project.id,
+                expected_result_type=generated_sql["result_type"],
+            )
+            print("\nresult = ", result)
+            blocks = sections[section_index]["content_blocks"]
+            previous_block = blocks[block_index - 1]
+            if block_index == 0 or blocks[block_index - 1]["type"] != "paragraph":
+                messages.error(request, "No paragraph found to attach SQL result.")
+                return redirect(request.path)
+
+            interpreted_text = interpret_sql_result(
+                draft_paragraph=previous_block["content"],
+                computed_result=result,
+            )
+
+
+            # Replace blocks
+            previous_block["content"] = interpreted_text
+            sql_block["generated_result"] = {
+                "status": "ok",
+                "value": result["result"],
+                "row_count": result.get("row_count"),
+            }
+            sql_block["computed"] = True
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            messages.success(request, "SQL calculation completed.")
+            # return redirect(request.path)
     limitations = (
-    content_obj.content_json.get("limitations", [])
-    if content_obj.content_json
-    else []
+        content_obj.content_json.get("limitations", [])
+        if content_obj.content_json
+        else []
     )
     # ------------------------
     # GET → Render
@@ -808,5 +890,3 @@ def generate_topic_content_view(
             "limitations": limitations,
         },
     )
-
-
