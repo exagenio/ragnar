@@ -11,20 +11,21 @@ from app.services.llm_provider import (
 )
 
 
-SQL_AGENT_PROMPT_PATH = (
-    settings.BASE_DIR / "app" / "prompts" / "sql_agent_prompt.txt"
-)
+SQL_AGENT_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "sql_agent_prompt.txt"
 
 
 # ==========================
 # PUBLIC ENTRY POINT
 # ==========================
 
+
 def generate_sql_from_placeholder(
     *,
     sql_placeholder: Dict[str, Any],
     metadata_context: Dict,
     database_schema: Dict,
+    query_intent: str = "metric",
+    visual_context: Dict | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict:
     """
@@ -52,17 +53,25 @@ def generate_sql_from_placeholder(
         calculation_description=parsed["description"],
         metadata_context=metadata_context,
         database_schema=database_schema,
+        query_intent=query_intent,
+        visual_context=visual_context,
     )
 
     response = llm.invoke(prompt)
     raw_text = response.content.strip()
 
-    return _extract_json_or_fail(raw_text)
+    result = _extract_json_or_fail(raw_text)
+
+    if query_intent == "visual" and result.get("result_type") != "table":
+        raise ValueError("Visual SQL must return a table result")
+
+    return result
 
 
 # ==========================
 # PROMPT RENDERING
 # ==========================
+
 
 def _render_sql_agent_prompt(
     *,
@@ -71,6 +80,8 @@ def _render_sql_agent_prompt(
     calculation_description: str,
     metadata_context: Dict,
     database_schema: Dict,
+    query_intent: str,
+    visual_context: Dict | None,
 ) -> str:
     """
     Render SQL agent prompt using plain-text replacement.
@@ -84,7 +95,25 @@ def _render_sql_agent_prompt(
         "calculation_description": calculation_description,
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
+        "query_intent": query_intent,
+        "visual_x_axis": visual_context.get("x_axis", "") if visual_context else "",
+        "visual_y_axis": visual_context.get("y_axis", "") if visual_context else "",
     }
+
+    if query_intent == "visual" and visual_context:
+        replacements.update(
+            {
+                "visual_type": visual_context.get("type", ""),
+                "visual_purpose": visual_context.get("purpose", ""),
+            }
+        )
+    else:
+        replacements.update(
+            {
+                "visual_type": "",
+                "visual_purpose": "",
+            }
+        )
 
     prompt = prompt_template
     for key, value in replacements.items():
@@ -96,6 +125,7 @@ def _render_sql_agent_prompt(
 # ==========================
 # JSON SAFETY
 # ==========================
+
 
 def _extract_json_or_fail(raw_text: str) -> Dict:
     """
@@ -113,6 +143,7 @@ def _extract_json_or_fail(raw_text: str) -> Dict:
         )
 
     return json.loads(match.group())
+
 
 def parse_sql_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
     """
@@ -136,3 +167,42 @@ def parse_sql_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
         "description": extract("description"),
     }
 
+
+def generate_sql_from_visual_plan(
+    *,
+    visual_plan: Dict[str, Any],
+    metadata_context: Dict,
+    database_schema: Dict,
+    backend: LLMBackend | None = None,
+) -> Dict:
+    """
+    Convert a visual_plan.sql_request into an executable SQL query
+    using the SAME SQL agent prompt.
+    """
+
+    backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
+
+    llm = get_llm(
+        backend=backend,
+        model_size=ModelSize.PRIMARY,
+        temperature=0,
+    )
+
+    sql_request = visual_plan.get("sql_request")
+    if not sql_request:
+        raise ValueError("Visual plan missing sql_request")
+
+    prompt = _render_sql_agent_prompt(
+        calculation_id="visual_query",
+        calculation_expression=sql_request,
+        calculation_description="SQL required to generate visual data",
+        metadata_context=metadata_context,
+        database_schema=database_schema,
+        query_intent="visual",
+        visual_context=visual_plan["visual_spec"],
+    )
+
+    response = llm.invoke(prompt)
+    raw_text = response.content.strip()
+
+    return _extract_json_or_fail(raw_text)

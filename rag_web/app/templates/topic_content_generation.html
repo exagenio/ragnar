@@ -50,12 +50,32 @@
 
           {% endif %}
 
-        {% elif block.type == "visual_placeholder" %}
-          <pre style="background:#e3f2fd; padding:10px;">
-{{ block.content }}
-          </pre>
+{% elif block.type == "visual_placeholder" %}
 
-        {% endif %}
+  {% if not block.generated_visual or block.generated_visual.status != "ok" %}
+    <pre style="background:#e3f2fd; padding:10px;">
+{{ block.content }}
+    </pre>
+
+    <form method="post" style="margin-top:6px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="compute_visual">
+      <input type="hidden" name="section_index" value="{{ section_index }}">
+      <input type="hidden" name="block_index" value="{{ block_index }}">
+      <button type="submit" style="padding:6px 12px;">
+        📊 Compute Visual
+      </button>
+    </form>
+
+  {% else %}
+    <img
+      src="{{ block.generated_visual.image_path }}"
+      style="max-width:100%; margin-top:10px;"
+    />
+  {% endif %}
+
+{% endif %}
+
 
       {% endwith %}
     {% endfor %}

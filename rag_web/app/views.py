@@ -34,6 +34,11 @@ from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
 from .services.schema_introspector import get_tables
 from .services.column_introspector import get_table_columns
 from app.services.sql_result_interpreter import interpret_sql_result
+from app.services.visual_agent import generate_visual_plan
+from app.services.visual_renderer import render_visual
+from app.services.sql_agent import generate_sql_from_visual_plan
+from pathlib import Path
+from django.conf import settings
 
 
 def create_project_and_connect_db(request):
@@ -871,6 +876,102 @@ def generate_topic_content_view(
 
             messages.success(request, "SQL calculation completed.")
             # return redirect(request.path)
+    
+        if action == "compute_visual":
+            section_index = int(request.POST.get("section_index"))
+            block_index = int(request.POST.get("block_index"))
+
+            content_json = content_obj.content_json
+            sections = content_json.get("sections", [])
+
+            try:
+                visual_block = sections[section_index]["content_blocks"][block_index]
+            except (IndexError, KeyError, TypeError):
+                messages.error(request, "Invalid visual placeholder reference.")
+                return redirect(request.path)
+
+            if visual_block.get("type") != "visual_placeholder":
+                messages.error(request, "Selected block is not a visual placeholder.")
+                return redirect(request.path)
+
+            # -------------------------
+            # Build schema context (same as SQL)
+            # -------------------------
+            tables = SelectedTable.objects.filter(project=project)
+
+            schema_context = []
+            for t in tables:
+                columns = get_table_columns(project.db_connection, t.table_name)
+                schema_context.append({
+                    "table": t.table_name,
+                    "columns": [{"name": c["name"], "type": c["type"]} for c in columns],
+                })
+
+            # -------------------------
+            # Call Visual Agent
+            # -------------------------
+            visual_plan = generate_visual_plan(
+                visual_placeholder=visual_block,
+                topic_plan=topic.analysis_plan.plan_json,
+                metadata_context=content_json.get("metadata_context"),
+                database_schema=schema_context,
+            )
+
+            if visual_plan["status"] != "ok":
+                visual_block["generated_visual"] = visual_plan
+                content_obj.save()
+                messages.warning(request, "Visual could not be generated.")
+                return redirect(request.path)
+
+            # -------------------------
+            # Use SQL Agent for visual data
+            # -------------------------
+            sql_response = generate_sql_from_visual_plan(
+                visual_plan=visual_plan,
+                metadata_context=content_json.get("metadata_context"),
+                database_schema=schema_context,
+            )
+            print("sql plan for visual = ",sql_response)
+
+            sql_result = execute_sql_safely(
+                sql_response["sql"],
+                project_id=project.id,
+                expected_result_type="table",
+            )
+            print("sql query = ",sql_result)
+
+            # -------------------------
+            # Save visual result (NO rendering yet)
+            # -------------------------
+            relative_path = (
+                Path("generated_visuals")
+                / f"project_{project.id}"
+                / f"topic_{topic.id}"
+                / f"section_{section_index}_block_{block_index}.png"
+            )
+
+            output_path = Path(settings.MEDIA_ROOT) / relative_path
+
+            render_result = render_visual(
+                visual_spec=visual_plan["visual_spec"],
+                sql_result=sql_result["result"],
+                output_path=output_path,
+            )
+
+            visual_block["generated_visual"] = {
+                "status": "ok",
+                "visual_spec": visual_plan["visual_spec"],
+                "image_path": f"{settings.MEDIA_URL}{relative_path.as_posix()}",
+                "row_count": sql_result["row_count"],
+            }
+
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            messages.success(request, "Visual data prepared successfully.")
+            return redirect(request.path)
+
     limitations = (
         content_obj.content_json.get("limitations", [])
         if content_obj.content_json
