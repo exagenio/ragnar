@@ -59,7 +59,13 @@ def generate_visual_plan(
     response = llm.invoke(prompt)
     raw_text = response.content.strip()
 
-    return _extract_json_or_fail(raw_text)
+    result = _extract_json_or_fail(raw_text)
+
+    if result.get("status") == "ok":
+        result["visual_spec"] = _normalize_visual_spec(result["visual_spec"])
+
+    return result
+
 
 
 # ==========================
@@ -108,9 +114,12 @@ def parse_visual_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
 
     # Content may already be parsed / structured
     if isinstance(raw, dict):
+        if not raw.get("type") or not raw.get("purpose"):
+            raise ValueError("Structured VISUAL placeholder missing type or purpose")
+
         return {
-            "type": raw.get("type"),
-            "purpose": raw.get("purpose"),
+            "type": raw["type"],
+            "purpose": raw["purpose"],
         }
 
     if not isinstance(raw, str) or not raw.strip().startswith("{{VISUAL"):
@@ -148,3 +157,40 @@ def _extract_json_or_fail(raw_text: str) -> Dict[str, Any]:
         )
 
     return json.loads(match.group())
+
+def _normalize_visual_spec(visual_spec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize visual_spec to a strict, renderer-safe schema.
+    """
+
+    if not visual_spec:
+        raise ValueError("visual_spec is missing")
+
+    # ---- Normalize x-axis ----
+    x_col = visual_spec.get("x_axis_column")
+    if not isinstance(x_col, str) or not x_col.strip():
+        raise ValueError("x_axis_column must be a non-empty string")
+
+    # ---- Normalize y-axes ----
+    y_cols = visual_spec.get("y_axis_columns")
+
+    if isinstance(y_cols, str):
+        y_cols = [y_cols]
+
+    if not isinstance(y_cols, list) or not y_cols:
+        raise ValueError("y_axis_columns must be a non-empty list")
+
+    for c in y_cols:
+        if not isinstance(c, str):
+            raise ValueError("Each y_axis_columns item must be a string")
+
+    # ---- Enforce final structure ----
+    visual_spec["x_axis_column"] = x_col
+    visual_spec["y_axis_columns"] = y_cols
+
+    # Optional fields safety
+    visual_spec.setdefault("series", None)
+    visual_spec.setdefault("notes", None)
+
+    return visual_spec
+

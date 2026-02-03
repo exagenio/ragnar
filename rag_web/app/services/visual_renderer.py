@@ -23,8 +23,8 @@ def render_visual(
     {
         "type": "line_chart" | "bar_chart" | "pie_chart" | "table",
         "title": "string",
-        "x_axis": "column_name",
-        "y_axis": "column_name"
+        "x_axis_column": "column_name",
+        "y_axis_columns": ["column_name_1", "column_name_2", ...]
     }
 
     sql_result example:
@@ -39,33 +39,31 @@ def render_visual(
 
     df = pd.DataFrame(sql_result["rows"], columns=sql_result["columns"])
 
-    # --- Normalize column aliases to visual_spec ---
-    rename_map = {}
+    # --- Extract axis info (support both old and new formats) ---
+    x_axis = visual_spec.get("x_axis_column") or visual_spec.get("x_axis")
 
-    if visual_spec.get("x_axis"):
-        for col in df.columns:
-            if col.lower().replace("_", " ") == visual_spec["x_axis"].lower():
-                rename_map[col] = visual_spec["x_axis"]
-
-    if visual_spec.get("y_axis"):
-        for col in df.columns:
-            if col.lower().replace("_", " ") == visual_spec["y_axis"].lower():
-                rename_map[col] = visual_spec["y_axis"]
-
-    df = df.rename(columns=rename_map)
-
-
+    # Handle y_axis_columns (new format) or y_axis (old format)
+    y_axis_columns = visual_spec.get("y_axis_columns")
+    if not y_axis_columns:
+        # Backward compatibility: if old format exists, convert to list
+        old_y = visual_spec.get("y_axis")
+        y_axis_columns = [old_y] if old_y else []
+    elif isinstance(y_axis_columns, str):
+        # Normalize: if string provided, convert to list
+        y_axis_columns = [y_axis_columns]
 
     chart_type = visual_spec.get("type")
     title = visual_spec.get("title", "")
-    x = visual_spec.get("x_axis")
-    y = visual_spec.get("y_axis")
-    print("chart type = ",chart_type,"\n\n\n\n\n")
+
+    print("chart type = ", chart_type)
+    print("x_axis = ", x_axis)
+    print("y_axis_columns = ", y_axis_columns)
+
     fig = _build_figure(
         chart_type=chart_type,
         df=df,
-        x=x,
-        y=y,
+        x=x_axis,
+        y_columns=y_axis_columns,
         title=title,
     )
 
@@ -89,24 +87,62 @@ def _build_figure(
     chart_type: str,
     df: pd.DataFrame,
     x: str | None,
-    y: str | None,
+    y_columns: list[str] | None,
     title: str,
 ):
     """
     Build a Plotly figure based on chart type.
+    Supports multiple y-axis columns for line and bar charts.
     """
 
+    if not y_columns:
+        y_columns = []
+
     if chart_type == "line_chart":
-        _require_columns(df, [x, y])
-        fig = px.line(df, x=x, y=y, title=title)
+        _require_columns(df, [x] + y_columns)
+
+        # If multiple y-columns, use Plotly's multi-line support
+        if len(y_columns) == 1:
+            fig = px.line(df, x=x, y=y_columns[0], title=title)
+        else:
+            # Multiple y-axes: pass list of columns
+            fig = go.Figure()
+            for y_col in y_columns:
+                fig.add_trace(go.Scatter(
+                    x=df[x],
+                    y=df[y_col],
+                    mode='lines+markers',
+                    name=y_col
+                ))
+            fig.update_layout(title=title, xaxis_title=x)
 
     elif chart_type == "bar_chart":
-        _require_columns(df, [x, y])
-        fig = px.bar(df, x=x, y=y, title=title)
+        _require_columns(df, [x] + y_columns)
+
+        # If multiple y-columns, create grouped bar chart
+        if len(y_columns) == 1:
+            fig = px.bar(df, x=x, y=y_columns[0], title=title)
+        else:
+            # Multiple y-axes: create grouped bars
+            fig = go.Figure()
+            for y_col in y_columns:
+                fig.add_trace(go.Bar(
+                    x=df[x],
+                    y=df[y_col],
+                    name=y_col
+                ))
+            fig.update_layout(
+                title=title,
+                xaxis_title=x,
+                barmode='group'
+            )
 
     elif chart_type == "pie_chart":
-        _require_columns(df, [x, y])
-        fig = px.pie(df, names=x, values=y, title=title)
+        # Pie charts only support ONE metric
+        if len(y_columns) != 1:
+            raise ValueError(f"Pie chart requires exactly one y-axis column, got {len(y_columns)}")
+        _require_columns(df, [x, y_columns[0]])
+        fig = px.pie(df, names=x, values=y_columns[0], title=title)
 
     elif chart_type == "table":
         fig = go.Figure(

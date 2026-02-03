@@ -916,7 +916,7 @@ def generate_topic_content_view(
                 metadata_context=content_json.get("metadata_context"),
                 database_schema=schema_context,
             )
-
+            print("visual plan = ", visual_plan)
             if visual_plan["status"] != "ok":
                 visual_block["generated_visual"] = visual_plan
                 content_obj.save()
@@ -931,14 +931,14 @@ def generate_topic_content_view(
                 metadata_context=content_json.get("metadata_context"),
                 database_schema=schema_context,
             )
-            print("sql plan for visual = ",sql_response)
+            print("generate_sql_from_visual_plan = ",sql_response)
 
             sql_result = execute_sql_safely(
                 sql_response["sql"],
                 project_id=project.id,
                 expected_result_type="table",
             )
-            print("sql query = ",sql_result)
+            print("execute_sql_safely = ",sql_result)
 
             # -------------------------
             # Save visual result (NO rendering yet)

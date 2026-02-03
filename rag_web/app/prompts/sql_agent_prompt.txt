@@ -103,27 +103,49 @@ STRICT RULES (MANDATORY)
 9. If the request CANNOT be expressed with the available schema:
    - DO NOT guess
    - Return a structured failure response (see below).
-10.Column Alias Contract (MANDATORY):
+10. Column Alias Contract (MANDATORY – VISUAL ONLY):
 
-   For VISUAL queries:
-   - The SQL output MUST contain EXACTLY these aliases:
+   This rule applies ONLY when:
+   Intent = VISUAL
 
-   X-axis column alias:
-   {{visual_x_axis}}
+   The SQL output MUST expose columns with EXACT aliases
+   matching the visualization specification.
 
-   Y-axis column alias:
-   {{visual_y_axis}}
+   X-axis column aliases:
+   {{visual_x_axis_column}}
+
+   Y-axis column aliases:
+   {{visual_y_axis_columns}}
 
    Rules:
    - You MUST use these aliases EXACTLY
-   - Do NOT rename, abbreviate, snake_case, or infer alternatives
-   - Example:
-   AS "{{visual_x_axis}}"
-   AS "{{visual_y_axis}}"
+   - Preserve spelling, casing, and spacing
+   - Do NOT rename, abbreviate, or infer alternatives
+   - Each alias MUST appear in the SELECT clause
 
-Time Range Handling (ABSOLUTE):
+   Examples:
 
-11.For VISUAL queries:
+   If:
+   X-axis columns = ["Month"]
+   Y-axis columns = ["Total Sales Revenue"]
+
+   Then:
+   SELECT
+   DATE_TRUNC('month', "Date") AS "Month",
+   SUM("Sales_Amount") AS "Total Sales Revenue"
+
+   If multiple Y axes:
+   Y-axis columns = ["Average Unit Price", "Total Quantity Sold"]
+
+   Then:
+   SELECT
+   DATE_TRUNC('week', "Date") AS "Week",
+   AVG("Unit_Price") AS "Average Unit Price",
+   SUM("Quantity") AS "Total Quantity Sold"
+
+11.Time Range Handling (ABSOLUTE):
+
+  For VISUAL queries:
    - You MUST NEVER use CURRENT_DATE, NOW(), or system time functions
    - You MUST NEVER assume a rolling window (e.g. last 12 months)
    - If time aggregation is needed:
@@ -133,21 +155,21 @@ Time Range Handling (ABSOLUTE):
    - If no explicit time filter is required:
       - DO NOT include a WHERE clause at all
 
-POSTGRESQL DATE HANDLING (MANDATORY):
+12.POSTGRESQL DATE HANDLING (MANDATORY):
 
-- You MUST use PostgreSQL-compatible date arithmetic.
-- You MUST NOT use DATE(date, interval) or MySQL-style date functions.
-- To subtract time:
-    - Use: column - INTERVAL '1 year'
-    - Use: column - INTERVAL '12 months'
-- To truncate dates:
-    - Use: DATE_TRUNC('month', column)
-- Valid examples:
-    - MAX("Date") - INTERVAL '1 year'
-    - DATE_TRUNC('month', MAX("Date")) - INTERVAL '11 months'
-- Invalid examples (DO NOT USE):
-    - DATE(MAX("Date"), '-1 year')
-    - DATE_SUB(...)
+   - You MUST use PostgreSQL-compatible date arithmetic.
+   - You MUST NOT use DATE(date, interval) or MySQL-style date functions.
+   - To subtract time:
+      - Use: column - INTERVAL '1 year'
+      - Use: column - INTERVAL '12 months'
+   - To truncate dates:
+      - Use: DATE_TRUNC('month', column)
+   - Valid examples:
+      - MAX("Date") - INTERVAL '1 year'
+      - DATE_TRUNC('month', MAX("Date")) - INTERVAL '11 months'
+   - Invalid examples (DO NOT USE):
+      - DATE(MAX("Date"), '-1 year')
+      - DATE_SUB(...)
 
 
 ========================

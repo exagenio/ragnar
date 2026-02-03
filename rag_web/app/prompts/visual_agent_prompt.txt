@@ -61,11 +61,37 @@ STRICT RULES (MANDATORY)
 1. You MUST NOT invent tables, columns, joins, or metrics.
 2. You MUST NOT compute values.
 3. You MUST NOT include SQL directly.
-4. You MUST describe SQL needs using BUSINESS EXPRESSIONS only.
+4. You MUST describe SQL needs using BUSINESS EXPRESSIONS,
+   BUT you MUST ALSO specify EXACT SQL COLUMN ALIASES
+   for x_axis_column and y_axis_columns.
 5. The SQL plan MUST be executable using a standard SQL agent.
 6. Use EXACT identifier names as shown in schema (case-sensitive).
 7. If a visual CANNOT be produced with available data:
    - Return a structured failure response.
+
+========================
+CRITICAL AXIS RULES:
+========================
+
+- x_axis_column MUST be:
+  - a SINGLE string
+  - an EXACT SQL column alias
+  - NOT a sentence
+  - NOT a description
+
+- y_axis_columns MUST be:
+  - an ARRAY of strings
+  - each item MUST be an EXACT SQL column alias
+
+- The following are INVALID as axis columns:
+  - explanations
+  - sentences
+  - design notes
+  - business descriptions
+
+- These axis columns will be used DIRECTLY by:
+  - the SQL agent (AS "alias")
+  - the visualization renderer
 
 ========================
 VISUAL DESIGN RULES
@@ -75,17 +101,16 @@ Depending on the visual type:
 
 LINE CHART:
 - X-axis MUST represent time or ordered progression
-- Y-axis MUST represent a numeric metric
-- Avoid multiple Y-axes unless essential
+- One or more Y-axis metrics are allowed
+- All Y-axis metrics MUST share the same X-axis
 
 BAR CHART:
 - X-axis MUST represent a category
-- Y-axis MUST represent a numeric metric
-- Limit categories to a reasonable number
+- One or more Y-axis metrics are allowed
 
 PIE CHART:
-- Use ONLY when parts form a meaningful whole
-- Avoid if too many categories
+- Exactly ONE numeric metric is allowed
+- Multiple metrics are NOT allowed
 
 TABLE:
 - Use when precise values are important
@@ -117,8 +142,10 @@ If the visual is possible:
 
   "visual_spec": {
     "type": "line_chart | bar_chart | pie_chart | table",
-    "x_axis": "Business meaning of X axis",
-    "y_axis": "Business meaning of Y axis",
+    "x_axis_label": "Human-readable axis label",
+    "y_axis_labels": ["Human-readable label 1", "Human-readable label 2"],
+    "x_axis_column": "EXACT SQL column alias",
+    "y_axis_columns": ["EXACT SQL column alias 1", "EXACT SQL column alias 2"],
     "series": "Optional grouping dimension or null",
     "notes": "Optional design guidance or null"
   }
