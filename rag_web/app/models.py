@@ -194,3 +194,24 @@ class TopicContent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
+class SubSectionContent(models.Model):
+    subsection = models.OneToOneField(
+        SubSection,
+        on_delete=models.CASCADE,
+        related_name="content"
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("draft", "Draft"),
+            ("in_progress", "In Progress"),
+            ("generated", "Generated"),
+            ("approved", "Approved"),
+        ],
+        default="draft"
+    )
+    content_json = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+

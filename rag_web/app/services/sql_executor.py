@@ -42,7 +42,6 @@ FORBIDDEN_KEYWORDS = {
     "revoke",
     "commit",
     "rollback",
-    "union",
     ";",
 }
 

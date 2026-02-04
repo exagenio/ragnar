@@ -16,6 +16,7 @@ from .models import (
     SelectedTable,
     Section,
     SubSection,
+    Topic,
 )
 from .forms import ProjectDBConnectionForm
 
@@ -27,10 +28,12 @@ from .models import (
     Section,
     SubSection,
     TopicContent,
+    SubSectionContent,
 )
 from .services.report_outline_generator import generate_report_outline
 from .services.subsection_topic_generator import generate_subsection_topics
 from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
+from .services.sub_section_content_generator import generate_subsection_content
 
 from .services.schema_introspector import get_tables
 from .services.column_introspector import get_table_columns
@@ -560,6 +563,12 @@ def view_topics(request, project_id, report_id, subsection_id):
 
     topics = subsection.topics.filter(is_approved=True)
 
+    # Check if all topics have generated content
+    all_topics_have_content = all(
+        hasattr(topic, 'content') and topic.content.status == 'generated'
+        for topic in topics
+    )
+
     return render(
         request,
         "topics_list.html",
@@ -568,6 +577,7 @@ def view_topics(request, project_id, report_id, subsection_id):
             "report": report,
             "subsection": subsection,
             "topics": topics,
+            "all_topics_have_content": all_topics_have_content,
         },
     )
 
@@ -1009,5 +1019,105 @@ def generate_topic_content_view(
             "topic": topic,
             "content": content_obj,
             "limitations": limitations,
+        },
+    )
+
+
+def generate_subsection_content_view(
+    request,
+    project_id,
+    report_id,
+    subsection_id,
+):
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+    subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
+
+    # ------------------------
+    # Guardrails
+    # ------------------------
+    topics = subsection.topics.filter(is_approved=True)
+
+    if not topics.exists():
+        return render(
+            request,
+            "error.html",
+            {"message": "No approved topics found for this subsection."},
+        )
+
+    # Check if all topics have generated content
+    all_topics_have_content = all(
+        hasattr(topic, 'content') and topic.content.status == 'generated'
+        for topic in topics
+    )
+
+    if not all_topics_have_content:
+        return render(
+            request,
+            "error.html",
+            {"message": "All topics must have generated content before creating subsection content."},
+        )
+
+    # Get or create subsection content object
+    content_obj, _ = SubSectionContent.objects.get_or_create(
+        subsection=subsection,
+        defaults={
+            "content_json": {},
+            "status": "draft",
+        },
+    )
+
+    # ------------------------
+    # POST → Generate
+    # ------------------------
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "generate":
+            content_obj.status = "in_progress"
+            content_obj.save()
+
+            # Collect all topics' element_progress data
+            topics_progress = {}
+            for topic in topics:
+                if hasattr(topic, 'content') and topic.content.content_json:
+                    element_progress = topic.content.content_json.get('element_progress', {})
+                    topics_progress[topic.title] = element_progress
+
+            # Generate subsection content
+            result = generate_subsection_content(
+                project_id=project.id,
+                industry=report.industry,
+                report_type=report.report_type,
+                audience=report.audience,
+                purpose=report.purpose,
+                report_title=report.title,
+                section_title=subsection.section.title,
+                subsection_title=subsection.title,
+                topics_progress=topics_progress,
+            )
+
+            content_obj.content_json = result
+            content_obj.status = "generated"
+            content_obj.save()
+
+            messages.success(
+                request,
+                "Subsection content generated successfully.",
+            )
+
+            return redirect(request.path)
+
+    # ------------------------
+    # GET → Render
+    # ------------------------
+    return render(
+        request,
+        "subsection_content_generation.html",
+        {
+            "project": project,
+            "report": report,
+            "subsection": subsection,
+            "content": content_obj,
         },
     )

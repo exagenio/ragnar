@@ -9,9 +9,20 @@
             <h2 class="text-2xl font-semibold text-gray-900">Approved Topics</h2>
             <p class="text-sm text-gray-600 mt-1">{{ subsection.title }}</p>
         </div>
-        <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            ← Back to Dashboard
-        </a>
+        <div class="flex items-center gap-3">
+            {% if all_topics_have_content %}
+            <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
+                Generate Subsection Content
+            </a>
+            {% else %}
+            <button disabled class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-300 rounded-lg cursor-not-allowed" title="Complete all topic content generation first">
+                Generate Subsection Content
+            </button>
+            {% endif %}
+            <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                ← Back to Dashboard
+            </a>
+        </div>
     </div>
 
     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
