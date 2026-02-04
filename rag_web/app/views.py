@@ -29,11 +29,13 @@ from .models import (
     SubSection,
     TopicContent,
     SubSectionContent,
+    SectionContent,
 )
 from .services.report_outline_generator import generate_report_outline
 from .services.subsection_topic_generator import generate_subsection_topics
 from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
 from .services.sub_section_content_generator import generate_subsection_content
+from .services.section_content_generator import generate_section_content
 
 from .services.schema_introspector import get_tables
 from .services.column_introspector import get_table_columns
@@ -544,6 +546,14 @@ def subtopic_dashboard(request, project_id, report_id):
         .prefetch_related("sub_sections__topics")
         .order_by("created_at")
     )
+
+    # Check if all subsections have generated content for each section
+    for section in sections:
+        subsections = section.sub_sections.all()
+        section.all_subsections_have_content = all(
+            hasattr(subsection, 'content') and subsection.content.status == 'generated'
+            for subsection in subsections
+        ) if subsections.exists() else False
 
     return render(
         request,
@@ -1118,6 +1128,105 @@ def generate_subsection_content_view(
             "project": project,
             "report": report,
             "subsection": subsection,
+            "content": content_obj,
+        },
+    )
+
+
+def generate_section_content_view(
+    request,
+    project_id,
+    report_id,
+    section_id,
+):
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+    section = get_object_or_404(Section, id=section_id, report=report)
+
+    # ------------------------
+    # Guardrails
+    # ------------------------
+    subsections = section.sub_sections.all()
+
+    if not subsections.exists():
+        return render(
+            request,
+            "error.html",
+            {"message": "No subsections found for this section."},
+        )
+
+    # Check if all subsections have generated content
+    all_subsections_have_content = all(
+        hasattr(subsection, 'content') and subsection.content.status == 'generated'
+        for subsection in subsections
+    )
+
+    if not all_subsections_have_content:
+        return render(
+            request,
+            "error.html",
+            {"message": "All subsections must have generated content before creating section content."},
+        )
+
+    # Get or create section content object
+    content_obj, _ = SectionContent.objects.get_or_create(
+        section=section,
+        defaults={
+            "content_json": {},
+            "status": "draft",
+        },
+    )
+
+    # ------------------------
+    # POST → Generate
+    # ------------------------
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "generate":
+            content_obj.status = "in_progress"
+            content_obj.save()
+
+            # Collect all subsections' key_themes data
+            subsections_themes = {}
+            for subsection in subsections:
+                if hasattr(subsection, 'content') and subsection.content.content_json:
+                    key_themes = subsection.content.content_json.get('key_themes', [])
+                    subsections_themes[subsection.title] = key_themes
+
+            # Generate section content
+            result = generate_section_content(
+                project_id=project.id,
+                industry=report.industry,
+                report_type=report.report_type,
+                audience=report.audience,
+                purpose=report.purpose,
+                report_title=report.title,
+                section_title=section.title,
+                subsections_themes=subsections_themes,
+            )
+
+            content_obj.content_json = result
+            content_obj.status = "generated"
+            content_obj.save()
+
+            messages.success(
+                request,
+                "Section content generated successfully.",
+            )
+
+            return redirect(request.path)
+
+    # ------------------------
+    # GET → Render
+    # ------------------------
+    return render(
+        request,
+        "section_content_generation.html",
+        {
+            "project": project,
+            "report": report,
+            "section": section,
             "content": content_obj,
         },
     )

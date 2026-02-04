@@ -155,6 +155,43 @@ def _build_figure(
         )
         fig.update_layout(title=title)
 
+    elif chart_type == "combo_chart":
+        _require_columns(df, [x] + y_columns)
+
+        if len(y_columns) < 2:
+            raise ValueError("Combo chart requires at least two y-axis columns")
+
+        fig = go.Figure()
+
+        # First metric → Bar
+        fig.add_trace(
+            go.Bar(
+                x=df[x],
+                y=df[y_columns[0]],
+                name=y_columns[0],
+                yaxis="y",
+            )
+        )
+
+        # Remaining metrics → Line
+        for y_col in y_columns[1:]:
+            fig.add_trace(
+                go.Scatter(
+                    x=df[x],
+                    y=df[y_col],
+                    mode="lines+markers",
+                    name=y_col,
+                    yaxis="y",
+                )
+            )
+
+        fig.update_layout(
+            title=title,
+            xaxis_title=x,
+            yaxis_title="Value",
+        )
+
+
     else:
         raise ValueError(f"Unsupported visual type: {chart_type}")
 

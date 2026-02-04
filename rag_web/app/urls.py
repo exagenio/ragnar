@@ -82,6 +82,11 @@ urlpatterns = [
         name="generate_subsection_content",
     ),
     path(
+        "projects/<int:project_id>/report/<int:report_id>/sections/<int:section_id>/content/generate/",
+        views.generate_section_content_view,
+        name="generate_section_content",
+    ),
+    path(
     "projects/<int:project_id>/report/<int:report_id>/topics/<int:topic_id>/content/",
     views.generate_topic_content_view,
     name="topic_content",
