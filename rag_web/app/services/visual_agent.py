@@ -161,17 +161,28 @@ def _extract_json_or_fail(raw_text: str) -> Dict[str, Any]:
 def _normalize_visual_spec(visual_spec: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize visual_spec to a strict, renderer-safe schema.
+    Handles different requirements for tables vs charts.
     """
 
     if not visual_spec:
         raise ValueError("visual_spec is missing")
 
-    # ---- Normalize x-axis ----
-    x_col = visual_spec.get("x_axis_column")
-    if not isinstance(x_col, str) or not x_col.strip():
-        raise ValueError("x_axis_column must be a non-empty string")
+    # Get visual type
+    visual_type = visual_spec.get("type", "").lower()
 
-    # ---- Normalize y-axes ----
+    # ---- Normalize x-axis (only required for charts, not tables) ----
+    x_col = visual_spec.get("x_axis_column")
+
+    if visual_type == "table":
+        # Tables don't need x_axis_column
+        visual_spec["x_axis_column"] = None
+    else:
+        # Charts require x_axis_column
+        if not isinstance(x_col, str) or not x_col.strip():
+            raise ValueError("x_axis_column must be a non-empty string for chart types")
+        visual_spec["x_axis_column"] = x_col
+
+    # ---- Normalize y-axes / columns ----
     y_cols = visual_spec.get("y_axis_columns")
 
     if isinstance(y_cols, str):
@@ -184,8 +195,6 @@ def _normalize_visual_spec(visual_spec: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(c, str):
             raise ValueError("Each y_axis_columns item must be a string")
 
-    # ---- Enforce final structure ----
-    visual_spec["x_axis_column"] = x_col
     visual_spec["y_axis_columns"] = y_cols
 
     # Optional fields safety

@@ -873,12 +873,12 @@ def generate_topic_content_view(
             print("\nresult = ", result)
             blocks = sections[section_index]["content_blocks"]
             previous_block = blocks[block_index - 1]
-            if block_index == 0 or blocks[block_index - 1]["type"] != "paragraph":
-                messages.error(request, "No paragraph found to attach SQL result.")
+            if block_index == 0 or blocks[block_index - 1]["type"] not in ["paragraph", "bullet_list"]:
+                messages.error(request, "No paragraph or bullet list found to attach SQL result.")
                 return redirect(request.path)
 
             interpreted_text = interpret_sql_result(
-                draft_paragraph=previous_block["content"],
+                draft_content=previous_block["content"],
                 computed_result=result,
             )
 

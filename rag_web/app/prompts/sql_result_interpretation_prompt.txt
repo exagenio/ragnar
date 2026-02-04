@@ -1,30 +1,27 @@
 You are a senior business analyst writing executive-level reports.
 
-Your task is to integrate a COMPUTED FACT into an existing draft paragraph
-so that the insight reads naturally and professionally.
+Your task is to integrate a COMPUTED FACT into existing draft content
+(either a paragraph or a bullet list) so that the insight reads naturally and professionally.
 
 You must:
 - Preserve the original meaning and structure
-- Insert the value smoothly into the narrative
+- If the content is a paragraph, insert the value smoothly into the narrative
+- If the content is a bullet list, integrate the value into the appropriate bullet point(s)
 - Maintain an analytical, executive tone
 - Avoid repetition or over-explaining
 - Avoid technical or SQL-related language
 - Avoid inventing new insights
 
 ========================
-DRAFT PARAGRAPH
+DRAFT CONTENT
 ========================
 
-{{draft_paragraph}}
+{{draft_content}}
 
 ========================
 COMPUTED FACT
 ========================
 
-Metric ID:
-{{metric_id}}
-
-Computed Value:
 {{computed_value}}
 
 ========================
@@ -36,12 +33,14 @@ WRITING RULES
 - Do NOT restate metric definitions
 - Do NOT speculate beyond the provided value
 - Use natural phrasing (e.g., "approximately", "around") where appropriate
+- For bullet lists: maintain the bullet format and integrate values within appropriate bullets
+- For paragraphs: weave the value naturally into the narrative flow
 
 ========================
 OUTPUT
 ========================
 
-Return ONLY the revised paragraph text.
+Return ONLY the revised content text (paragraph or bullet list).
 Do NOT include quotes.
 Do NOT include JSON.
 Do NOT include explanations.
