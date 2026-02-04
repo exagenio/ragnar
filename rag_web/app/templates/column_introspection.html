@@ -1,37 +1,47 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Column Introspection</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-<h2>Column Introspection</h2>
-<p>Project: <strong>{{ project.name }}</strong></p>
+{% block title %}Column Introspection{% endblock %}
 
-{% for table in schema_info %}
-    <h3>Table: {{ table.table_name }}</h3>
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900">Column Introspection</h2>
+            <p class="text-sm text-gray-600 mt-1">Project: <span class="font-medium text-gray-900">{{ project.name }}</span></p>
+        </div>
+        <a href="{% url 'project_detail' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            ← Back to Project
+        </a>
+    </div>
 
-    <table border="1" cellpadding="5">
-        <tr>
-            <th>Column Name</th>
-            <th>Data Type</th>
-            <th>Nullable</th>
-        </tr>
-
-        {% for col in table.columns %}
-        <tr>
-            <td>{{ col.name }}</td>
-            <td>{{ col.type }}</td>
-            <td>{{ col.nullable }}</td>
-        </tr>
+    <div class="space-y-6">
+        {% for table in schema_info %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">{{ table.table_name }}</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Column Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nullable</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for col in table.columns %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ col.name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ col.type }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ col.nullable }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
         {% endfor %}
-    </table>
-{% endfor %}
-
-<br>
-<a href="{% url 'project_detail' project.id %}">
-    Back to Project
-</a>
-
-</body>
-</html>
+    </div>
+</div>
+{% endblock %}

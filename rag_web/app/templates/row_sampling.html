@@ -1,41 +1,54 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Row Sampling</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-<h2>Row Sampling</h2>
-<p>Project: <strong>{{ project.name }}</strong></p>
+{% block title %}Row Sampling{% endblock %}
 
-{% for table in sampled_data %}
-    <h3>Table: {{ table.table_name }}</h3>
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900">Row Sampling</h2>
+            <p class="text-sm text-gray-600 mt-1">Project: <span class="font-medium text-gray-900">{{ project.name }}</span></p>
+        </div>
+        <a href="{% url 'project_detail' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            ← Back to Project
+        </a>
+    </div>
 
-    {% if table.rows %}
-        <table border="1" cellpadding="5">
-            <tr>
-                {% for key in table.rows.0.keys %}
-                    <th>{{ key }}</th>
-                {% endfor %}
-            </tr>
+    <div class="space-y-6">
+        {% for table in sampled_data %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">{{ table.table_name }}</h3>
+            </div>
 
-            {% for row in table.rows %}
-            <tr>
-                {% for value in row.values %}
-                    <td>{{ value }}</td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </table>
-    {% else %}
-        <p><em>No rows found.</em></p>
-    {% endif %}
-{% endfor %}
-
-<br>
-<a href="{% url 'project_detail' project.id %}">
-    Back to Project
-</a>
-
-</body>
-</html>
+            {% if table.rows %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            {% for key in table.rows.0.keys %}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ key }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for row in table.rows %}
+                        <tr class="hover:bg-gray-50">
+                            {% for value in row.values %}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ value }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500 italic">No rows found.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

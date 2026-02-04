@@ -1,97 +1,115 @@
-<h2>{{ project.name }}</h2>
+{% extends "base.html" %}
 
-<p>{{ project.description }}</p>
+{% block title %}{{ project.name }}{% endblock %}
 
-{% if not project.is_initialized %}
-<a href="{% url 'select_tables' project.id %}">
-  Select Tables for This Project
-</a>
-{% else %}
-<p><strong>Project ready for metadata generation.</strong></p>
-{% endif %} {% if project.is_initialized %}
-<a href="{% url 'column_introspection' project.id %}">
-  View Column Introspection
-</a>
-{% endif %} {% if project.is_initialized %}
-<ul>
-  <li>
-    <a href="{% url 'column_introspection' project.id %}">
-      View Column Introspection
-    </a>
-  </li>
-  <li>
-    <a href="{% url 'row_sampling' project.id %}"> View Sample Rows </a>
-  </li>
-</ul>
-{% endif %}
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h2 class="text-3xl font-semibold text-gray-900">{{ project.name }}</h2>
+        <p class="text-gray-600 mt-2">{{ project.description }}</p>
+    </div>
 
-<h3>Metadata Generation</h3>
+    {% if not project.is_initialized %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-sm text-blue-800 mb-3">Project setup is not complete. Please select tables to continue.</p>
+        <a href="{% url 'select_tables' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+            Select Tables for This Project
+        </a>
+    </div>
+    {% else %}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+        <p class="text-sm text-green-800">Project ready for metadata generation.</p>
+    </div>
+    {% endif %}
 
-{% if project.metadata.exists %}
-    <ul>
-        {% for item in project.metadata.all %}
-            <li>
-                <strong>{{ item.table_name }}</strong> —
-                Status: {{ item.status }}
-                <a href="{% url 'review_metadata' project.id item.table_name %}">
+    {% if project.is_initialized %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
+        <div class="space-y-2">
+            <a href="{% url 'column_introspection' project.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                View Column Introspection
+            </a>
+            <a href="{% url 'row_sampling' project.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                View Sample Rows
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Metadata Generation</h3>
+            <a href="{% url 'metadata_generation' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                Generate Metadata (AI)
+            </a>
+        </div>
+
+        {% if project.metadata.exists %}
+        <div class="space-y-2">
+            {% for item in project.metadata.all %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                    <span class="font-medium text-gray-900">{{ item.table_name }}</span>
+                    <span class="text-sm text-gray-500 ml-2">Status: {{ item.status }}</span>
+                </div>
+                <a href="{% url 'review_metadata' project.id item.table_name %}" class="text-sm font-medium text-blue-600 hover:text-blue-700">
                     Review
                 </a>
-            </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No metadata generated yet.</p>
-{% endif %}
-
-<a href="{% url 'metadata_generation' project.id %}">
-    Generate Metadata (AI)
-</a>
-
-<h3>Reports</h3>
-
-{% if reports %}
-  <ul class="list-group">
-    {% for report in reports %}
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <strong>{{ report.title }}</strong><br>
-          <small>Status:
-            {% if report.outline_approved %}
-              Outline Approved
-            {% else %}
-              Draft
-            {% endif %}
-          </small>
+            </div>
+            {% endfor %}
         </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No metadata generated yet.</p>
+        {% endif %}
+    </div>
 
-        <div class="btn-group">
-          <a
-            href="{% url 'review_outline' report.id %}"
-            class="btn btn-sm btn-outline-secondary"
-          >
-            Outline
-          </a>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Reports</h3>
 
-          {% if report.outline_approved %}
-            <a
-              href="{% url 'subtopic_dashboard' project.id report.id %}"
-              class="btn btn-sm btn-primary"
-            >
-              Topics
-            </a>
-          {% endif %}
+        {% if reports %}
+        <div class="space-y-3">
+            {% for report in reports %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <h4 class="font-medium text-gray-900">{{ report.title }}</h4>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Status:
+                            {% if report.outline_approved %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Outline Approved
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Draft
+                                </span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'review_outline' report.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                            Outline
+                        </a>
+                        {% if report.outline_approved %}
+                        <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                            Topics
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{% url 'topic_overview' project.id report.id %}" class="text-sm text-blue-600 hover:text-blue-700">
+                        Topic Overview →
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
         </div>
-      </li>
-      <li>
-        <a href="{% url 'topic_overview' project.id report.id %}">
-          Topic Overview
-        </a>
-      </li>
-
-    {% endfor %}
-  </ul>
-{% else %}
-  <p>No reports created yet.</p>
-{% endif %}
+        {% else %}
+        <p class="text-sm text-gray-500">No reports created yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
 
 

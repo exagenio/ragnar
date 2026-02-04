@@ -1,46 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Topic Overview{% endblock %}
+
 {% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900">Topic Overview</h2>
+            <p class="text-sm text-gray-600 mt-1">Report: <span class="font-medium text-gray-900">{{ report.report_title }}</span></p>
+        </div>
+        <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            ← Back
+        </a>
+    </div>
 
-<h2>Topic Overview</h2>
+    <div class="space-y-6">
+        {% for section in outline.sections %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">{{ section.section_title }}</h3>
 
-<p><strong>Report:</strong> {{ report.report_title }}</p>
-<hr>
+            <div class="space-y-4">
+                {% for subsection in section.subsections %}
+                <div>
+                    <h4 class="text-base font-medium text-gray-800 mb-2">{{ subsection.title }}</h4>
 
-{% for section in outline.sections %}
-  <h3>{{ section.section_title }}</h3>
-
-  {% for subsection in section.subsections %}
-    <h4 style="margin-left:20px;">{{ subsection.title }}</h4>
-
-    {% if subsection.topics %}
-      <ul style="margin-left:40px;">
-        {% for topic in subsection.topics %}
-          <li>
-            {{ topic }}
-
-            {% with tkey=section.section_title|add:"|||"|add:subsection.title|add:"|||"|add:topic %}
-              {% if topic_plan_lookup.tkey %}
-                — <span style="color:green;">Plan exists</span>
-              {% else %}
-                — <span style="color:red;">No plan</span>
-              {% endif %}
-            {% endwith %}
-
-            —
-            <a href="{% url 'topic_analysis_plan' project.id report.id section.section_title|slugify subsection.title|slugify topic|slugify %}">
-              Open Topic Analysis
-            </a>
-          </li>
+                    {% if subsection.topics %}
+                    <ul class="space-y-2 ml-4">
+                        {% for topic in subsection.topics %}
+                        <li class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-900">{{ topic }}</span>
+                                {% with tkey=section.section_title|add:"|||"|add:subsection.title|add:"|||"|add:topic %}
+                                    {% if topic_plan_lookup.tkey %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Plan exists</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">No plan</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            <a href="{% url 'topic_analysis_plan' project.id report.id section.section_title|slugify subsection.title|slugify topic|slugify %}" class="text-sm text-blue-600 hover:text-blue-700">
+                                Open Analysis →
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-sm text-gray-500 italic ml-4">No approved topics yet.</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
         {% endfor %}
-      </ul>
-    {% else %}
-      <p style="margin-left:40px; color:#999;">
-        No approved topics yet.
-      </p>
-    {% endif %}
-  {% endfor %}
-{% endfor %}
-
-<hr>
-<a href="{% url 'subtopic_dashboard' project.id report.id %}">← Back</a>
-
+    </div>
+</div>
 {% endblock %}
