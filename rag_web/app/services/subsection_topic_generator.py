@@ -10,6 +10,8 @@ from app.services.llm_provider import (
     LLMBackend,
     ModelSize,
 )
+from app.services.llm_provider import get_embeddings
+from .vector_store import get_vector_store
 
 # ==========================
 # CONFIG
@@ -40,10 +42,12 @@ def extract_json(text: str) -> dict:
 # ==========================
 
 def generate_subsection_topics(
-    context: dict,
     *,
+    context: dict,
+    project_id: int,
     backend: LLMBackend | None = None,
 ) -> dict:
+
     """
     Generate subsection-level topics using the unified LLM provider.
     """
@@ -52,16 +56,31 @@ def generate_subsection_topics(
 
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
 
-    prompt = prompt_template
-    for key, value in context.items():
-            prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
+    vector_store = get_vector_store(backend=backend)
+    docs = vector_store.similarity_search(
+        query="database schema and analytical capabilities",
+        k=50,
+        filter={
+            "project_id": project_id,
+            "type": ["table_description", "column", "analytical_capability", "confidence_note"],
+        },
+    )
 
+    prompt = prompt_template
+
+    for key, value in context.items():
+        prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
+
+    retrieved_context = build_retrieved_context(docs)
+    prompt = prompt.replace("{{retrieved_context}}", retrieved_context)
+    
     # 🔹 Get LLM from provider
     llm = get_llm(
         backend=backend,
         model_size=ModelSize.PRIMARY,  # topic structure needs quality
         temperature=0.2,
     )
+    print("_______prompt = \n",prompt,"___________")
 
     # 🔹 Invoke LLM
     response = llm.invoke(prompt)
@@ -71,3 +90,25 @@ def generate_subsection_topics(
         return extract_json(raw_output)
     except Exception as e:
         raise ValueError(f"Invalid JSON returned from LLM: {e}")
+
+
+def build_retrieved_context(docs) -> str:
+    grouped = defaultdict(list)
+
+    for doc in docs:
+        table = doc.metadata.get("table_name", "unknown_table")
+        grouped[table].append(doc)
+
+    output = []
+
+    for table, table_docs in grouped.items():
+        output.append(f"### Table: {table}")
+
+        for doc in table_docs:
+            meta = doc.metadata
+            output.append(f"- Type: {meta.get('type')}")
+            if "column" in meta:
+                output.append(f"  Column: {meta['column']}")
+            output.append(f"  {doc.page_content}")
+
+    return "\n".join(output)

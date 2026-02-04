@@ -5,6 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.utils.text import slugify
 from app.services.sql_agent import generate_sql_from_placeholder
 from app.services.sql_executor import execute_sql_safely
+from django.urls import reverse
 
 
 from .models import (
@@ -200,9 +201,8 @@ def metadata_generation(request, project_id):
         return render(
             request, "error.html", {"message": "Project is not initialized yet."}
         )
-
+    print("\n_______metadata generation started______\n")
     run_in_background(run_metadata_generation, project.id)
-
     return render(
         request,
         "metadata_preview.html",
@@ -227,35 +227,43 @@ def review_metadata(request, project_id, table_name):
     )
 
     if request.method == "POST":
-        table_description = request.POST.get("table_description")
+        action = request.POST.get("action")
 
-        columns = {}
-        for key, value in request.POST.items():
-            if key.startswith("column__"):
-                col_name = key.replace("column__", "")
-                columns[col_name] = value
+        if action == "regenerate":
+            return redirect(
+                reverse("metadata_generation", kwargs={"project_id": project.id})
+            )
 
-        confidence_notes_raw = request.POST.get("confidence_notes", "")
-        confidence_notes = [
-            line.strip("- ").strip()
-            for line in confidence_notes_raw.splitlines()
-            if line.strip()
-        ]
+        if action == "approve":
+            table_description = request.POST.get("table_description")
 
-        approved_metadata = {
-            "table_description": table_description,
-            "columns": columns,
-            "confidence_notes": confidence_notes,
-        }
+            columns = {}
+            for key, value in request.POST.items():
+                if key.startswith("column__"):
+                    col_name = key.replace("column__", "")
+                    columns[col_name] = value
 
-        metadata_obj.approved_metadata = approved_metadata
-        metadata_obj.status = "approved"
-        metadata_obj.save()
-        vector_store = get_vector_store()
-        docs = metadata_to_documents(metadata_obj)
+            confidence_notes_raw = request.POST.get("confidence_notes", "")
+            confidence_notes = [
+                line.strip("- ").strip()
+                for line in confidence_notes_raw.splitlines()
+                if line.strip()
+            ]
 
-        vector_store.add_documents(docs)
-        return redirect("project_detail", project_id=project.id)
+            approved_metadata = {
+                "table_description": table_description,
+                "columns": columns,
+                "confidence_notes": confidence_notes,
+            }
+
+            metadata_obj.approved_metadata = approved_metadata
+            metadata_obj.status = "approved"
+            metadata_obj.save()
+            vector_store = get_vector_store()
+            docs = metadata_to_documents(metadata_obj)
+
+            vector_store.add_documents(docs)
+            return redirect("project_detail", project_id=project.id)
 
     return render(
         request,
@@ -266,7 +274,6 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
-
 
 def start_report(request, project_id):
     project = get_object_or_404(Project, id=project_id)
@@ -474,11 +481,21 @@ def generate_topics(request, project_id, report_id, subsection_id):
                 project_id=project_id,
                 report_id=report_id,
             )
+        
 
     # ==========================
     # GET → Generate if empty
     # ==========================
-    if not subsection.topics.exists():
+    should_generate = False
+
+    if request.method == "GET" and not subsection.topics.exists():
+        should_generate = True
+
+    if request.method == "POST" and request.POST.get("action") == "regenerate":
+        should_generate = True
+        subsection.topics.all().delete()
+
+    if should_generate:
         context = {
             "industry": report.industry,
             "report_type": report.report_type,
@@ -488,7 +505,10 @@ def generate_topics(request, project_id, report_id, subsection_id):
             "subsection_title": subsection.title,
         }
 
-        result = generate_subsection_topics(context)
+        result = generate_subsection_topics(
+            context=context,
+            project_id=project_id
+        )
 
         for topic_title in result.get("topics", []):
             Topic.objects.create(

@@ -7,9 +7,15 @@ You are given:
 
 Your task:
 - Describe what this table appears to represent
-- Describe what each column likely means
+For each column:
+- Describe what it represents
+- Assign ONE semantic role from:
+  [time, measure, entity, category, identifier, unknown]
+
 
 Rules:
+- Do NOT invent entities
+- Do NOT infer relationships not visible in data
 - DO NOT invent business rules
 - DO NOT assume currency, country, or units
 - If uncertain, explicitly say "uncertain"

@@ -96,8 +96,8 @@ def _render_sql_agent_prompt(
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
         "query_intent": query_intent,
-        "visual_x_axis_column": visual_context.get("x_axis_column", ""),
-        "visual_y_axis_columns": visual_context.get("y_axis_columns", []),
+        "visual_x_axis_column": visual_context.get("x_axis_column", "") if visual_context else "",
+        "visual_y_axis_columns": visual_context.get("y_axis_columns", []) if visual_context else [],
 
     }
 

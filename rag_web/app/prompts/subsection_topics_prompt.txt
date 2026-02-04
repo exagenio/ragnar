@@ -12,15 +12,48 @@ Current Section:
 Section Title: {{section_title}}
 Subsection Title: {{subsection_title}}
 
+========================
+DATA CONTEXT (FROM KNOWLEDGE BASE)
+========================
+
+The following information describes the available data,
+its structure, and analytical limitations.
+
+Use this to:
+- Ensure topics are feasible
+- Avoid impossible or unsupported analyses
+
+DO NOT:
+- Mention table names or columns explicitly
+- Assume metrics that are not described
+
+{{retrieved_context}}
+
+
 Instructions:
-- Generate 4–7 concise 2nd-level subtopics
-- Each topic should represent a logical analytical angle
-- Topics should be neutral, professional, and non-overlapping
+- Generate ONLY topics that can be fully written using the available data context
+- Do NOT generate filler or speculative topics
+- The number of topics is NOT fixed
+- Generate as many topics as are justified by the data
+- Maximum number of topics: 10
+- It is acceptable to return fewer than 4 topics
+- It is acceptable to return an empty list if no valid topics exist
+
+Topic quality rules:
+- Each topic must represent a clear, data-supported analytical angle
+- Each topic must be feasible using the described data only
+- Topics must be neutral, professional, and non-overlapping
+- Topics must be suitable as report headings
+
+Strict prohibitions:
 - DO NOT generate explanations
 - DO NOT generate metrics or numbers
-- DO NOT assume availability of specific fields
-- Titles must be suitable as report headings
-- The first character of your response MUST be '{' and the last character MUST be '}'.
+- DO NOT assume availability of fields not described
+- DO NOT mention table names or column names explicitly
+
+Output rules:
+- The first character of your response MUST be '{'
+- The last character of your response MUST be '}'
 
 
 Output format (STRICT JSON ONLY):

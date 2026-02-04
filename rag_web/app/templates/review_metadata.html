@@ -1,9 +1,4 @@
-<h2>Review Metadata</h2>
-
-<p><strong>Project:</strong> {{ project.name }}</p>
-<p><strong>Table:</strong> {{ table_name }}</p>
-
-<form method="post" id="metadata-form">
+<form method="post">
   {% csrf_token %}
 
   <!-- TABLE DESCRIPTION -->
@@ -18,22 +13,13 @@
   <h3>Column Descriptions</h3>
 
   <table border="1" cellpadding="8" cellspacing="0" width="100%">
-    <thead>
-      <tr>
-        <th>Column Name</th>
-        <th>Description</th>
-      </tr>
-    </thead>
     <tbody>
       {% for col, desc in metadata.generated_metadata.columns.items %}
       <tr>
         <td><strong>{{ col }}</strong></td>
         <td>
-          <textarea
-            name="column__{{ col }}"
-            rows="2"
-            style="width:100%;"
-          >{{ desc }}</textarea>
+          <textarea name="column__{{ col }}" rows="2" style="width:100%;">
+{{ desc }}</textarea>
         </td>
       </tr>
       {% endfor %}
@@ -52,17 +38,12 @@
 
   <hr>
 
-  <!-- ADVANCED JSON (OPTIONAL) -->
-  <details>
-    <summary><strong>Advanced: Raw JSON</strong></summary>
-    <textarea name="raw_json" rows="12" style="width:100%;">
-{{ metadata.generated_metadata|json_script:"raw_json_data" }}
-    </textarea>
-  </details>
-
-  <br><br>
-
-  <button type="submit">
+  <!-- BUTTONS -->
+  <button type="submit" name="action" value="approve">
     Approve Metadata
+  </button>
+
+  <button type="submit" name="action" value="regenerate">
+    Regenerate
   </button>
 </form>

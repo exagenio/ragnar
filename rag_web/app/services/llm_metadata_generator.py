@@ -74,13 +74,10 @@ def generate_table_metadata(
 
     safe_rows = [{k: make_json_safe(v) for k, v in row.items()} for row in rows]
 
-    evidence = {
-        "table_name": table_name,
-        "columns": columns,
-        "sample_rows": safe_rows,
-    }
-
-    prompt = prompt_template.replace("{{evidence}}", json.dumps(evidence, indent=2))
+    prompt = prompt_template
+    prompt = prompt.replace("{{table_name}}", table_name)
+    prompt = prompt.replace("{{columns}}", json.dumps(columns, indent=2))
+    prompt = prompt.replace("{{rows}}", json.dumps(safe_rows, indent=2))
 
     # 🔹 Get LLM from provider
     llm = get_llm(
@@ -88,7 +85,7 @@ def generate_table_metadata(
         model_size=ModelSize.PRIMARY,  # metadata quality matters
         temperature=0,
     )
-
+    print(prompt)
     # 🔹 Invoke via LangChain
     response = llm.invoke(prompt)
 
