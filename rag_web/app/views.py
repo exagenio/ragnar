@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import HttpResponse
 import psycopg2
 from django.shortcuts import render, get_object_or_404
 from django.utils.text import slugify
@@ -36,6 +37,7 @@ from .services.subsection_topic_generator import generate_subsection_topics
 from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
 from .services.sub_section_content_generator import generate_subsection_content
 from .services.section_content_generator import generate_section_content
+from .services.document_generator import generate_report_document
 
 from .services.schema_introspector import get_tables
 from .services.column_introspector import get_table_columns
@@ -1230,3 +1232,49 @@ def generate_section_content_view(
             "content": content_obj,
         },
     )
+
+
+def generate_document_view(request, project_id, report_id):
+    """
+    Generate and download a Word document with all available content.
+
+    This generates a complete report document with:
+    - Section content (if generated)
+    - SubSection content (if generated)
+    - Topic content (if generated)
+
+    The document is generated with whatever content is available at the time.
+    """
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+
+    # Get all sections with prefetched relations
+    sections = (
+        Section.objects.filter(report=report)
+        .prefetch_related(
+            "sub_sections__topics__content",
+            "sub_sections__content",
+            "content"
+        )
+        .order_by("created_at")
+    )
+
+    # Generate the document
+    try:
+        document_buffer = generate_report_document(report, sections)
+
+        # Prepare filename
+        filename = f"{slugify(report.title)}_report.docx"
+
+        # Create HTTP response with document
+        response = HttpResponse(
+            document_buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Error generating document: {str(e)}")
+        return redirect("subtopic_dashboard", project_id=project.id, report_id=report.id)
