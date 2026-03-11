@@ -8,6 +8,7 @@ def run_metadata_generation(project_id):
     project = Project.objects.get(id=project_id)
     db_conn = project.db_connection
 
+    # TODO: add all tables later
     for table in SelectedTable.objects.filter(project=project)[:1]:
         columns = get_table_columns(db_conn, table.table_name)
         rows = sample_table_rows(db_conn, table.table_name, limit=5)

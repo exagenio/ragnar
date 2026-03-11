@@ -1,0 +1,107 @@
+from app.services.schema_introspector import get_tables
+from app.services.column_introspector import get_table_columns
+from app.services.row_sampler import sample_table_rows
+from app.models import SelectedTable
+from app.services.background_tasks import run_in_background
+from app.services.metadata_job import run_metadata_generation
+from app.models import TableMetadata
+from app.services.vector_store import get_vector_store
+from app.services.metadata_to_documents import metadata_to_documents
+
+class MetadataAgent:
+
+    def discover_tables(self, db_connection):
+        return get_tables(db_connection)
+
+    def save_selected_tables(self, project, selected_tables):
+
+        # remove old selections
+        SelectedTable.objects.filter(project=project).delete()
+
+        for table in selected_tables:
+            SelectedTable.objects.create(
+                project=project,
+                table_name=table
+            )
+
+        project.is_initialized = True
+        project.save()
+
+    def get_schema_info(self, project):
+
+        if not project.is_initialized:
+            raise ValueError("Project is not initialized yet.")
+
+        db_conn = project.db_connection
+        selected_tables = SelectedTable.objects.filter(project=project)
+
+        schema_info = []
+
+        for table in selected_tables:
+            columns = get_table_columns(db_conn, table.table_name)
+
+            schema_info.append(
+                {
+                    "table_name": table.table_name,
+                    "columns": columns,
+                }
+            )
+
+        return schema_info
+    
+    def sample_rows(self, project, limit=10):
+
+        if not project.is_initialized:
+            raise ValueError("Project is not initialized yet.")
+
+        db_conn = project.db_connection
+        selected_tables = SelectedTable.objects.filter(project=project)
+
+        sampled_data = []
+
+        for table in selected_tables:
+            rows = sample_table_rows(db_conn, table.table_name, limit)
+
+            sampled_data.append(
+                {
+                    "table_name": table.table_name,
+                    "rows": rows,
+                }
+            )
+
+        return sampled_data
+    
+    def start_metadata_generation(self, project):
+
+        if not project.is_initialized:
+            raise ValueError("Project is not initialized yet.")
+
+        run_in_background(run_metadata_generation, project.id)
+
+        return {
+            "message": "Metadata generation started in background. Please wait."
+        }
+    
+
+    def approve_metadata(
+        self,
+        metadata_obj,
+        table_description,
+        columns,
+        confidence_notes,
+    ):
+
+        approved_metadata = {
+            "table_description": table_description,
+            "columns": columns,
+            "confidence_notes": confidence_notes,
+        }
+
+        metadata_obj.approved_metadata = approved_metadata
+        metadata_obj.status = "approved"
+        metadata_obj.save()
+
+        vector_store = get_vector_store()
+        docs = metadata_to_documents(metadata_obj)
+
+        vector_store.add_documents(docs)

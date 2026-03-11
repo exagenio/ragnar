@@ -35,7 +35,7 @@ class ModelSize(str, Enum):
 # ==========================
 
 CLOUD_MODELS = {
-    ModelSize.PRIMARY: "gemini-2.5-pro",
+    ModelSize.PRIMARY: "gemini-3-pro-preview",
     ModelSize.SMALL: "gemini-2.5-flash",
 }
 
@@ -94,7 +94,7 @@ def get_embeddings(
 
     if backend == LLMBackend.CLOUD:
         return GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="gemini-embedding-001",
             google_api_key=settings.GOOGLE_API_KEY,
         )
 

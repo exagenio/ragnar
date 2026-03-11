@@ -90,7 +90,16 @@ def generate_table_metadata(
     response = llm.invoke(prompt)
 
     # Chat models return AIMessage
-    raw_output = response.content.strip()
+    content = response.content
+
+    if isinstance(content, list):
+        # LangChain structured output
+        if isinstance(content[0], dict) and "text" in content[0]:
+            raw_output = content[0]["text"].strip()
+        else:
+            raw_output = str(content[0]).strip()
+    else:
+        raw_output = content.strip()
 
     try:
         return extract_json_from_text(raw_output)

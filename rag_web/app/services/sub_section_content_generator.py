@@ -85,7 +85,15 @@ def generate_subsection_content(
 
     # Invoke LLM
     response = llm.invoke(prompt)
-    raw_text = response.content.strip()
+    content = response.content
+    if isinstance(content, list):
+        # LangChain structured output
+        if isinstance(content[0], dict) and "text" in content[0]:
+            raw_text = content[0]["text"].strip()
+        else:
+            raw_text = str(content[0]).strip()
+    else:
+        raw_text = content.strip()
 
     # Extract and return JSON
     result = extract_json_or_fail(raw_text)
