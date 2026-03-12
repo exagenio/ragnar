@@ -30,6 +30,17 @@ class VisualAgent:
             })
 
         return schema_context
+    
+    # -----------------------------------------
+    # REMOVE PLACEHOLDER SAFELY
+    # -----------------------------------------
+    def _remove_visual_placeholder(self, sections, section_index, block_index):
+
+        try:
+            blocks = sections[section_index]["content_blocks"]
+            blocks.pop(block_index)
+        except Exception:
+            pass
 
 
     def compute_visual_block(
@@ -62,21 +73,33 @@ class VisualAgent:
         )
 
         if visual_plan["status"] != "ok":
-            visual_block["generated_visual"] = visual_plan
+            self._remove_visual_placeholder(sections, section_index, block_index)
+            content_obj.content_json = content_json
             content_obj.save()
-            return False
 
         sql_response = generate_sql_from_visual_plan(
             visual_plan=visual_plan,
             metadata_context=content_json.get("metadata_context"),
             database_schema=schema_context,
         )
+        try:
 
-        sql_result = execute_sql_safely(
-            sql_response["sql"],
-            project_id=project.id,
-            expected_result_type="table",
-        )
+            sql_result = execute_sql_safely(
+                sql_response["sql"],
+                project_id=project.id,
+                expected_result_type="table",
+            )
+
+        except Exception as e:
+
+            print("visual execution failed:", e)
+
+            self._remove_visual_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
 
         relative_path = (
             Path("generated_visuals")

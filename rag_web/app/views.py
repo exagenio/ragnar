@@ -49,6 +49,8 @@ from pathlib import Path
 from django.conf import settings
 from app.services.project_service import ProjectService
 from app.agents.manager_agent import ManagerAgent
+from django.http import JsonResponse
+
 manager = ManagerAgent()
 
 def create_project_and_connect_db(request):
@@ -837,3 +839,19 @@ def generate_document_view(request, project_id, report_id):
             project_id=project.id,
             report_id=report.id,
         )
+    
+def trigger_auto_generate_subsection(request, project_id, report_id, subsection_id):
+
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id)
+    subsection = get_object_or_404(SubSection, id=subsection_id)
+
+    started = manager.trigger_subsection_auto_generation(
+        project,
+        report,
+        subsection,
+    )
+
+    return JsonResponse({
+        "started": started
+    })

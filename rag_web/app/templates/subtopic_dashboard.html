@@ -6,7 +6,7 @@
 <div class="space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Subtopic Dashboard</h2>
+            <h2 class="text-2xl font-semibold text-gray-900">Subtopi Dashboard</h2>
             <p class="text-sm text-gray-600 mt-1">Report: <span class="font-medium text-gray-900">{{ report.title }}</span></p>
         </div>
         <div class="flex items-center gap-3">
@@ -50,6 +50,26 @@
                     <a href="{% url 'generate_topics' project.id report.id subsection.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                         Generate Topics
                     </a>
+                    {% if subsection.is_generating %}
+
+<button disabled
+class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg">
+Generating...
+</button>
+
+{% else %}
+
+<button
+class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 auto-generate-btn"
+data-project="{{ project.id }}"
+data-report="{{ report.id }}"
+data-subsection="{{ subsection.id }}">
+
+Auto Generate
+
+</button>
+
+{% endif %}
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -63,4 +83,81 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function(){
+
+document.querySelectorAll(".auto-generate-btn").forEach(button => {
+
+    button.addEventListener("click", function(){
+
+        console.log("testing")
+
+        const projectId = this.dataset.project
+        const reportId = this.dataset.report
+        const subsectionId = this.dataset.subsection
+
+        startAutoGenerate(projectId, reportId, subsectionId, this)
+
+    })
+
+})
+
+})
+
+
+function startAutoGenerate(projectId, reportId, subsectionId, button){
+
+console.log("clicked")
+
+fetch(`/projects/${projectId}/reports/${reportId}/subsections/${subsectionId}/auto-generate/`, {
+    method: "POST",
+    headers: {
+        "X-CSRFToken": "{{ csrf_token }}",
+        "Content-Type": "application/json"
+    }
+})
+.then(res => res.json())
+.then(data => {
+
+    if(data.started){
+
+        showToast("🚀 Generation started in background")
+
+        button.disabled = true
+        button.innerText = "Generating..."
+
+    }
+
+})
+
+}
+
+</script>
+
+
+<script>
+
+function showToast(message){
+
+const toast = document.createElement("div")
+
+toast.innerText = message
+
+toast.style.position = "fixed"
+toast.style.bottom = "20px"
+toast.style.right = "20px"
+toast.style.background = "#4CAF50"
+toast.style.color = "white"
+toast.style.padding = "12px 20px"
+toast.style.borderRadius = "6px"
+
+document.body.appendChild(toast)
+
+setTimeout(() => toast.remove(), 3000)
+
+}
+
+</script>
 {% endblock %}

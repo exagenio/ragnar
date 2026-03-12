@@ -96,7 +96,11 @@ urlpatterns = [
         views.generate_document_view,
         name="generate_document",
     ),
-
+    path(
+        "projects/<int:project_id>/reports/<int:report_id>/subsections/<int:subsection_id>/auto-generate/",
+        views.trigger_auto_generate_subsection,
+        name="trigger_auto_generate_subsection",
+    ),
 ]
 
 if settings.DEBUG:

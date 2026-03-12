@@ -1,5 +1,4 @@
 from app.services.sql_agent import generate_sql_from_placeholder
-from app.services.sql_agent import generate_sql_from_visual_plan
 from app.services.sql_executor import execute_sql_safely
 from app.services.sql_result_interpreter import interpret_sql_result
 from app.models import SelectedTable
@@ -8,6 +7,9 @@ from app.services.column_introspector import get_table_columns
 
 class SQLAgent:
 
+    # -----------------------------------------
+    # BUILD DATABASE SCHEMA CONTEXT
+    # -----------------------------------------
     def build_schema_context(self, project):
 
         tables = SelectedTable.objects.filter(project=project)
@@ -17,17 +19,34 @@ class SQLAgent:
         for t in tables:
             columns = get_table_columns(project.db_connection, t.table_name)
 
-            schema_context.append({
-                "table": t.table_name,
-                "columns": [
-                    {"name": col["name"], "type": col["type"]}
-                    for col in columns
-                ],
-            })
+            schema_context.append(
+                {
+                    "table": t.table_name,
+                    "columns": [
+                        {"name": col["name"], "type": col["type"]}
+                        for col in columns
+                    ],
+                }
+            )
 
         return schema_context
 
 
+    # -----------------------------------------
+    # REMOVE PLACEHOLDER SAFELY
+    # -----------------------------------------
+    def _remove_sql_placeholder(self, sections, section_index, block_index):
+
+        try:
+            blocks = sections[section_index]["content_blocks"]
+            blocks.pop(block_index)
+        except Exception:
+            pass
+
+
+    # -----------------------------------------
+    # COMPUTE SQL BLOCK
+    # -----------------------------------------
     def compute_sql_block(
         self,
         project,
@@ -50,32 +69,117 @@ class SQLAgent:
 
         schema_context = self.build_schema_context(project)
 
-        generated_sql = generate_sql_from_placeholder(
-            sql_placeholder=sql_block,
-            metadata_context=content_json.get("metadata_context"),
-            database_schema=schema_context,
-        )
+        # -----------------------------------------
+        # GENERATE SQL FROM PLACEHOLDER
+        # -----------------------------------------
+        try:
 
-        result = execute_sql_safely(
-            generated_sql["sql"],
-            project_id=project.id,
-            expected_result_type=generated_sql["result_type"],
-        )
+            generated_sql = generate_sql_from_placeholder(
+                sql_placeholder=sql_block,
+                metadata_context=content_json.get("metadata_context"),
+                database_schema=schema_context,
+            )
+
+        except Exception as e:
+
+            print("SQL generation failed:", e)
+
+            self._remove_sql_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
+
+
+        # -----------------------------------------
+        # SQL AGENT MAY RETURN "not_possible"
+        # -----------------------------------------
+        if generated_sql.get("status") != "ok":
+
+            print("SQL generation not possible:", generated_sql)
+
+            self._remove_sql_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
+
+
+        # -----------------------------------------
+        # EXECUTE SQL
+        # -----------------------------------------
+        try:
+
+            result = execute_sql_safely(
+                generated_sql["sql"],
+                project_id=project.id,
+                expected_result_type=generated_sql.get("result_type", "scalar"),
+            )
+
+        except Exception as e:
+
+            print("SQL execution failed:", e)
+
+            self._remove_sql_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
+
 
         blocks = sections[section_index]["content_blocks"]
 
-        if block_index == 0 or blocks[block_index - 1]["type"] not in ["paragraph", "bullet_list"]:
-            raise ValueError("No paragraph or bullet list found to attach SQL result.")
+        # -----------------------------------------
+        # ENSURE PREVIOUS BLOCK EXISTS
+        # -----------------------------------------
+        if (
+            block_index == 0
+            or blocks[block_index - 1]["type"]
+            not in ["paragraph", "bullet_list"]
+        ):
+
+            print("SQL placeholder has no preceding paragraph. Removing.")
+
+            self._remove_sql_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
+
 
         previous_block = blocks[block_index - 1]
 
-        interpreted_text = interpret_sql_result(
-            draft_content=previous_block["content"],
-            computed_result=result,
-        )
+        # -----------------------------------------
+        # INTERPRET SQL RESULT INTO TEXT
+        # -----------------------------------------
+        try:
 
-        previous_block["content"] = interpreted_text
+            interpreted_text = interpret_sql_result(
+                draft_content=previous_block["content"],
+                computed_result=result,
+            )
 
+            previous_block["content"] = interpreted_text
+
+        except Exception as e:
+
+            print("SQL interpretation failed:", e)
+
+            self._remove_sql_placeholder(sections, section_index, block_index)
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return False
+
+
+        # -----------------------------------------
+        # STORE RESULT
+        # -----------------------------------------
         sql_block["generated_result"] = {
             "status": "ok",
             "value": result["result"],

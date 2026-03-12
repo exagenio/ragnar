@@ -144,6 +144,7 @@ class SubSection(models.Model):
     title = models.CharField(max_length=255)
     is_topics_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_generating = models.BooleanField(default=False)
 
 
 class TopicAnalysisPlan(models.Model):

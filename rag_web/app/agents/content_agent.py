@@ -15,6 +15,7 @@ from django.utils.text import slugify
 from app.models import Section, TopicContent
 from app.services.document_generator import generate_report_document
 import json
+from app.services.placeholder_normalizer import normalize_placeholders
 
 class ContentAgent:
 
@@ -266,6 +267,8 @@ class ContentAgent:
             topic_plan=topic.analysis_plan.plan_json,
             existing_content=content_obj.content_json or None,
         )
+
+        result = normalize_placeholders(result)
 
         content_obj.content_json = result
         content_obj.iteration_count = result.get("iteration_count", 0)
