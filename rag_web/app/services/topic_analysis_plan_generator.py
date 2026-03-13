@@ -19,6 +19,14 @@ PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "topic_analysis_plan_prompt.txt"
 )
 
+SUPPORTED_VISUAL_TYPES = {
+    "line_chart",
+    "bar_chart",
+    "pie_chart",
+    "table",
+    "combo_chart",
+}
+
 
 # ==========================
 # JSON EXTRACTION
@@ -86,6 +94,39 @@ def generate_topic_analysis_plan(
         raw_output = content.strip()
 
     try:
-        return extract_json_from_text(raw_output)
+        plan = extract_json_from_text(raw_output)
+        plan = normalize_topic_analysis_plan(plan)
+        return plan
     except Exception as e:
         raise ValueError(f"LLM returned invalid JSON: {e}")
+
+
+def normalize_topic_analysis_plan(plan: dict) -> dict:
+    """
+    Ensure the analysis plan only contains supported visual types.
+    Remove invalid visuals automatically.
+    """
+
+    visuals = plan.get("visual_requirements", [])
+
+    if not isinstance(visuals, list):
+        plan["visual_requirements"] = []
+        return plan
+
+    filtered = []
+
+    for v in visuals:
+
+        if not isinstance(v, str):
+            continue
+
+        v = v.strip().lower()
+
+        if v in SUPPORTED_VISUAL_TYPES:
+            filtered.append(v)
+        else:
+            print(f"[PLAN FILTER] Removed unsupported visual type: {v}")
+
+    plan["visual_requirements"] = filtered
+    plan["visual_requirements"] = list(dict.fromkeys(filtered))
+    return plan

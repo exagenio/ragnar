@@ -664,6 +664,7 @@ def generate_topic_content_view(
             try:
                 manager.compute_sql_block(
                     project,
+                    report,
                     topic,
                     content_obj,
                     int(request.POST.get("section_index")),
@@ -681,6 +682,7 @@ def generate_topic_content_view(
             try:
                 manager.compute_visual_block(
                     project,
+                    report,
                     topic,
                     content_obj,
                     int(request.POST.get("section_index")),

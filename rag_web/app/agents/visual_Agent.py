@@ -8,6 +8,15 @@ from app.services.visual_renderer import render_visual
 
 from app.models import SelectedTable
 from app.services.column_introspector import get_table_columns
+from app.services.visual_agent import parse_visual_placeholder
+
+SUPPORTED_VISUAL_TYPES = {
+    "line_chart",
+    "bar_chart",
+    "pie_chart",
+    "table",
+    "combo_chart",
+}
 
 
 class VisualAgent:
@@ -34,11 +43,35 @@ class VisualAgent:
     # -----------------------------------------
     # REMOVE PLACEHOLDER SAFELY
     # -----------------------------------------
-    def _remove_visual_placeholder(self, sections, section_index, block_index):
+    def _remove_visual_placeholder(
+        self,
+        sections,
+        section_index,
+        block_index,
+        *,
+        reason=None,
+        visual_plan=None,
+        attempted_sql=None,
+        error=None,
+    ):
 
         try:
-            blocks = sections[section_index]["content_blocks"]
-            blocks.pop(block_index)
+            block = sections[section_index]["content_blocks"][block_index]
+
+            removed_block = {
+                "type": "removed_placeholder",
+                "placeholder_type": "visual",
+                "reason": reason,
+                "original_placeholder": block.get("content"),
+                "attempted_computation": {
+                    "visual_plan": visual_plan,
+                    "sql": attempted_sql,
+                },
+                "error": str(error) if error else None,
+            }
+
+            sections[section_index]["content_blocks"][block_index] = removed_block
+
         except Exception:
             pass
 
@@ -65,6 +98,53 @@ class VisualAgent:
 
         schema_context = self.build_schema_context(project)
 
+        # -----------------------------------------
+        # VALIDATE CHART TYPE
+        # -----------------------------------------
+
+        try:
+            parsed = parse_visual_placeholder(visual_block)
+            chart_type = parsed["type"].lower()
+
+            if chart_type not in SUPPORTED_VISUAL_TYPES:
+
+                print(f"[VISUAL] Unsupported chart type detected: {chart_type}")
+
+                self._remove_visual_placeholder(
+                    sections,
+                    section_index,
+                    block_index,
+                    reason=f"unsupported_chart_type: {chart_type}",
+                )
+
+                content_obj.content_json = content_json
+                content_obj.save()
+
+                return {
+                    "success": False,
+                    "placeholder_removed": True
+                }
+
+        except Exception as e:
+
+            print(f"[VISUAL] Placeholder parsing failed: {e}")
+
+            self._remove_visual_placeholder(
+                sections,
+                section_index,
+                block_index,
+                reason="invalid_visual_placeholder",
+                error=e,
+            )
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
+
         visual_plan = generate_visual_plan(
             visual_placeholder=visual_block,
             topic_plan=topic.analysis_plan.plan_json,
@@ -72,10 +152,37 @@ class VisualAgent:
             database_schema=schema_context,
         )
 
+        visual_spec = visual_plan.get("visual_spec", {})
+        generated_type = visual_spec.get("type")
+
+        if generated_type and generated_type not in SUPPORTED_VISUAL_TYPES:
+
+            print(f"[VISUAL] LLM generated unsupported visual type: {generated_type}")
+
+            self._remove_visual_placeholder(
+                sections,
+                section_index,
+                block_index,
+                reason=f"llm_generated_invalid_visual: {generated_type}",
+                visual_plan=visual_plan,
+            )
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
+
         if visual_plan["status"] != "ok":
             self._remove_visual_placeholder(sections, section_index, block_index)
             content_obj.content_json = content_json
             content_obj.save()
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
         sql_response = generate_sql_from_visual_plan(
             visual_plan=visual_plan,
@@ -94,12 +201,15 @@ class VisualAgent:
 
             print("visual execution failed:", e)
 
-            self._remove_visual_placeholder(sections, section_index, block_index)
+            self._remove_visual_placeholder(sections, section_index, block_index, reason="visual execution failed")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
         relative_path = (
             Path("generated_visuals")
@@ -126,4 +236,7 @@ class VisualAgent:
         content_obj.content_json = content_json
         content_obj.save()
 
-        return True
+        return {
+            "success": True,
+            "placeholder_removed": False
+        }

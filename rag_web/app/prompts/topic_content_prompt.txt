@@ -4,6 +4,7 @@ Your task is to generate HIGH-QUALITY, EXECUTIVE-READY REPORT CONTENT
 for ONE specific topic using an iterative, element-by-element approach.
 
 You must strictly follow the provided Topic Analysis Plan.
+
 You must NOT invent data.
 You must NOT compute results.
 You must NOT hallucinate unavailable information.
@@ -51,7 +52,17 @@ You may use this metadata to understand:
 - What comparisons are possible
 
 You MUST translate metadata into business language.
-Do NOT mention table names or column names in the narrative.
+
+NEVER mention table names or column names in the narrative.
+ONLY refer to business concepts inferred from metadata.
+
+Examples:
+
+wrong → "scanner_data table"
+correct → "transaction-level sales records"
+
+wrong → "customer_id"
+correct → "individual customers"
 
 {{metadata_context_json}}
 
@@ -73,11 +84,13 @@ CURRENT TASK
 You must focus on EXACTLY ONE required analytical element at a time.
 
 Current element to work on:
+
 {{current_required_element}}
 
 You must decide:
+
 - Is this element COMPLETE?
-- Or does it still require more depth?
+- Or does it still require more analytical depth?
 
 ========================
 WRITING RULES (STRICT)
@@ -87,87 +100,147 @@ WRITING RULES (STRICT)
 2. Use professional, analytical, executive-level language.
 3. Do NOT repeat ideas already covered.
 4. Do NOT speculate beyond available data.
-5. NEVER mention physical table names in the narrative.
-6. NEVER mention column names in the narrative.
+5. NEVER mention database table names.
+6. NEVER mention physical column names.
 7. ALWAYS describe data using business meaning inferred from metadata.
 
-Examples:
-wrong -  “scanner_data table”
-correct - “transaction-level sales records”
-
-wrong - “customer_id”
-correct - “individual customers”
-
-
 ========================
-ANALYTICAL DECISIONS
+ANALYTICAL DECISION RULE
 ========================
 
-Before adding any calculation or visual, you MUST internally decide:
+Before adding any calculation or visual, you MUST decide:
 
-- Is this insight impossible to communicate clearly without quantitative evidence?
+Is quantitative evidence required to support the insight?
 
 If NO:
-- Do NOT include a calculation or visual.
+Do NOT include a calculation or visual.
 
 If YES:
-- Include AT MOST ONE calculation OR ONE visual (not both).
-- The calculation or visual must clearly support the insight.
+Include AT MOST ONE calculation OR ONE visual (never both).
 
+Calculations and visuals are OPTIONAL.
+If a reliable calculation cannot be defined using the available metadata,
+DO NOT include a placeholder.
 
-==================================================
-SQL CALCULATION PLACEHOLDER (MANDATORY FORMAT)
-==================================================
-When a calculation is needed, insert:
+========================
+SQL CALCULATION PLACEHOLDER
+========================
+
+When a calculation is necessary, insert EXACTLY this format:
 
 {{SQL_CALCULATION:
-  id: <descriptive_metric_name>;
+  id: <descriptive_metric_identifier>;
   calculation: <business_expression>;
-  description: "<plain-English business meaning>";
+  description: "<business explanation>";
 }}
 
 Rules:
-- Use business entities, not SQL syntax
-- Allowed operations: SUM, AVG, COUNT, COUNT_DISTINCT, MIN, MAX, RATIO
-- Use BY only for grouping logic
-- Do NOT include filters unless essential
-- Do NOT compute values
 
-==================================================
-VISUAL PLACEHOLDER FORMAT
-==================================================
+• Use BUSINESS entities inferred from metadata
+• NEVER reference table or column names
+• NEVER use SQL syntax
+• NEVER compute values
 
-Insert ONLY if the visual improves understanding:
+Allowed operations:
+
+SUM
+AVG
+COUNT
+COUNT_DISTINCT
+MIN
+MAX
+RATIO
+
+Allowed patterns:
+
+SUM(metric)
+
+AVG(metric)
+
+COUNT(entity)
+
+COUNT_DISTINCT(entity)
+
+SUM(metric) BY dimension
+
+AVG(metric) BY dimension
+
+RATIO(SUM(metric), COUNT_DISTINCT(entity))
+
+Example:
+
+{{SQL_CALCULATION:
+  id: overall_average_transaction_value;
+  calculation: RATIO(SUM(total purchase value), COUNT_DISTINCT(customer transactions));
+  description: "Average monetary value generated per customer transaction.";
+}}
+
+If the calculation cannot be expressed using these patterns,
+DO NOT generate a SQL_CALCULATION placeholder.
+
+========================
+VISUAL PLACEHOLDER
+========================
+
+Insert ONLY if a visual significantly improves understanding.
+
+Allowed visual types:
+
+line_chart
+bar_chart
+pie_chart
+table
+combo_chart
+
+Use EXACTLY this format:
 
 {{VISUAL:
   id: <visual_identifier>;
-  type: bar_chart | line_chart | table | pie_chart;
+  type: line_chart | bar_chart | pie_chart | table | combo_chart;
   purpose: "<business insight the visual conveys>";
+}}
+
+Rules:
+
+• Only use the allowed visual types listed above
+• If a suitable visual does not exist, DO NOT generate a visual placeholder
+• Visuals must directly support the analysis
+
+Example:
+
+{{VISUAL:
+  id: revenue_trend_over_time;
+  type: line_chart;
+  purpose: "Shows how total revenue evolves over time to reveal growth patterns and seasonal fluctuations.";
 }}
 
 ========================
 LIMITATION CAPTURE (STRUCTURAL ONLY)
 ========================
 
-If the current required element reveals a data limitation:
+If a limitation appears in the available data:
 
-- Do NOT describe the limitation in the report narrative.
-- Do NOT explain it in paragraphs or bullets inside sections.
-- Do NOT speculate or justify.
+Do NOT explain it in the narrative.
 
 Instead:
-- Record the limitation as a short, business-friendly sentence
-- Add it to the `limitations` array in the output JSON
-- Continue writing only the analysis that IS supported by data
 
+Add a short business-friendly sentence to the limitations array.
+
+Example:
+
+"The available data does not include customer demographic attributes,
+which limits the ability to analyze purchasing behavior by demographic segment."
 
 ========================
 OUTPUT FORMAT (STRICT JSON ONLY)
 ========================
 
 Your response MUST be valid JSON.
-Your response MUST contain ONLY the JSON object.
-No markdown. No commentary.
+
+You MUST output ONLY the JSON object.
+
+NO markdown.
+NO commentary.
 
 The first character MUST be '{'
 The last character MUST be '}'
@@ -209,13 +282,18 @@ OUTPUT JSON SCHEMA
 }
 
 ========================
-QUALITY SELF-CHECK (MANDATORY)
+SELF VALIDATION (MANDATORY)
 ========================
 
-Before responding, ensure:
-- The tone is suitable for senior executives.
-- No technical implementation details are exposed.
-- The element is marked complete ONLY if fully addressed.
-- Calculations and visuals are justified, not decorative.
+Before returning the response, verify:
+
+1. All SQL placeholders use ONLY allowed operations.
+2. All SQL placeholders follow the allowed calculation patterns.
+3. All visual placeholders use ONLY allowed visual types.
+4. All calculations reference business entities available in metadata context.
+5. No table names or column names appear in the narrative.
+
+If any placeholder violates these rules,
+REMOVE the placeholder and keep the analysis qualitative.
 
 Return ONLY the JSON object.

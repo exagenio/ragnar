@@ -35,11 +35,33 @@ class SQLAgent:
     # -----------------------------------------
     # REMOVE PLACEHOLDER SAFELY
     # -----------------------------------------
-    def _remove_sql_placeholder(self, sections, section_index, block_index):
+    def _remove_sql_placeholder(
+        self,
+        sections,
+        section_index,
+        block_index,
+        *,
+        reason=None,
+        attempted_sql=None,
+        error=None,
+    ):
 
         try:
-            blocks = sections[section_index]["content_blocks"]
-            blocks.pop(block_index)
+            block = sections[section_index]["content_blocks"][block_index]
+
+            removed_block = {
+                "type": "removed_placeholder",
+                "placeholder_type": "sql",
+                "reason": reason,
+                "original_placeholder": block.get("content"),
+                "attempted_computation": {
+                    "sql": attempted_sql,
+                },
+                "error": str(error) if error else None,
+            }
+
+            sections[section_index]["content_blocks"][block_index] = removed_block
+
         except Exception:
             pass
 
@@ -84,12 +106,15 @@ class SQLAgent:
 
             print("SQL generation failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index)
+            self._remove_sql_placeholder(sections, section_index, block_index,reason="sql_generation_failed")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
 
         # -----------------------------------------
@@ -99,12 +124,15 @@ class SQLAgent:
 
             print("SQL generation not possible:", generated_sql)
 
-            self._remove_sql_placeholder(sections, section_index, block_index)
+            self._remove_sql_placeholder(sections, section_index, block_index,reason="SQL generation not possible")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
 
         # -----------------------------------------
@@ -122,12 +150,15 @@ class SQLAgent:
 
             print("SQL execution failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index)
+            self._remove_sql_placeholder(sections, section_index, block_index, reason="SQL execution failed")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
 
         blocks = sections[section_index]["content_blocks"]
@@ -143,12 +174,15 @@ class SQLAgent:
 
             print("SQL placeholder has no preceding paragraph. Removing.")
 
-            self._remove_sql_placeholder(sections, section_index, block_index)
+            self._remove_sql_placeholder(sections, section_index, block_index,reason="SQL placeholder has no preceding paragraph. Removing.")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
 
         previous_block = blocks[block_index - 1]
@@ -169,12 +203,15 @@ class SQLAgent:
 
             print("SQL interpretation failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index)
+            self._remove_sql_placeholder(sections, section_index, block_index, reason="SQL interpretation failed")
 
             content_obj.content_json = content_json
             content_obj.save()
 
-            return False
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
 
 
         # -----------------------------------------
@@ -191,4 +228,7 @@ class SQLAgent:
         content_obj.content_json = content_json
         content_obj.save()
 
-        return True
+        return {
+            "success": False,
+            "placeholder_removed": True
+        }

@@ -34,6 +34,26 @@ You MUST only use these.
 {{database_schema}}
 
 ====================
+SUPPORTED VISUAL TYPES (STRICT)
+====================
+
+Only the following visual types are supported by the reporting engine:
+
+- line_chart
+- bar_chart
+- pie_chart
+- table
+- combo_chart
+
+You MUST ONLY use one of the above.
+
+DO NOT invent new chart types such as:
+scatter_plot, area_chart, heatmap, stacked_bar, dual_axis_chart, histogram, etc.
+
+If none of the supported visual types are appropriate,
+you MUST return an empty list for visual_requirements.
+
+====================
 INSTRUCTIONS
 ====================
 
@@ -41,14 +61,16 @@ INSTRUCTIONS
 2. Identify required analytical elements.
 3. Specify precise data requirements using ONLY the provided schema.
 4. Clearly define SQL-style operations (no execution).
-5. Specify visual needs if applicable.
-6. Ask relevant business questions.
+5. Specify visual needs ONLY if the insight clearly benefits from visualization.
+6. When specifying visuals, you MUST ONLY use the supported visual types listed above.
+7. Ask relevant business questions.
 
 DO NOT:
 - Invent tables or columns
 - Assume metrics not derivable from schema
 - Write narrative text
 - Write conclusions
+- Invent visual types outside the supported list
 
 ====================
 OUTPUT FORMAT
@@ -72,6 +94,16 @@ No markdown.
       "filters": ["..."]
     }
   ],
-  "visual_requirements": ["line_chart | bar_chart | table | none"],
+"visual_requirements": [
+  "line_chart" | "bar_chart" | "pie_chart" | "table" | "combo_chart"
+]
   "business_questions": ["..."]
 }
+
+Rules for visual_requirements:
+
+- Each item MUST be exactly one of the supported visual types.
+- Do NOT return any other value.
+- If no visualization is required return an empty array [].
+- Before outputting JSON, verify that every visual type is one of the supported types.
+If any invalid type appears, correct it before responding.

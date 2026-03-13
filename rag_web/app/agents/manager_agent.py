@@ -120,8 +120,9 @@ class ManagerAgent:
             content_obj,
         )
     
-    def compute_sql_block(self, project, topic, content_obj, section_index, block_index):
-        return self.sql_agent.compute_sql_block(
+    def compute_sql_block(self, project, report, topic, content_obj, section_index, block_index):
+
+        result = self.sql_agent.compute_sql_block(
             project,
             topic,
             content_obj,
@@ -129,14 +130,40 @@ class ManagerAgent:
             block_index,
         )
 
-    def compute_visual_block(self, project, topic, content_obj, section_index, block_index):
-        return self.visual_agent.compute_visual_block(
+        if isinstance(result, dict) and result.get("placeholder_removed"):
+
+            print(f"[REPAIR] SQL placeholder removed → Topic {topic.id}")
+
+            content_obj = self.content_agent.repair_topic_content(
+                project,
+                report,
+                topic,
+                content_obj,
+            )
+
+        return result
+
+    def compute_visual_block(self, project, report, topic, content_obj, section_index, block_index):
+        result = self.visual_agent.compute_visual_block(
             project,
             topic,
             content_obj,
             section_index,
             block_index,
         )
+
+        if isinstance(result, dict) and result.get("placeholder_removed"):
+
+            print(f"[REPAIR] Visual placeholder removed → Topic {topic.id}")
+
+            content_obj = self.content_agent.repair_topic_content(
+                project,
+                report,
+                topic,
+                content_obj,
+            )
+
+        return result
     
     def validate_subsection_generation(self, subsection):
         return self.content_agent.validate_subsection_generation(subsection)
@@ -341,6 +368,7 @@ class ManagerAgent:
                                 executor.submit(
                                     self.compute_sql_block,
                                     project,
+                                    report,
                                     topic,
                                     content_obj,
                                     s_index,
@@ -358,6 +386,7 @@ class ManagerAgent:
                                 executor.submit(
                                     self.compute_visual_block,
                                     project,
+                                    report,
                                     topic,
                                     content_obj,
                                     s_index,
@@ -413,6 +442,7 @@ class ManagerAgent:
 
                                 self.compute_sql_block(
                                     project,
+                                    report,
                                     topic,
                                     content_obj,
                                     s_index,
@@ -423,6 +453,7 @@ class ManagerAgent:
 
                                 self.compute_visual_block(
                                     project,
+                                    report,
                                     topic,
                                     content_obj,
                                     s_index,

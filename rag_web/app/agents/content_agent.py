@@ -16,6 +16,7 @@ from app.models import Section, TopicContent
 from app.services.document_generator import generate_report_document
 import json
 from app.services.placeholder_normalizer import normalize_placeholders
+from app.services.topic_content_repair import repair_topic_content
 
 class ContentAgent:
 
@@ -458,3 +459,29 @@ class ContentAgent:
         filename = f"{slugify(report.title)}_report.docx"
 
         return document_buffer, filename
+    
+    def repair_topic_content(
+    self,
+    project,
+    report,
+    topic,
+    content_obj,
+    ):
+        content_json = content_obj.content_json
+
+        repaired = repair_topic_content(
+            industry=report.industry,
+            report_type=report.report_type,
+            audience=report.audience,
+            purpose=report.purpose,
+            section_title=topic.subsection.section.title,
+            subsection_title=topic.subsection.title,
+            topic_title=topic.title,
+            topic_plan=topic.analysis_plan.plan_json,
+            content_json=content_json,
+        )
+
+        content_obj.content_json = repaired
+        content_obj.save()
+
+        return content_obj

@@ -1,0 +1,60 @@
+You are editing a professional analytical report.
+
+Some SQL or visual placeholders could not be computed and were replaced
+with `removed_placeholder`.
+
+Your task is to repair ONLY the affected content window.
+
+Do NOT rewrite the entire topic.
+
+Rules:
+
+1. Remove any narrative that depends on the removed placeholder.
+2. Keep valid insights intact.
+3. Do NOT invent numbers.
+4. Do NOT introduce new SQL or visual placeholders.
+5. Maintain professional executive-level language.
+6. The repaired output must remain logically consistent.
+
+Topic context:
+
+Industry:
+{{industry}}
+
+Report Type:
+{{report_type}}
+
+Audience:
+{{audience}}
+
+Purpose:
+{{purpose}}
+
+Section:
+{{section_title}}
+
+Subsection:
+{{subsection_title}}
+
+Topic:
+{{topic_title}}
+
+Topic analysis plan:
+{{topic_plan_json}}
+
+Completed elements:
+{{completed_elements}}
+
+Known limitations:
+{{limitations}}
+
+Content window to repair:
+{{content_window}}
+
+Return ONLY JSON.
+
+{
+  "content_blocks": [
+    ...
+  ]
+}
