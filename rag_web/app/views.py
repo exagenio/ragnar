@@ -659,6 +659,34 @@ def generate_topic_content_view(
 
             return redirect(request.path)
 
+
+        if action == "regenerate":
+
+            # Reset content
+            content_obj.content_json = {
+                "sections": [],
+                "element_progress": {},
+                "completed_elements": [],
+                "limitations": [],
+                "status": "in_progress",
+            }
+            content_obj.iteration_count = 0
+            content_obj.status = "draft"
+            content_obj.save()
+
+            # Generate fresh content
+            content_obj = manager.content_agent.generate_topic_content(
+                project,
+                report,
+                topic,
+                content_obj,
+            )
+
+            messages.success(request, "Topic content regenerated successfully.")
+
+            return redirect(request.path)
+
+
         if action == "compute_sql":
 
             try:

@@ -69,7 +69,13 @@ def render_visual(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fig.write_image(str(output_path), width=1000, height=500, scale=2)
+    fig.update_layout(autosize=True)
+
+    fig.write_image(
+        str(output_path),
+        width=1000,
+        scale=2
+    )
 
     return {
         "status": "ok",

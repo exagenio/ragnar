@@ -182,7 +182,14 @@ DO NOT generate a SQL_CALCULATION placeholder.
 VISUAL PLACEHOLDER
 ========================
 
-Insert ONLY if a visual significantly improves understanding.
+Insert a visual ONLY if it significantly improves understanding of the analysis.
+NEVER generate a visual that already exists in the topic.
+
+Before generating a visual placeholder, check the previously generated analysis.
+
+If a similar visual already exists:
+- DO NOT generate another visual
+- Continue writing analysis using narrative text instead.
 
 Allowed visual types:
 
@@ -200,19 +207,110 @@ Use EXACTLY this format:
   purpose: "<business insight the visual conveys>";
 }}
 
-Rules:
+========================
+VISUALIZATION SELECTION RULES
+========================
 
-• Only use the allowed visual types listed above
-• If a suitable visual does not exist, DO NOT generate a visual placeholder
-• Visuals must directly support the analysis
+You MUST carefully select the correct visual type.
+
+Choose visuals based on the **structure of the analysis**, not randomly.
+
+Use the following rules:
+
+--------------------------------
+LINE CHART
+--------------------------------
+
+Use when the analysis shows a **trend over time**.
+
+Examples:
+- monthly sales
+- yearly revenue
+- customer growth over time
+
+Typical dimensions:
+month, quarter, year, date.
+
+NEVER use line charts for categorical comparisons.
+
+--------------------------------
+BAR CHART
+--------------------------------
+
+Use when comparing values across **multiple categories**.
+
+Examples:
+- sales by product category
+- revenue by region
+- transactions by store
+
+Bar charts work well when the number of categories may be **moderate or large**.
+
+--------------------------------
+PIE CHART
+--------------------------------
+
+Use ONLY when showing **proportions of a whole** AND the number of segments is SMALL.
+
+Maximum recommended segments: **6 categories**.
+
+Examples:
+- revenue share by customer segment
+- percentage of repeat vs new customers
+
+NEVER use pie charts when:
+- categories could exceed 6
+- categories represent products, SKUs, customers, transactions, or stores
+- comparison precision is required
+
+If many categories exist → use **bar_chart instead**.
+
+--------------------------------
+TABLE
+--------------------------------
+
+Use when the analysis produces **many rows or categories**.
+
+Tables are preferred when:
+- there are many values
+- exact numbers matter more than visual comparison
+- visualization would become cluttered
+
+--------------------------------
+COMBO CHART
+--------------------------------
+
+Use when comparing **two related metrics over time**.
 
 Example:
+- revenue vs units sold over months
+- customer count vs average order value over time
 
-{{VISUAL:
-  id: revenue_trend_over_time;
-  type: line_chart;
-  purpose: "Shows how total revenue evolves over time to reveal growth patterns and seasonal fluctuations.";
-}}
+Combo charts typically combine:
+- bars for one metric
+- a line for another metric
+
+--------------------------------
+WHEN NOT TO USE A VISUAL
+--------------------------------
+
+Do NOT generate a visual if:
+
+• the insight can be clearly explained with text
+• the expected number of categories is very large
+• the comparison is simple and does not benefit from visualization
+• the required data may not exist
+
+In these cases, continue the analysis using narrative text only.
+
+--------------------------------
+IMPORTANT
+--------------------------------
+
+If you are unsure which visual is appropriate,
+DO NOT generate a visual placeholder.
+
+Continue with qualitative analysis instead.
 
 ========================
 LIMITATION CAPTURE (STRUCTURAL ONLY)

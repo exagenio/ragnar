@@ -95,7 +95,6 @@ def generate_topic_analysis_plan(
 
     try:
         plan = extract_json_from_text(raw_output)
-        plan = normalize_topic_analysis_plan(plan)
         return plan
     except Exception as e:
         raise ValueError(f"LLM returned invalid JSON: {e}")

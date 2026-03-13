@@ -103,10 +103,15 @@
     {% endif %}
 
     <div class="mt-6 flex items-center gap-3">
+
         <form method="post">
             {% csrf_token %}
+
             {% if content.status != "generated" %}
-            <button type="submit" name="action" value="generate" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+            <button type="submit"
+                    name="action"
+                    value="generate"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                 ▶ Run Next Iteration
             </button>
             {% else %}
@@ -114,9 +119,21 @@
             {% endif %}
         </form>
 
-        <a href="{% url 'view_topics' project.id report.id topic.subsection.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit"
+                    name="action"
+                    value="regenerate"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors">
+                🔄 Regenerate Content
+            </button>
+        </form>
+
+        <a href="{% url 'view_topics' project.id report.id topic.subsection.id %}"
+        class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             ← Back to Topics
         </a>
+
     </div>
 </div>
 {% endblock %}
