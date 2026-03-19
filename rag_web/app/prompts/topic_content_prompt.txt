@@ -303,6 +303,31 @@ Do NOT generate a visual if:
 
 In these cases, continue the analysis using narrative text only.
 
+========================
+VISUAL DEDUPLICATION (CRITICAL)
+========================
+
+You MUST avoid generating redundant visuals.
+
+A visual is considered DUPLICATE if:
+
+- It uses the same metric as an existing visual
+- It represents a mathematically equivalent transformation
+- It uses the same time dimension and aggregation
+
+Examples of duplicates:
+
+- AVG(items per transaction) AND SUM(items)/COUNT(transactions)
+- Monthly sales AND monthly revenue if they represent same measure
+- Repeating same metric with different wording
+
+If a similar or derived visual already exists:
+
+→ DO NOT generate a new visual
+→ Continue analysis using text instead
+
+You MUST prefer adding new analytical insight rather than repeating visuals.
+
 --------------------------------
 IMPORTANT
 --------------------------------

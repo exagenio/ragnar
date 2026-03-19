@@ -13,6 +13,8 @@ from app.services.llm_provider import (
 
 SQL_AGENT_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "sql_agent_prompt.txt"
 
+SQL_METRIC_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_metric_prompt.txt"
+SQL_VISUAL_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_visual_prompt.txt"
 
 # ==========================
 # PUBLIC ENTRY POINT
@@ -95,7 +97,10 @@ def _render_sql_agent_prompt(
     Render SQL agent prompt using plain-text replacement.
     """
 
-    prompt_template = SQL_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
+    if query_intent == "visual":
+        prompt_template = SQL_VISUAL_PROMPT_PATH.read_text(encoding="utf-8")
+    else:
+        prompt_template = SQL_METRIC_PROMPT_PATH.read_text(encoding="utf-8")
 
     replacements = {
         "calculation_id": calculation_id,

@@ -3,6 +3,8 @@ from app.services.sql_executor import execute_sql_safely
 from app.services.sql_result_interpreter import interpret_sql_result
 from app.models import SelectedTable
 from app.services.column_introspector import get_table_columns
+from app.services.vector_store import get_vector_store
+from app.services.sql_agent import parse_sql_placeholder
 
 
 class SQLAgent:
@@ -83,6 +85,18 @@ class SQLAgent:
 
         try:
             sql_block = sections[section_index]["content_blocks"][block_index]
+            # -----------------------------
+            # RETRY META
+            # -----------------------------
+            retry_meta = sql_block.setdefault("retry_meta", {
+                "attempts": 0,
+                "max_attempts": 3,
+                "errors": []
+            })
+
+            retry_meta["attempts"] += 1
+
+            print(f"[SQL] Attempt {retry_meta['attempts']} / {retry_meta['max_attempts']}")        
         except (IndexError, KeyError, TypeError):
             raise ValueError("Invalid SQL placeholder reference.")
 
@@ -106,15 +120,15 @@ class SQLAgent:
 
             print("SQL generation failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index,reason="sql_generation_failed")
-
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
+            return self._handle_sql_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="sql_generation_failed",
+            )
 
 
         # -----------------------------------------
@@ -124,15 +138,15 @@ class SQLAgent:
 
             print("SQL generation not possible:", generated_sql)
 
-            self._remove_sql_placeholder(sections, section_index, block_index,reason="SQL generation not possible")
-
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
+            return self._handle_sql_failure(
+            sections=sections,
+            section_index=section_index,
+            block_index=block_index,
+            content_obj=content_obj,
+            content_json=content_json,
+            retry_meta=retry_meta,
+            reason="sql_generation not possible",
+            )
 
 
         # -----------------------------------------
@@ -150,7 +164,15 @@ class SQLAgent:
 
             print("SQL execution failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index, reason="SQL execution failed")
+            return self._handle_sql_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="sql execution failed",
+            )
 
             content_obj.content_json = content_json
             content_obj.save()
@@ -172,9 +194,17 @@ class SQLAgent:
             not in ["paragraph", "bullet_list"]
         ):
 
-            print("SQL placeholder has no preceding paragraph. Removing.")
+            print("SQL placeholder has no preceding paragraph.")
 
-            self._remove_sql_placeholder(sections, section_index, block_index,reason="SQL placeholder has no preceding paragraph. Removing.")
+            return self._handle_sql_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="sql placeholder has no proceding paragraph",
+            )
 
             content_obj.content_json = content_json
             content_obj.save()
@@ -203,7 +233,15 @@ class SQLAgent:
 
             print("SQL interpretation failed:", e)
 
-            self._remove_sql_placeholder(sections, section_index, block_index, reason="SQL interpretation failed")
+            return self._handle_sql_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="sql interpretation failed",
+            )
 
             content_obj.content_json = content_json
             content_obj.save()
@@ -229,6 +267,123 @@ class SQLAgent:
         content_obj.save()
 
         return {
-            "success": False,
-            "placeholder_removed": True
+            "success": True,
+            "placeholder_removed": False
         }
+
+    # -----------------------------------------
+    # METADATA RETRIEVAL FROM VECTOR DB
+    # -----------------------------------------
+    def retrieve_metadata_context(
+        self,
+        *,
+        project_id: int,
+        sql_placeholder: dict,
+        topic_title: str,
+        k: int = 8,
+    ):
+        """
+        Retrieve relevant metadata for SQL generation
+        using semantic search.
+        """
+
+        vector_store = get_vector_store()
+
+        query = self._build_metadata_query(
+            sql_placeholder=sql_placeholder,
+            topic_title=topic_title,
+        )
+
+        docs = vector_store.similarity_search(
+            query,
+            k=k,
+            filter={"project_id": project_id},
+        )
+
+        return [
+            {
+                "content": d.page_content,
+                "metadata": d.metadata,
+            }
+            for d in docs
+        ]
+
+
+    def _build_metadata_query(self, sql_placeholder: dict, topic_title: str):
+        """
+        Build semantic query to retrieve relevant metadata.
+        """
+
+        try:
+            parsed = parse_sql_placeholder(sql_placeholder)
+
+            calculation = parsed.get("calculation", "")
+            description = parsed.get("description", "")
+
+        except Exception:
+            calculation = ""
+            description = ""
+
+        return f"""
+        {topic_title}
+        {calculation}
+        {description}
+        database columns dataset schema
+        """
+
+
+    def _handle_sql_failure(
+        self,
+        *,
+        sections,
+        section_index,
+        block_index,
+        content_obj,
+        content_json,
+        retry_meta,
+        reason=None,
+        attempted_sql=None,
+        error=None,
+    ):
+
+        if error:
+            retry_meta["errors"].append(str(error))
+
+        # -----------------------------
+        # MAX RETRIES → REMOVE
+        # -----------------------------
+        if retry_meta["attempts"] >= retry_meta["max_attempts"]:
+
+            print("[SQL] Max retries reached → removing placeholder")
+
+            self._remove_sql_placeholder(
+                sections,
+                section_index,
+                block_index,
+                reason=reason or "max_retries_exceeded",
+                attempted_sql=attempted_sql,
+                error=error,
+            )
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
+
+        # -----------------------------
+        # RETRY LATER
+        # -----------------------------
+        else:
+
+            print("[SQL] Retry scheduled → keeping placeholder")
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": False
+            }

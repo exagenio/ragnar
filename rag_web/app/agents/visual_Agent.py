@@ -9,6 +9,7 @@ from app.services.visual_renderer import render_visual
 from app.models import SelectedTable
 from app.services.column_introspector import get_table_columns
 from app.services.visual_agent import parse_visual_placeholder
+from app.services.vector_store import get_vector_store
 
 SUPPORTED_VISUAL_TYPES = {
     "line_chart",
@@ -90,6 +91,17 @@ class VisualAgent:
 
         try:
             visual_block = sections[section_index]["content_blocks"][block_index]
+            # -----------------------------
+            # RETRY METADATA
+            # -----------------------------
+            retry_meta = visual_block.setdefault("retry_meta", {
+                "attempts": 0,
+                "max_attempts": 3
+            })
+
+            retry_meta["attempts"] += 1
+
+            print(f"[VISUAL] Attempt {retry_meta['attempts']} / {retry_meta['max_attempts']}")        
         except (IndexError, KeyError, TypeError):
             raise ValueError("Invalid visual placeholder reference.")
 
@@ -107,48 +119,45 @@ class VisualAgent:
             chart_type = parsed["type"].lower()
 
             if chart_type not in SUPPORTED_VISUAL_TYPES:
+                failed_reason = f"[VISUAL] Unsupported chart type detected: {chart_type}"
+                print(failed_reason)
 
-                print(f"[VISUAL] Unsupported chart type detected: {chart_type}")
-
-                self._remove_visual_placeholder(
-                    sections,
-                    section_index,
-                    block_index,
-                    reason=f"unsupported_chart_type: {chart_type}",
+                return self._handle_visual_failure(
+                    sections=sections,
+                    section_index=section_index,
+                    block_index=block_index,
+                    content_obj=content_obj,
+                    content_json=content_json,
+                    retry_meta=retry_meta,
+                    reason="Unsupported chart type detected",
+                    error=e if 'e' in locals() else None,
                 )
 
-                content_obj.content_json = content_json
-                content_obj.save()
-
-                return {
-                    "success": False,
-                    "placeholder_removed": True
-                }
-
         except Exception as e:
+            failed_reason = f"[VISUAL] Placeholder parsing failed: {e}"
+            print(failed_reason)
 
-            print(f"[VISUAL] Placeholder parsing failed: {e}")
-
-            self._remove_visual_placeholder(
-                sections,
-                section_index,
-                block_index,
-                reason="invalid_visual_placeholder",
-                error=e,
+            return self._handle_visual_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason=" Placeholder parsing failed",
+                error=e if 'e' in locals() else None,
             )
-
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
+        
+        metadata_context = self.retrieve_metadata_context(
+            project_id=project.id,
+            visual_placeholder=visual_block,
+            topic_title=topic.title,
+        )
 
         visual_plan = generate_visual_plan(
             visual_placeholder=visual_block,
             topic_plan=topic.analysis_plan.plan_json,
-            metadata_context=content_json.get("metadata_context"),
+            metadata_context=metadata_context,
             database_schema=schema_context,
         )
 
@@ -156,37 +165,38 @@ class VisualAgent:
         generated_type = visual_spec.get("type")
 
         if generated_type and generated_type not in SUPPORTED_VISUAL_TYPES:
+            failed_reason = f"[VISUAL] LLM generated unsupported visual type: {generated_type}"
+            print(failed_reason)
 
-            print(f"[VISUAL] LLM generated unsupported visual type: {generated_type}")
-
-            self._remove_visual_placeholder(
-                sections,
-                section_index,
-                block_index,
-                reason=f"llm_generated_invalid_visual: {generated_type}",
-                visual_plan=visual_plan,
+            return self._handle_visual_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="LLM generated unsupported visual type",
+                error=e if 'e' in locals() else None,
             )
 
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
-
         if visual_plan["status"] != "ok":
-            self._remove_visual_placeholder(sections, section_index, block_index)
-            content_obj.content_json = content_json
-            content_obj.save()
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
+            failed_reason = f"[VISUAL] Placeholder parsing failed: status is not ok"
+            print(failed_reason)
+
+            return self._handle_visual_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason=failed_reason,
+                error=e if 'e' in locals() else None,
+            )
 
         sql_response = generate_sql_from_visual_plan(
             visual_plan=visual_plan,
-            metadata_context=content_json.get("metadata_context"),
+            metadata_context=metadata_context,
             database_schema=schema_context,
         )
         try:
@@ -201,7 +211,16 @@ class VisualAgent:
 
             print("visual execution failed:", e)
 
-            self._remove_visual_placeholder(sections, section_index, block_index, reason="visual execution failed")
+            return self._handle_visual_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason='visual execution failed',
+                error=e if 'e' in locals() else None,
+            )
 
             content_obj.content_json = content_json
             content_obj.save()
@@ -218,18 +237,16 @@ class VisualAgent:
             / f"section_{section_index}_block_{block_index}.png"
         )
 
-        output_path = Path(settings.MEDIA_ROOT) / relative_path
-
-        render_visual(
+        visual_output = render_visual(
             visual_spec=visual_plan["visual_spec"],
             sql_result=sql_result["result"],
-            output_path=output_path,
         )
 
         visual_block["generated_visual"] = {
             "status": "ok",
             "visual_spec": visual_plan["visual_spec"],
-            "image_path": f"{settings.MEDIA_URL}{relative_path.as_posix()}",
+            "sql_query": sql_response["sql"],
+            "figure_json": visual_output["figure_json"],
             "row_count": sql_result["row_count"],
         }
 
@@ -240,3 +257,113 @@ class VisualAgent:
             "success": True,
             "placeholder_removed": False
         }
+    
+    def retrieve_metadata_context(
+    self,
+    *,
+    project_id: int,
+    visual_placeholder: dict,
+    topic_title: str,
+    k: int = 8,
+    ):
+        """
+        Retrieve relevant metadata from vector DB for visual generation.
+        """
+
+        vector_store = get_vector_store()
+
+        query = self._build_metadata_query(
+            visual_placeholder=visual_placeholder,
+            topic_title=topic_title,
+        )
+
+        docs = vector_store.similarity_search(
+            query,
+            k=k,
+            filter={"project_id": project_id},
+        )
+
+        return [
+            {
+                "content": d.page_content,
+                "metadata": d.metadata,
+            }
+            for d in docs
+        ]
+    
+
+    def _build_metadata_query(self, visual_placeholder: dict, topic_title: str):
+        """
+        Build a semantic search query for retrieving metadata.
+        """
+
+        try:
+            parsed = parse_visual_placeholder(visual_placeholder)
+            visual_type = parsed["type"]
+            visual_purpose = parsed["purpose"]
+        except Exception:
+            visual_type = ""
+            visual_purpose = ""
+
+        return f"""
+        {topic_title}
+        {visual_type}
+        {visual_purpose}
+        dataset columns
+        """
+    
+    def _handle_visual_failure(
+        self,
+        *,
+        sections,
+        section_index,
+        block_index,
+        content_obj,
+        content_json,
+        retry_meta,
+        reason=None,
+        visual_plan=None,
+        attempted_sql=None,
+        error=None,
+    ):
+        """
+        Retry-aware failure handler.
+        """
+
+        retry_meta.setdefault("errors", [])
+        if error:
+            retry_meta["errors"].append(str(error))
+
+        if retry_meta["attempts"] >= retry_meta["max_attempts"]:
+
+            print("[VISUAL] Max retries reached → removing placeholder")
+
+            self._remove_visual_placeholder(
+                sections,
+                section_index,
+                block_index,
+                reason=reason or "max_retries_exceeded",
+                visual_plan=visual_plan,
+                attempted_sql=attempted_sql,
+                error=error,
+            )
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": True
+            }
+
+        else:
+
+            print("[VISUAL] Retry scheduled → keeping placeholder")
+
+            content_obj.content_json = content_json
+            content_obj.save()
+
+            return {
+                "success": False,
+                "placeholder_removed": False
+            }

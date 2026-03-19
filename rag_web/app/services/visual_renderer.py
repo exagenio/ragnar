@@ -14,7 +14,6 @@ def render_visual(
     *,
     visual_spec: Dict[str, Any],
     sql_result: Dict[str, Any],
-    output_path: Path,
 ) -> Dict[str, Any]:
     """
     Render a visual (chart/table) from SQL result data and save as PNG.
@@ -67,19 +66,11 @@ def render_visual(
         title=title,
     )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
     fig.update_layout(autosize=True)
-
-    fig.write_image(
-        str(output_path),
-        width=1000,
-        scale=2
-    )
 
     return {
         "status": "ok",
-        "image_path": str(output_path),
+        "figure_json": fig.to_json(),
         "chart_type": chart_type,
     }
 
@@ -162,42 +153,66 @@ def _build_figure(
         fig.update_layout(title=title)
 
     elif chart_type == "combo_chart":
+
         _require_columns(df, [x] + y_columns)
 
         if len(y_columns) < 2:
             raise ValueError("Combo chart requires at least two y-axis columns")
 
+        primary_metric = y_columns[0]
+        secondary_metric = y_columns[1]
+
         fig = go.Figure()
 
-        # First metric → Bar
+        # --------------------
+        # Bar (LEFT AXIS)
+        # --------------------
         fig.add_trace(
             go.Bar(
                 x=df[x],
-                y=df[y_columns[0]],
-                name=y_columns[0],
+                y=df[primary_metric],
+                name=primary_metric,
                 yaxis="y",
             )
         )
 
-        # Remaining metrics → Line
-        for y_col in y_columns[1:]:
-            fig.add_trace(
-                go.Scatter(
-                    x=df[x],
-                    y=df[y_col],
-                    mode="lines+markers",
-                    name=y_col,
-                    yaxis="y",
-                )
+        # --------------------
+        # Line (RIGHT AXIS)
+        # --------------------
+        fig.add_trace(
+            go.Scatter(
+                x=df[x],
+                y=df[secondary_metric],
+                mode="lines+markers",
+                name=secondary_metric,
+                yaxis="y2",
             )
+        )
 
         fig.update_layout(
             title=title,
-            xaxis_title=x,
-            yaxis_title="Value",
+            xaxis=dict(title=x),
+
+            # LEFT SIDE LABELS
+            yaxis=dict(
+                title=primary_metric,
+                side="left",
+                showgrid=True
+            ),
+
+            # RIGHT SIDE LABELS
+            yaxis2=dict(
+                title=secondary_metric,
+                overlaying="y",
+                side="right",
+                showgrid=False
+            ),
+
+            legend=dict(
+                orientation="h",
+                y=1.1
+            )
         )
-
-
     else:
         raise ValueError(f"Unsupported visual type: {chart_type}")
 
