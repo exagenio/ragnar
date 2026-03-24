@@ -27,6 +27,7 @@ def generate_visual_plan(
     topic_plan: Dict[str, Any],
     metadata_context: Dict,
     database_schema: Dict,
+    existing_visuals: list | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict[str, Any]:
     """
@@ -54,6 +55,7 @@ def generate_visual_plan(
         topic_plan=topic_plan,
         metadata_context=metadata_context,
         database_schema=database_schema,
+        existing_visuals=existing_visuals or [],
     )
 
     response = llm.invoke(prompt)
@@ -87,6 +89,7 @@ def _render_visual_agent_prompt(
     topic_plan: Dict,
     metadata_context: Dict,
     database_schema: Dict,
+    existing_visuals: list,
 ) -> str:
     """
     Render Visual Agent prompt safely.
@@ -100,6 +103,7 @@ def _render_visual_agent_prompt(
         "topic_plan_json": json.dumps(topic_plan, indent=2),
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
+        "existing_visuals_json": json.dumps(existing_visuals, indent=2),
     }
 
     prompt = template

@@ -66,11 +66,46 @@
                     {% else %}
                     <div class="mt-4">
                         <div id="chart-{{ section_index }}-{{ block_index }}" class="w-full h-[400px]"></div>
+<script>
+function decodeBData(bdata, dtype) {
+    const binary = atob(bdata);
+    const bytes = new Uint8Array(binary.length);
 
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    const buffer = bytes.buffer;
+
+    switch (dtype) {
+        case "f8":
+            return Array.from(new Float64Array(buffer));
+        case "f4":
+            return Array.from(new Float32Array(buffer));
+        case "i4":
+            return Array.from(new Int32Array(buffer));
+        case "i2":
+            return Array.from(new Int16Array(buffer));
+        case "i1":
+            return Array.from(new Int8Array(buffer));
+        default:
+            console.warn("Unknown dtype:", dtype);
+            return [];
+    }
+}
+</script>
                         <script>
                             (function() {
                                 const fig = JSON.parse(`{{ block.generated_visual.figure_json|escapejs }}`);
-
+                                console.log("\n\n\n\n\n_______chart data before convert______\n\n ")
+                                console.log(fig.data);
+                                fig.data.forEach(trace => {
+                                    if (trace.y && trace.y.bdata) {
+                                        trace.y = decodeBData(trace.y.bdata, trace.y.dtype);
+                                    }
+                                });
+                                 console.log("\n_chart data afterr_\n ")
+                                console.log(fig.data);
                                 Plotly.newPlot(
                                     "chart-{{ section_index }}-{{ block_index }}",
                                     fig.data,
@@ -125,7 +160,7 @@
                     name="action"
                     value="generate"
                     class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                ▶ Run Next Iteration
+                Generate
             </button>
             {% else %}
             <p class="text-green-600 font-medium">✅ Content generation complete.</p>

@@ -55,6 +55,25 @@ You MUST use ONLY these tables and columns.
 {{database_schema_json}}
 
 ========================
+ALREADY GENERATED VISUALS (DEDUPLICATION)
+========================
+
+The following visuals have already been generated for this topic:
+
+{{existing_visuals_json}}
+
+You MUST NOT generate a visual that duplicates any of the above.
+
+A visual is a DUPLICATE if:
+- It uses the same metric(s) AND the same grouping dimension as an existing visual
+- The SQL would return the same or mathematically equivalent data
+- Only the column aliases differ
+
+If the requested visual would be a duplicate:
+- Return status: "not_possible"
+- reason: "Duplicate visual - equivalent data already visualized"
+
+========================
 STRICT RULES (MANDATORY)
 ========================
 
@@ -96,9 +115,11 @@ CRITICAL AXIS RULES:
 ========================
 VISUAL DESIGN RULES
 ========================
+If the number of categories is expected to exceed 20, Limit results to top 10–15 categories using ORDER BY + LIMIT OR → Aggregate remaining categories into "Others"
+
+Do NOT return more than 20 rows for bar charts.
 
 Depending on the visual type:
-
 LINE CHART:
 - X-axis MUST represent time or ordered progression
 - One or more Y-axis metrics are allowed

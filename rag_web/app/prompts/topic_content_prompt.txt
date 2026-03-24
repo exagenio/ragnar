@@ -66,6 +66,66 @@ correct → "individual customers"
 
 {{metadata_context_json}}
 
+
+========================
+DATA-DRIVEN ANALYSIS CONSTRAINT (CRITICAL)
+========================
+
+All analysis MUST be strictly derived from the available database data and its metadata context.
+
+You MUST ensure that:
+
+• Every insight is based on data that exists in the database  
+• Every statement reflects something that can be computed using aggregations, groupings, or comparisons  
+• Every analytical idea can be translated into a SQL calculation or data query  
+
+You MUST NOT include:
+
+• Insights that cannot be derived from the available data  
+• Assumptions about customer behavior without measurable evidence  
+• General business statements not backed by data  
+• Interpretations that require external knowledge or missing attributes  
+
+If an insight cannot be supported by the database:
+
+→ DO NOT include it in the analysis  
+
+========================
+ANALYSIS PLAN ALIGNMENT (MANDATORY)
+========================
+
+The Topic Analysis Plan defines what is allowed.
+
+You MUST ensure:
+
+• Every paragraph maps to a required_element  
+• Every calculation or visual maps to a data_requirement  
+• No new metrics, dimensions, or concepts are introduced outside the plan  
+
+If something is not defined in the Topic Analysis Plan:
+
+→ DO NOT introduce it  
+
+========================
+MEASURABILITY RULE (MANDATORY)
+========================
+
+Every analytical statement MUST be measurable.
+
+This means it must be expressible as one of:
+
+• COUNT of an entity  
+• SUM / AVG of a metric  
+• RATIO between metrics  
+• Trend over time  
+• Comparison across categories  
+
+If a statement cannot be expressed in one of these forms:
+
+→ REMOVE it  
+
+========================
+
 ========================
 PROGRESS TRACKING (SUMMARY ONLY)
 ========================
@@ -215,80 +275,8 @@ You MUST carefully select the correct visual type.
 
 Choose visuals based on the **structure of the analysis**, not randomly.
 
-Use the following rules:
-
---------------------------------
-LINE CHART
---------------------------------
-
-Use when the analysis shows a **trend over time**.
-
-Examples:
-- monthly sales
-- yearly revenue
-- customer growth over time
-
-Typical dimensions:
-month, quarter, year, date.
-
-NEVER use line charts for categorical comparisons.
-
---------------------------------
-BAR CHART
---------------------------------
-
-Use when comparing values across **multiple categories**.
-
-Examples:
-- sales by product category
-- revenue by region
-- transactions by store
-
-Bar charts work well when the number of categories may be **moderate or large**.
-
---------------------------------
-PIE CHART
---------------------------------
-
-Use ONLY when showing **proportions of a whole** AND the number of segments is SMALL.
-
-Maximum recommended segments: **6 categories**.
-
-Examples:
-- revenue share by customer segment
-- percentage of repeat vs new customers
-
-NEVER use pie charts when:
-- categories could exceed 6
-- categories represent products, SKUs, customers, transactions, or stores
-- comparison precision is required
-
-If many categories exist → use **bar_chart instead**.
-
---------------------------------
-TABLE
---------------------------------
-
-Use when the analysis produces **many rows or categories**.
-
-Tables are preferred when:
-- there are many values
-- exact numbers matter more than visual comparison
-- visualization would become cluttered
-
---------------------------------
-COMBO CHART
---------------------------------
-
-Use when comparing **two related metrics over time**.
-
-Example:
-- revenue vs units sold over months
-- customer count vs average order value over time
-
-Combo charts typically combine:
-- bars for one metric
-- a line for another metric
+for PIE charts, use ONLY when showing **proportions of a whole** AND the number of segments is SMAL
+NEVER use pie charts when number of elements could exceed 10
 
 --------------------------------
 WHEN NOT TO USE A VISUAL

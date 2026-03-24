@@ -154,11 +154,14 @@ class VisualAgent:
             topic_title=topic.title,
         )
 
+        existing_visuals = self._collect_existing_visuals(content_json)
+
         visual_plan = generate_visual_plan(
             visual_placeholder=visual_block,
             topic_plan=topic.analysis_plan.plan_json,
             metadata_context=metadata_context,
             database_schema=schema_context,
+            existing_visuals=existing_visuals,
         )
 
         visual_spec = visual_plan.get("visual_spec", {})
@@ -206,7 +209,6 @@ class VisualAgent:
                 project_id=project.id,
                 expected_result_type="table",
             )
-
         except Exception as e:
 
             print("visual execution failed:", e)
@@ -258,6 +260,23 @@ class VisualAgent:
             "placeholder_removed": False
         }
     
+    def _collect_existing_visuals(self, content_json: dict) -> list:
+        """
+        Scan content_json for already-successfully-generated visuals.
+        Returns a list of {visual_spec, sql_query} dicts to pass as
+        deduplication context to the visual agent.
+        """
+        existing = []
+        for section in content_json.get("sections", []):
+            for block in section.get("content_blocks", []):
+                gen_visual = block.get("generated_visual")
+                if gen_visual and gen_visual.get("status") == "ok":
+                    existing.append({
+                        "visual_spec": gen_visual.get("visual_spec", {}),
+                        "sql_query": gen_visual.get("sql_query", ""),
+                    })
+        return existing
+
     def retrieve_metadata_context(
     self,
     *,

@@ -92,6 +92,7 @@ def _render_sql_agent_prompt(
     database_schema: Dict,
     query_intent: str,
     visual_context: Dict | None,
+    visual_plan: Dict | None = None, 
 ) -> str:
     """
     Render SQL agent prompt using plain-text replacement.
@@ -110,8 +111,8 @@ def _render_sql_agent_prompt(
         "database_schema_json": json.dumps(database_schema, indent=2),
         "query_intent": query_intent,
         "visual_x_axis_column": visual_context.get("x_axis_column", "") if visual_context else "",
-        "visual_y_axis_columns": visual_context.get("y_axis_columns", []) if visual_context else [],
-
+        "visual_y_axis_columns": json.dumps(visual_context.get("y_axis_columns", [])) if visual_context else "",
+        "visual_plan_json": json.dumps(visual_plan, indent=2) if visual_plan else "",
     }
 
     if query_intent == "visual" and visual_context:
@@ -208,12 +209,13 @@ def generate_sql_from_visual_plan(
 
     prompt = _render_sql_agent_prompt(
         calculation_id="visual_query",
-        calculation_expression=sql_request,
-        calculation_description="SQL required to generate visual data",
+        calculation_expression=sql_request.get("calculation_expression", ""),
+        calculation_description=sql_request.get("description", ""),
         metadata_context=metadata_context,
         database_schema=database_schema,
         query_intent="visual",
         visual_context=visual_plan["visual_spec"],
+        visual_plan=visual_plan,
     )
 
     response = llm.invoke(prompt)
