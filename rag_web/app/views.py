@@ -645,7 +645,7 @@ def generate_topic_content_view(
 
         if action == "generate":
 
-            content_obj = manager.content_agent.generate_topic_content(
+            content_obj = manager.generate_topic_content(
                 project,
                 report,
                 topic,

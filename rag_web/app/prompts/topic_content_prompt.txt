@@ -127,6 +127,44 @@ If a statement cannot be expressed in one of these forms:
 ========================
 
 ========================
+PRECOMPUTED DATA (CRITICAL)
+========================
+
+The following data has already been computed from the database.
+
+Each item contains:
+- business meaning (description)
+- computed result (value or table)
+
+You MUST use this data when writing analysis.
+
+Rules:
+
+• Use ONLY these computed values when referring to numbers  
+• DO NOT create new calculations  
+• DO NOT estimate or infer numbers  
+• DO NOT introduce new metrics  
+
+If required data is NOT available:
+
+→ You may write qualitative analysis WITHOUT numbers  
+
+Each precomputed item structure:
+
+{
+  "id": "...",
+  "description": "...",
+  "data_requirement_ref": number,
+  "query": {
+    "status": "ok",
+    "result": ...,
+    "row_count": ...
+  }
+}
+
+{{precomputed_sql_json}}
+
+========================
 PROGRESS TRACKING (SUMMARY ONLY)
 ========================
 
@@ -181,62 +219,6 @@ Include AT MOST ONE calculation OR ONE visual (never both).
 Calculations and visuals are OPTIONAL.
 If a reliable calculation cannot be defined using the available metadata,
 DO NOT include a placeholder.
-
-========================
-SQL CALCULATION PLACEHOLDER
-========================
-
-When a calculation is necessary, insert EXACTLY this format:
-
-{{SQL_CALCULATION:
-  id: <descriptive_metric_identifier>;
-  calculation: <business_expression>;
-  description: "<business explanation>";
-}}
-
-Rules:
-
-• Use BUSINESS entities inferred from metadata
-• NEVER reference table or column names
-• NEVER use SQL syntax
-• NEVER compute values
-
-Allowed operations:
-
-SUM
-AVG
-COUNT
-COUNT_DISTINCT
-MIN
-MAX
-RATIO
-
-Allowed patterns:
-
-SUM(metric)
-
-AVG(metric)
-
-COUNT(entity)
-
-COUNT_DISTINCT(entity)
-
-SUM(metric) BY dimension
-
-AVG(metric) BY dimension
-
-RATIO(SUM(metric), COUNT_DISTINCT(entity))
-
-Example:
-
-{{SQL_CALCULATION:
-  id: overall_average_transaction_value;
-  calculation: RATIO(SUM(total purchase value), COUNT_DISTINCT(customer transactions));
-  description: "Average monetary value generated per customer transaction.";
-}}
-
-If the calculation cannot be expressed using these patterns,
-DO NOT generate a SQL_CALCULATION placeholder.
 
 ========================
 VISUAL PLACEHOLDER
@@ -369,7 +351,7 @@ OUTPUT JSON SCHEMA
       "heading": "string",
       "content_blocks": [
         {
-          "type": "paragraph | bullet_list | sql_placeholder | visual_placeholder",
+          "type": "paragraph | bullet_list | visual_placeholder",
           "content": "string or array"
         }
       ]
@@ -398,11 +380,9 @@ SELF VALIDATION (MANDATORY)
 
 Before returning the response, verify:
 
-1. All SQL placeholders use ONLY allowed operations.
-2. All SQL placeholders follow the allowed calculation patterns.
-3. All visual placeholders use ONLY allowed visual types.
-4. All calculations reference business entities available in metadata context.
-5. No table names or column names appear in the narrative.
+1. All visual placeholders use ONLY allowed visual types.
+2. All calculations reference business entities available in metadata context.
+3. No table names or column names appear in the narrative.
 
 If any placeholder violates these rules,
 REMOVE the placeholder and keep the analysis qualitative.

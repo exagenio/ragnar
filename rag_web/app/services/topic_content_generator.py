@@ -1,3 +1,4 @@
+# topic content generator
 import json
 import re
 from pathlib import Path
@@ -40,6 +41,7 @@ def generate_topic_content(
     topic_title: str,
     topic_plan: Dict,
     existing_content: Dict | None = None,
+    precomputed_sql_placeholders: List[Dict] | None = None, 
     backend: LLMBackend | None = None,
 ) -> Dict:
 
@@ -57,13 +59,27 @@ def generate_topic_content(
     # STATE (TOKEN SAFE)
     # ==========================
 
-    content_state = existing_content or {
+    default_state = {
         "sections": [],
-        "element_progress": {},  # element → covered_points[]
+        "element_progress": {},
         "completed_elements": [],
-        "limitations": [], 
+        "limitations": [],
         "status": "in_progress",
     }
+
+    if existing_content:
+        content_state = {
+            **default_state,
+            **existing_content,
+        }
+
+        # Ensure nested structures exist (critical)
+        content_state["sections"] = existing_content.get("sections", [])
+        content_state["element_progress"] = existing_content.get("element_progress", {})
+        content_state["completed_elements"] = existing_content.get("completed_elements", [])
+        content_state["limitations"] = existing_content.get("limitations", [])
+    else:
+        content_state = default_state
 
     required_elements = topic_plan.get("required_elements", [])
 
@@ -103,9 +119,8 @@ def generate_topic_content(
                 metadata_context=metadata_context,
                 current_required_element=element,
                 covered_points=covered_points,
+                precomputed_sql_placeholders=precomputed_sql_placeholders, 
             )
-
-            print(iteration_output)
 
             # ---- Merge limitations (STRUCTURAL ONLY)
             existing_limits = content_state.get("limitations", [])
@@ -151,6 +166,7 @@ def generate_single_iteration(
     metadata_context: List[Dict],
     current_required_element: str,
     covered_points: List[str],
+    precomputed_sql_placeholders: List[Dict] | None = None,
 ) -> Dict:
 
     prompt = render_prompt(
@@ -167,7 +183,7 @@ def generate_single_iteration(
             "metadata_context_json": json.dumps(metadata_context, indent=2),
             "current_required_element": current_required_element,
             "covered_elements_summary": "\n".join(f"- {p}" for p in covered_points),
-
+            "precomputed_sql_json": json.dumps(precomputed_sql_placeholders or [], indent=2),
         },
     )
 

@@ -20,8 +20,8 @@ def run_metadata_generation(project_id):
             rows=rows,
         )
 
-        # TEMP: just print (later store in DB)
-        print("METADATA RESULT:", metadata)
+
+
         TableMetadata.objects.update_or_create(
             project=project,
             table_name=table.table_name,

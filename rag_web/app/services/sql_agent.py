@@ -3,24 +3,17 @@ import re
 from typing import Dict, Any
 
 from django.conf import settings
-
 from app.services.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 
-
-SQL_AGENT_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "sql_agent_prompt.txt"
-
 SQL_METRIC_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_metric_prompt.txt"
 SQL_VISUAL_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_visual_prompt.txt"
-
-# ==========================
-# PUBLIC ENTRY POINT
-# ==========================
-
-
+SQL_PLACEHOLDER_PROMPT_PATH = (
+    settings.BASE_DIR / "app/prompts/sql_placeholder_generation_prompt.txt"
+)
 def generate_sql_from_placeholder(
     *,
     sql_placeholder: Dict[str, Any],
@@ -92,7 +85,7 @@ def _render_sql_agent_prompt(
     database_schema: Dict,
     query_intent: str,
     visual_context: Dict | None,
-    visual_plan: Dict | None = None, 
+    visual_plan: Dict | None = None,
 ) -> str:
     """
     Render SQL agent prompt using plain-text replacement.
@@ -110,8 +103,14 @@ def _render_sql_agent_prompt(
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
         "query_intent": query_intent,
-        "visual_x_axis_column": visual_context.get("x_axis_column", "") if visual_context else "",
-        "visual_y_axis_columns": json.dumps(visual_context.get("y_axis_columns", [])) if visual_context else "",
+        "visual_x_axis_column": (
+            visual_context.get("x_axis_column", "") if visual_context else ""
+        ),
+        "visual_y_axis_columns": (
+            json.dumps(visual_context.get("y_axis_columns", []))
+            if visual_context
+            else ""
+        ),
         "visual_plan_json": json.dumps(visual_plan, indent=2) if visual_plan else "",
     }
 
@@ -183,6 +182,16 @@ def parse_sql_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
+def parse_precomputed_sql_placeholder(block: dict) -> dict:
+    content = block.get("content", {})
+
+    return {
+        "id": content.get("id"),
+        "calculation": content.get("calculation"),
+        "description": content.get("description"),
+    }
+
+
 def generate_sql_from_visual_plan(
     *,
     visual_plan: Dict[str, Any],
@@ -220,7 +229,7 @@ def generate_sql_from_visual_plan(
 
     response = llm.invoke(prompt)
     content = response.content
-    
+
     if isinstance(content, list):
         # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
@@ -231,3 +240,188 @@ def generate_sql_from_visual_plan(
         raw_text = content.strip()
 
     return _extract_json_or_fail(raw_text)
+
+
+
+def generate_sql_placeholders_from_plan(
+    *,
+    topic_plan: dict,
+    project,
+    metadata_context: list,
+    schema_context,
+    backend=None,
+):
+    """
+    Generate SQL placeholders from topic analysis plan.
+    """
+
+    from app.services.llm_provider import get_llm, LLMBackend, ModelSize
+
+    backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
+
+    llm = get_llm(
+        backend=backend,
+        model_size=ModelSize.PRIMARY,
+        temperature=0,
+    )
+
+    # -------------------------
+    # LOAD PROMPT
+    # -------------------------
+    prompt_template = SQL_PLACEHOLDER_PROMPT_PATH.read_text(encoding="utf-8")
+
+    prompt = (
+        prompt_template.replace("{{topic_plan_json}}", json.dumps(topic_plan, indent=2))
+        .replace("{{database_schema_json}}", json.dumps(schema_context, indent=2))
+        .replace(
+            "{{metadata_context_json}}", json.dumps(metadata_context, indent=2)
+        )  # ✅ NEW
+    )
+
+    # -------------------------
+    # LLM CALL
+    # -------------------------
+    response = llm.invoke(prompt)
+
+    content = response.content
+    if isinstance(content, list):
+        if isinstance(content[0], dict) and "text" in content[0]:
+            raw_text = content[0]["text"].strip()
+        else:
+            raw_text = str(content[0]).strip()
+    else:
+        raw_text = content.strip()
+
+    result = _extract_json_or_fail(raw_text)
+
+    return result
+
+
+def generate_sql_for_precomputed_placeholder(
+    *,
+    sql_placeholder: Dict[str, Any],
+    metadata_context: Dict,
+    database_schema: Dict,
+    backend: LLMBackend | None = None,
+) -> Dict:
+    """
+    Generate SQL for precomputed SQL placeholders (JSON-based).
+    """
+
+    backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
+
+    llm = get_llm(
+        backend=backend,
+        model_size=ModelSize.PRIMARY,
+        temperature=0,
+    )
+
+    parsed = parse_precomputed_sql_placeholder(sql_placeholder)
+
+    prompt = _render_precompute_sql_prompt(
+        calculation_id=parsed["id"],
+        calculation_expression=parsed["calculation"],
+        calculation_description=parsed["description"],
+        metadata_context=metadata_context,
+        database_schema=database_schema,
+    )
+
+
+    response = llm.invoke(prompt)
+    raw_text = _extract_llm_text(response)
+
+    result = _extract_json_or_fail(raw_text)
+
+    return result
+
+
+def _render_precompute_sql_prompt(
+    *,
+    calculation_id: str,
+    calculation_expression: str,
+    calculation_description: str,
+    metadata_context: Dict,
+    database_schema: Dict,
+) -> str:
+
+    prompt_template = SQL_METRIC_PROMPT_PATH.read_text(encoding="utf-8")
+
+    replacements = {
+        "calculation_id": calculation_id,
+        "calculation_expression": calculation_expression,
+        "calculation_description": calculation_description,
+        "metadata_context_json": json.dumps(metadata_context, indent=2),
+        "database_schema_json": json.dumps(database_schema, indent=2),
+    }
+
+    prompt = prompt_template
+    for key, value in replacements.items():
+        prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
+
+    return prompt
+
+
+def _extract_llm_text(response) -> str:
+    content = response.content
+
+    if isinstance(content, list):
+        if isinstance(content[0], dict) and "text" in content[0]:
+            return content[0]["text"].strip()
+        return str(content[0]).strip()
+
+    return content.strip()
+
+# TODO: DELETE THIS
+# def compute_precomputed_sql_placeholders(
+#     *,
+#     placeholders: list,
+#     project,
+#     metadata_context,
+#     database_schema,
+# ) -> list:
+#     """
+#     Compute SQL for all precomputed placeholders.
+#     """
+
+#     computed = []
+
+#     for p in placeholders:
+
+#         try:
+#             sql_result = generate_sql_for_precomputed_placeholder(
+#                 sql_placeholder=p,
+#                 metadata_context=metadata_context,
+#                 database_schema=database_schema,
+#             )
+
+#             if sql_result.get("status") != "ok":
+#                 p["content"]["query"] = {
+#                     "status": "failed",
+#                     "reason": sql_result.get("reason"),
+#                 }
+#                 computed.append(p)
+#                 continue
+
+#             execution = execute_sql_safely(
+#                 sql_result["sql"],
+#                 project_id=project.id,
+#                 expected_result_type=sql_result.get("result_type", "scalar"),
+#             )
+
+#             # attach result
+#             p["content"]["query"] = {
+#                 "status": "ok",
+#                 "result": execution["result"],
+#                 "row_count": execution.get("row_count"),
+#                 "sql": sql_result["sql"],
+#             }
+
+#         except Exception as e:
+#             p["content"]["query"] = {
+#                 "status": "failed",
+#                 "error": str(e),
+#             }
+
+#         computed.append(p)
+
+#     return computed

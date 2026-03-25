@@ -85,7 +85,7 @@ def generate_table_metadata(
         model_size=ModelSize.PRIMARY,  # metadata quality matters
         temperature=0,
     )
-    print(prompt)
+
     # 🔹 Invoke via LangChain
     response = llm.invoke(prompt)
 

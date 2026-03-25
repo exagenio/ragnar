@@ -80,7 +80,6 @@ def generate_subsection_topics(
         model_size=ModelSize.PRIMARY,  # topic structure needs quality
         temperature=0.2,
     )
-    print("_______prompt = \n",prompt,"___________")
 
     # 🔹 Invoke LLM
     response = llm.invoke(prompt)

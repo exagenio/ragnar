@@ -13,7 +13,7 @@ def normalize_placeholders(content_json: dict) -> dict:
 
             block_type = block.get("type")
 
-            if block_type not in ["sql_placeholder", "visual_placeholder"]:
+            if block_type != "visual_placeholder":
                 continue
 
             raw = block.get("content")
@@ -54,18 +54,7 @@ def normalize_placeholders(content_json: dict) -> dict:
             # CASE 2 — Content is a dict (LLM parsed JSON)
             # --------------------------------
             elif isinstance(raw, dict):
-
-                if block_type == "sql_placeholder":
-
-                    block["content"] = (
-                        "{{SQL_CALCULATION:\n"
-                        f"  id: {raw.get('id')};\n"
-                        f"  calculation: {raw.get('calculation')};\n"
-                        f"  description: \"{raw.get('description')}\";\n"
-                        "}}"
-                    )
-
-                elif block_type == "visual_placeholder":
+                if block_type == "visual_placeholder":
 
                     block["content"] = (
                         "{{VISUAL:\n"

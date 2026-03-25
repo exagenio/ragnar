@@ -54,10 +54,6 @@ def render_visual(
     chart_type = visual_spec.get("type")
     title = visual_spec.get("title", "")
 
-    print("chart type = ", chart_type)
-    print("x_axis = ", x_axis)
-    print("y_axis_columns = ", y_axis_columns)
-
     fig = _build_figure(
         chart_type=chart_type,
         df=df,
@@ -67,6 +63,7 @@ def render_visual(
     )
 
     fig.update_layout(autosize=True)
+    print("Visual generated")
 
     return {
         "status": "ok",
@@ -225,7 +222,6 @@ def _build_figure(
 
 
 def _require_columns(df: pd.DataFrame, columns: list):
-    print("columns", df.columns)
     columns = [c for c in columns if c]  # ignore None
     missing = [c for c in columns if c not in df.columns]
     if missing:

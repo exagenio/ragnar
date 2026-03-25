@@ -1,3 +1,4 @@
+# content agent
 from app.models import Report, ReportOutline
 from app.services.report_outline_generator import generate_report_outline
 from app.models import Section, SubSection
@@ -231,6 +232,7 @@ class ContentAgent:
             topic.save()
 
         plan_obj.save()
+        return plan
 
     def get_topic_content(self, topic):
 
@@ -256,6 +258,10 @@ class ContentAgent:
         content_obj.status = "in_progress"
         content_obj.save()
 
+        precomputed = (content_obj.content_json or {}).get(
+            "precomputed_sql_placeholders", []
+        )
+
         result = generate_topic_content(
             project_id=project.id,
             industry=report.industry,
@@ -267,6 +273,7 @@ class ContentAgent:
             topic_title=topic.title,
             topic_plan=topic.analysis_plan.plan_json,
             existing_content=content_obj.content_json or None,
+            precomputed_sql_placeholders=precomputed, 
         )
 
         result = normalize_placeholders(result)
