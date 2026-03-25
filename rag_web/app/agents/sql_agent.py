@@ -1,10 +1,15 @@
+# sql agent file
 from app.services.sql_agent import generate_sql_from_placeholder
+from app.services.sql_agent import generate_sql_for_precomputed_placeholder
 from app.services.sql_executor import execute_sql_safely
 from app.services.sql_result_interpreter import interpret_sql_result
 from app.models import SelectedTable
 from app.services.column_introspector import get_table_columns
 from app.services.vector_store import get_vector_store
 from app.services.sql_agent import parse_sql_placeholder
+from app.services.sql_agent import generate_sql_placeholders_from_plan
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 
 class SQLAgent:
@@ -174,15 +179,6 @@ class SQLAgent:
                 reason="sql execution failed",
             )
 
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
-
-
         blocks = sections[section_index]["content_blocks"]
 
         # -----------------------------------------
@@ -205,14 +201,6 @@ class SQLAgent:
                 retry_meta=retry_meta,
                 reason="sql placeholder has no proceding paragraph",
             )
-
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
 
 
         previous_block = blocks[block_index - 1]
@@ -243,14 +231,6 @@ class SQLAgent:
                 reason="sql interpretation failed",
             )
 
-            content_obj.content_json = content_json
-            content_obj.save()
-
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
-
 
         # -----------------------------------------
         # STORE RESULT
@@ -270,6 +250,134 @@ class SQLAgent:
             "success": True,
             "placeholder_removed": False
         }
+    
+    def generate_sql_placeholders_from_plan(
+        self,
+        *,
+        topic_plan: dict,
+        project,
+        metadata_context: list,
+    ):
+        """
+        Wrapper around service-layer placeholder generation.
+        """
+
+        # -------------------------
+        # Build schema (agent responsibility)
+        # -------------------------
+        schema_context = self.build_schema_context(project)
+
+        # -------------------------
+        # Call service function
+        # -------------------------
+        result = generate_sql_placeholders_from_plan(
+            topic_plan=topic_plan,
+            project=project,
+            metadata_context=metadata_context,
+            schema_context=schema_context,
+        )
+
+        return result
+    
+
+    def compute_precomputed_sql_placeholders(
+        self,
+        *,
+        project,
+        topic_content_obj,
+        topic,
+    ):
+        content_json = topic_content_obj.content_json or {}
+
+        placeholders = content_json.get("precomputed_sql_placeholders", [])
+        if not placeholders:
+            return topic_content_obj
+
+        schema_context = self.build_schema_context(project)
+
+        results = []
+
+        # 🔥 control concurrency (important)
+        max_workers = min(5, len(placeholders))  
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+
+            futures = [
+                executor.submit(
+                    self._process_single_placeholder,
+                    project=project,
+                    topic=topic,
+                    schema_context=schema_context,
+                    placeholder=p,
+                )
+                for p in placeholders
+            ]
+
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        # -------------------------
+        # SAVE BACK
+        # -------------------------
+        content_json["precomputed_sql_placeholders"] = results
+
+        topic_content_obj.content_json = content_json
+        topic_content_obj.save()
+
+        return topic_content_obj
+
+    def _process_single_placeholder(
+        self,
+        *,
+        project,
+        topic,
+        schema_context,
+        placeholder,
+    ):
+        try:
+            # STEP 1: metadata
+            metadata_context = self.retrieve_metadata_context(
+                project_id=project.id,
+                sql_placeholder=placeholder,
+                topic_title=topic.title,
+            )
+
+            # STEP 2: SQL generation
+            generated_sql = generate_sql_for_precomputed_placeholder(
+                sql_placeholder=placeholder,
+                metadata_context=metadata_context,
+                database_schema=schema_context,
+            )
+
+            if generated_sql.get("status") != "ok":
+                placeholder.setdefault("content", {})["query"] = {
+                    "status": "failed",
+                    "reason": generated_sql.get("reason", "sql_not_possible"),
+                }
+                return placeholder
+
+            # STEP 3: execute
+            execution = execute_sql_safely(
+                generated_sql["sql"],
+                project_id=project.id,
+                expected_result_type=generated_sql.get("result_type", "scalar"),
+            )
+
+            # STEP 4: attach
+            placeholder.setdefault("content", {})["query"] = {
+                "status": "ok",
+                "result": execution["result"],
+                "row_count": execution.get("row_count"),
+                "sql": generated_sql["sql"],
+            }
+
+        except Exception as e:
+            placeholder.setdefault("content", {})["query"] = {
+                "status": "failed",
+                "error": str(e),
+            }
+
+        return placeholder
 
     # -----------------------------------------
     # METADATA RETRIEVAL FROM VECTOR DB
