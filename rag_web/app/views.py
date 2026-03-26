@@ -50,6 +50,7 @@ from django.conf import settings
 from app.services.project_service import ProjectService
 from app.agents.manager_agent import ManagerAgent
 from django.http import JsonResponse
+from app.services.evaluation_service import evaluate_project
 
 manager = ManagerAgent()
 
@@ -885,3 +886,74 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
     return JsonResponse({
         "started": started
     })
+
+
+from app.models import Project, Report, ReportEvaluation, TopicEvaluation
+from app.services.evaluation_service import evaluate_project
+
+def evaluation_dashboard_view(request, project_id):
+
+    project = get_object_or_404(Project, id=project_id)
+
+    reports = Report.objects.filter(project=project)
+
+    selected_report = None
+    report_eval = None
+    topic_evals = None
+
+    try:
+
+        # -----------------------------
+        # HANDLE REPORT SELECTION
+        # -----------------------------
+        report_id = request.GET.get("report_id")
+
+        if report_id:
+            selected_report = get_object_or_404(Report, id=report_id, project=project)
+
+        # -----------------------------
+        # RUN EVALUATION
+        # -----------------------------
+        if request.method == "POST":
+
+            report_id = request.POST.get("report_id")
+
+            if not report_id:
+                messages.error(request, "Please select a report.")
+                return redirect("evaluation_dashboard", project_id=project.id)
+
+            evaluate_project(project_id, report_id)
+
+            messages.success(request, "Evaluation completed successfully.")
+
+            return redirect(
+                f"/projects/{project.id}/evaluation/?report_id={report_id}"
+            )
+
+        # -----------------------------
+        # LOAD RESULTS
+        # -----------------------------
+        if selected_report:
+            report_eval = ReportEvaluation.objects.filter(
+                report=selected_report
+            ).first()
+
+            topic_evals = TopicEvaluation.objects.filter(
+                topic__subsection__section__report=selected_report
+            ).select_related("topic")
+
+        context = {
+            "project": project,
+            "reports": reports,
+            "selected_report": selected_report,
+            "report_eval": report_eval,
+            "topic_evals": topic_evals,
+        }
+
+        return render(request, "evaluation/dashboard.html", context)
+
+    except Exception as e:
+
+        messages.error(request, f"Evaluation failed: {str(e)}")
+
+        return redirect("evaluation_dashboard", project_id=project.id)

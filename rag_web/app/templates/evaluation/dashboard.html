@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Evaluation Dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+    <!-- HEADER -->
+    <div class="mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900">Evaluation Dashboard</h2>
+        <p class="text-sm text-gray-600 mt-1">
+            <span class="font-medium">Project:</span> {{ project.name }}
+        </p>
+    </div>
+
+    <!-- ========================= -->
+    <!-- REPORT SELECT -->
+    <!-- ========================= -->
+    <form method="get" class="mb-6 flex items-center gap-3">
+
+        <select name="report_id"
+                class="border rounded px-3 py-2 text-sm">
+
+            <option value="">-- Select Report --</option>
+
+            {% for report in reports %}
+            <option value="{{ report.id }}"
+                {% if selected_report and report.id == selected_report.id %}selected{% endif %}>
+                {{ report.id }} - {{ report.name }}
+            </option>
+            {% endfor %}
+
+        </select>
+
+        <button type="submit"
+                class="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-900">
+            Load
+        </button>
+
+    </form>
+
+    {% if selected_report %}
+
+    <!-- RUN EVALUATION -->
+    <form method="post" class="mb-6">
+        {% csrf_token %}
+        <input type="hidden" name="report_id" value="{{ selected_report.id }}">
+        <button type="submit"
+                class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+            ▶ Run Evaluation
+        </button>
+    </form>
+
+    <!-- ========================= -->
+    <!-- REPORT SCORE -->
+    <!-- ========================= -->
+    <div class="bg-white border rounded p-6 mb-6">
+
+        <h3 class="text-lg font-semibold mb-4">Overall Report Score</h3>
+
+        {% if report_eval %}
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">Overall</div>
+                <div class="text-xl font-bold text-blue-600">
+                    {{ report_eval.overall_score|floatformat:2 }}
+                </div>
+            </div>
+
+            {% for key, value in report_eval.average_scores.items %}
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">{{ key }}</div>
+                <div class="font-semibold">
+                    {{ value|floatformat:2 }}
+                </div>
+            </div>
+            {% endfor %}
+
+        </div>
+
+        {% else %}
+        <p class="text-gray-500">No evaluation results yet.</p>
+        {% endif %}
+
+    </div>
+
+    <!-- ========================= -->
+    <!-- TOPIC TABLE -->
+    <!-- ========================= -->
+    <div class="bg-white border rounded p-6">
+
+        <h3 class="text-lg font-semibold mb-4">Topic Evaluation</h3>
+
+        <table class="w-full text-sm border">
+
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="p-2">Topic</th>
+                    <th class="p-2">Overall</th>
+                    <th class="p-2">Hallucination</th>
+                    <th class="p-2">Grounding</th>
+                    <th class="p-2">Relevance</th>
+                    <th class="p-2">Depth</th>
+                    <th class="p-2">Clarity</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for eval in topic_evals %}
+            <tr class="border-t">
+
+                <td class="p-2">{{ eval.topic.title }}</td>
+                <td class="p-2">{{ eval.overall_score|floatformat:2 }}</td>
+                <td class="p-2">{{ eval.scores.hallucination }}</td>
+                <td class="p-2">{{ eval.scores.data_grounding }}</td>
+                <td class="p-2">{{ eval.scores.relevance }}</td>
+                <td class="p-2">{{ eval.scores.analytical_depth }}</td>
+                <td class="p-2">{{ eval.scores.clarity }}</td>
+
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="p-4 text-center text-gray-500">
+                    No data
+                </td>
+            </tr>
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}

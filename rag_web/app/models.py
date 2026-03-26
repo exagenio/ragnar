@@ -237,3 +237,43 @@ class SectionContent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
+class TopicEvaluation(models.Model):
+    topic = models.OneToOneField(
+        "Topic",
+        on_delete=models.CASCADE,
+        related_name="evaluation"
+    )
+
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.CASCADE,
+        related_name="topic_evaluations"
+    )
+
+    scores = models.JSONField()
+    issues = models.JSONField(default=list)
+    summary = models.TextField()
+
+    overall_score = models.FloatField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("topic", "report")
+
+class ReportEvaluation(models.Model):
+    report = models.OneToOneField(
+        Report,
+        on_delete=models.CASCADE,
+        related_name="evaluation"
+    )
+
+    average_scores = models.JSONField()  # aggregated metrics
+    overall_score = models.FloatField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Evaluation - {self.report.title}"

@@ -101,6 +101,11 @@ urlpatterns = [
         views.trigger_auto_generate_subsection,
         name="trigger_auto_generate_subsection",
     ),
+    path(
+        "projects/<int:project_id>/evaluation/",
+        views.evaluation_dashboard_view,
+        name="evaluation_dashboard",
+    ),
 ]
 
 if settings.DEBUG:

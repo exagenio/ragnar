@@ -113,11 +113,38 @@ CRITICAL AXIS RULES:
   - the visualization renderer
 
 ========================
+DATA SIZE CONTROL RULES (CRITICAL)
+========================
+
+Visual outputs MUST remain readable and suitable for report documents.
+
+--------------------------------
+GENERAL RULE
+--------------------------------
+
+If the expected number of rows or categories exceeds a reasonable display limit (~20):
+
+- You MUST ensure the result set is reduced to a manageable size
+- The reduction MUST preserve interpretability of the analysis
+- The method of reduction MUST NOT distort the analytical meaning
+
+--------------------------------
+BAR CHARTS
+--------------------------------
+
+- MUST NOT exceed 20 categories
+- Ensure categories are limited to a readable number
+
+--------------------------------
+TABLES
+--------------------------------
+
+- MUST NOT exceed ~20 rows
+- Tables must present a concise and interpretable subset of data
+
+========================
 VISUAL DESIGN RULES
 ========================
-If the number of categories is expected to exceed 20, Limit results to top 10–15 categories using ORDER BY + LIMIT OR → Aggregate remaining categories into "Others"
-
-Do NOT return more than 20 rows for bar charts.
 
 Depending on the visual type:
 LINE CHART:
