@@ -675,7 +675,7 @@ def generate_topic_content_view(
             content_obj.save()
 
             # Generate fresh content
-            content_obj = manager.content_agent.generate_topic_content(
+            content_obj = manager.generate_topic_content(
                 project,
                 report,
                 topic,

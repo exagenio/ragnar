@@ -114,70 +114,7 @@ class ManagerAgent:
             approve,
         )
         if approve :
-            content_obj, _ = TopicContent.objects.get_or_create(
-                topic=topic,
-                defaults={
-                    "content_json": {},
-                    "status": "draft",
-                    "iteration_count": 0,
-                },
-            )
-
-            # -----------------------------
-            # 2. RETRIEVE METADATA CONTEXT
-            # -----------------------------
-            vector_store = get_vector_store()
-
-            metadata_context = vector_store.similarity_search(
-                f"{topic.title} {plan.get('required_elements', [])}",
-                k=8,
-                filter={"project_id": topic.report.project.id},
-            )
-
-            metadata_context = [
-                {"content": d.page_content, "metadata": d.metadata}
-                for d in metadata_context
-            ]
-
-            # -----------------------------
-            # 3. GENERATE SQL PLACEHOLDERS
-            # -----------------------------
-            sql_agent = SQLAgent()
-
-            placeholders_result = sql_agent.generate_sql_placeholders_from_plan(
-                topic_plan=plan,
-                project=topic.report.project,
-                metadata_context=metadata_context,
-            )
-
-            placeholders = placeholders_result.get("placeholders", [])
-
-            # -----------------------------
-            # 4. CONVERT TO CONTENT BLOCK FORMAT
-            # -----------------------------
-            def to_sql_block(p):
-                return {
-                    "type": "sql_placeholder",
-                    "content": {
-                        "id": p["id"],
-                        "calculation": p["calculation"],
-                        "description": p["description"],
-                        "data_requirement_ref": p["data_requirement_ref"],
-                    }
-                }
-
-            sql_blocks = [to_sql_block(p) for p in placeholders]
-
-            # -----------------------------
-            # 5. STORE IN content_json
-            # -----------------------------
-            content_json = content_obj.content_json or {}
-
-            content_json["precomputed_sql_placeholders"] = sql_blocks
-
-            content_obj.content_json = content_json
-            content_obj.save()
-
+             self.generate_precomputed_sql_placeholders(topic, plan)
         plan_obj.save()
 
     
@@ -398,6 +335,7 @@ class ManagerAgent:
 
             topic.save()
             plan_obj.save()
+            self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
 
             print(f"[AUTO] Analysis plan generated → Topic {topic.id}")
 
@@ -899,3 +837,70 @@ class ManagerAgent:
 
                     except Exception:
                         pass
+
+    def generate_precomputed_sql_placeholders(self, topic, plan):
+        
+        content_obj, _ = TopicContent.objects.get_or_create(
+            topic=topic,
+            defaults={
+                "content_json": {},
+                "status": "draft",
+                "iteration_count": 0,
+            },
+        )
+
+        # -----------------------------
+        # 1. METADATA CONTEXT
+        # -----------------------------
+        vector_store = get_vector_store()
+
+        metadata_context = vector_store.similarity_search(
+            f"{topic.title} {plan.get('required_elements', [])}",
+            k=8,
+            filter={"project_id": topic.report.project.id},
+        )
+
+        metadata_context = [
+            {"content": d.page_content, "metadata": d.metadata}
+            for d in metadata_context
+        ]
+
+        # -----------------------------
+        # 2. GENERATE PLACEHOLDERS
+        # -----------------------------
+        sql_agent = SQLAgent()
+
+        placeholders_result = sql_agent.generate_sql_placeholders_from_plan(
+            topic_plan=plan,
+            project=topic.report.project,
+            metadata_context=metadata_context,
+        )
+
+        placeholders = placeholders_result.get("placeholders", [])
+
+        # -----------------------------
+        # 3. FORMAT
+        # -----------------------------
+        def to_sql_block(p):
+            return {
+                "type": "sql_placeholder",
+                "content": {
+                    "id": p["id"],
+                    "calculation": p["calculation"],
+                    "description": p["description"],
+                    "data_requirement_ref": p["data_requirement_ref"],
+                }
+            }
+
+        sql_blocks = [to_sql_block(p) for p in placeholders]
+
+        # -----------------------------
+        # 4. SAVE
+        # -----------------------------
+        content_json = content_obj.content_json or {}
+        content_json["precomputed_sql_placeholders"] = sql_blocks
+
+        content_obj.content_json = content_json
+        content_obj.save()
+
+        return content_obj
