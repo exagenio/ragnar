@@ -6,9 +6,12 @@ from app.agents.visual_Agent import VisualAgent
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from app.models import Topic
-from app.models import Section, TopicContent
+from app.models import Section, TopicContent, TopicAnalysisPlan
 from app.services.vector_store import get_vector_store
-
+import base64
+import struct
+from app.services.visual_narrative_generator import repair_content_chunk
+import traceback
 class ManagerAgent:
     """
     Central orchestrator of the system.
@@ -36,10 +39,7 @@ class ManagerAgent:
         project = self.project_service.create_project_with_db(data)
 
         return project
-    
-    def create_project_with_database(self, data):
-        self.project_service.test_db_connection(data)
-        return self.project_service.create_project_with_db(data)
+
 
     # ----------------------------
     # Metadata operations
@@ -119,18 +119,8 @@ class ManagerAgent:
 
     
     def generate_topic_content(self, project, report, topic, content_obj):
-        content_obj = self.sql_agent.compute_precomputed_sql_placeholders(
-            project=project,
-            topic_content_obj=content_obj,
-            topic=topic,
-        )
-        return self.content_agent.generate_topic_content(
-            project,
-            report,
-            topic,
-            content_obj,
-        )
-    
+        return self._run_topic_pipeline(project=project, report=report, topic=topic, plan_generated=True)
+
     def compute_sql_block(self, project, report, topic, content_obj, section_index, block_index):
 
         result = self.sql_agent.compute_sql_block(
@@ -319,15 +309,43 @@ class ManagerAgent:
     # SINGLE TOPIC PIPELINE
     # ---------------------------------------
 
-    def _run_topic_pipeline(self, project, report, topic):
+    def _run_topic_pipeline(self, project, report, topic, plan_generated=False):
 
         try:
+            print(f"[PIPELINE] Start → Topic {topic.id}")
 
-            print(f"[AUTO] Starting topic pipeline → Topic ID: {topic.id} | {topic.title}")
+            # -----------------------------
+            # 1. PLAN + SQL PLACEHOLDERS
+            # -----------------------------
+            content_obj = self._stage_analysis_and_sql(project, report, topic, plan_generated)
 
-            # ---------------------------------------
-            # 1️⃣ Generate analysis plan
-            # ---------------------------------------
+            # -----------------------------
+            # 2. CONTENT GENERATION
+            # -----------------------------
+
+            content_obj = self._stage_generate_content(
+                project, report, topic, content_obj
+            )
+
+            # -----------------------------
+            # 3. VISUAL PIPELINE (NEW)
+            # -----------------------------
+            content_obj = self._stage_generate_visuals(
+                project, report, topic, content_obj
+            )
+
+            content_obj = self._stage_repair_visual_narrative(
+                project, report, topic, content_obj
+            )
+
+            print(f"[PIPELINE] Completed → Topic {topic.id}")
+            return content_obj
+        except Exception as e:
+            print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
+
+
+    def _stage_analysis_and_sql(self, project, report, topic, plan_generated=False):
+        if not plan_generated:
             plan_obj = self.generate_topic_analysis_plan(project, report, topic)
 
             plan_obj.is_approved = True
@@ -335,131 +353,45 @@ class ManagerAgent:
 
             topic.save()
             plan_obj.save()
-            self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
+            content_obj = self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
+        else:
+            content_obj = self.content_agent.get_topic_content(topic)       
+        content_obj = self.content_agent.get_topic_content(topic)
+        content_obj = self.sql_agent.compute_precomputed_sql_placeholders(
+            project=project,
+            topic_content_obj=content_obj,
+            topic=topic,
+        )
+        print(f"[STAGE 1] Analysis + SQL ready → Topic {topic.id}")
+        return content_obj
 
-            print(f"[AUTO] Analysis plan generated → Topic {topic.id}")
 
-            # ---------------------------------------
-            # 2️⃣ Generate topic content (SQL already precomputed)
-            # ---------------------------------------
-            content_obj = self.content_agent.get_topic_content(topic)
+    def _stage_generate_content(self, project, report, topic, content_obj):
+        content_obj = self.content_agent.generate_topic_content(
+            project,
+            report,
+            topic,
+            content_obj,
+        )
 
-            content_obj = self.generate_topic_content(
-                project,
-                report,
-                topic,
-                content_obj,
-            )
+        print(f"[STAGE 2] Content generated → Topic {topic.id}")
 
-            print(f"[AUTO] Topic content generated → Topic {topic.id}")
+        return content_obj
+    
 
-            content_json = content_obj.content_json
-            sections = content_json.get("sections", [])
+    def _stage_generate_visuals(self, project, report, topic, content_obj):
 
-            # ---------------------------------------
-            # 3️⃣ Compute ONLY VISUAL placeholders (WITH RETRY)
-            # ---------------------------------------
+        MAX_ROUNDS = 3
 
-            MAX_RETRY_ROUNDS = 3
+        for attempt in range(MAX_ROUNDS):
 
-            for attempt in range(MAX_RETRY_ROUNDS):
+            print(f"[STAGE 3] Round {attempt+1} → Topic {topic.id}")
 
-                print(f"[AUTO] Visual execution round {attempt + 1} → Topic {topic.id}")
+            sections = content_obj.content_json.get("sections", [])
 
-                tasks = []
+            tasks = []
 
-                with ThreadPoolExecutor(max_workers=6) as executor:
-
-                    for s_index, section in enumerate(sections):
-
-                        blocks = section.get("content_blocks", [])
-
-                        for b_index, block in enumerate(blocks):
-
-                            # skip removed placeholders
-                            if block.get("type") == "removed_placeholder":
-                                continue
-
-                            # only visual placeholders
-                            if block.get("type") != "visual_placeholder":
-                                continue
-
-                            # skip already successful visuals
-                            if block.get("generated_visual"):
-                                continue
-
-                            print(
-                                f"[AUTO] Visual placeholder detected → Topic {topic.id} | Section {s_index} Block {b_index}"
-                            )
-
-                            tasks.append(
-                                executor.submit(
-                                    self.compute_visual_block,
-                                    project,
-                                    report,
-                                    topic,
-                                    content_obj,
-                                    s_index,
-                                    b_index,
-                                )
-                            )
-
-                    # wait for all tasks
-                    for task in tasks:
-                        try:
-                            task.result()
-                        except Exception as e:
-                            print(f"[AUTO] Visual computation failed → Topic {topic.id}: {e}")
-
-                # ---------------------------------------
-                # CHECK IF ANY VISUALS STILL REMAIN
-                # ---------------------------------------
-                remaining_work = False
-
-                for section in sections:
-                    for block in section.get("content_blocks", []):
-
-                        if (
-                            block.get("type") == "visual_placeholder"
-                            and not block.get("generated_visual")
-                        ):
-                            remaining_work = True
-                            break
-
-                    if remaining_work:
-                        break
-
-                if not remaining_work:
-                    print(f"[AUTO] All visuals generated → Topic {topic.id}")
-                    break
-
-            print(f"[AUTO] Topic pipeline completed → Topic {topic.id}")
-
-        except Exception as e:
-            print(f"[AUTO] Topic pipeline crashed → Topic {topic.id}: {e}")
-
-            try:
-
-                # fallback
-                plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
-                plan_obj.is_approved = True
-                topic.is_approved = True
-
-                topic.save()
-                plan_obj.save()
-
-                content_obj = self.content_agent.get_topic_content(topic)
-
-                content_obj = self.generate_topic_content(
-                    project,
-                    report,
-                    topic,
-                    content_obj,
-                )
-
-                content_json = content_obj.content_json
-                sections = content_json.get("sections", [])
+            with ThreadPoolExecutor(max_workers=6) as executor:
 
                 for s_index, section in enumerate(sections):
 
@@ -467,376 +399,102 @@ class ManagerAgent:
 
                     for b_index, block in enumerate(blocks):
 
-                        try:
+                        if block.get("type") != "visual_placeholder":
+                            continue
 
-                            # ONLY visual handling
-                            if block.get("type") == "visual_placeholder":
+                        if block.get("generated_visual"):
+                            continue
 
-                                self.compute_visual_block(
-                                    project,
-                                    report,
-                                    topic,
-                                    content_obj,
-                                    s_index,
-                                    b_index,
-                                )
-
-                        except Exception:
-                            pass
-
-            except Exception:
-                pass
-
-            try:
-
-                print(f"[AUTO] Starting topic pipeline → Topic ID: {topic.id} | {topic.title}")
-
-                # ---------------------------------------
-                # 1️⃣ Generate analysis plan
-                # ---------------------------------------
-                plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
-                plan_obj.is_approved = True
-                topic.is_approved = True
-
-                topic.save()
-                plan_obj.save()
-
-                print(f"[AUTO] Analysis plan generated → Topic {topic.id}")
-
-                # ---------------------------------------
-                # 2️⃣ Generate topic content (SQL already precomputed)
-                # ---------------------------------------
-                content_obj = self.content_agent.get_topic_content(topic)
-
-                content_obj = self.generate_topic_content(
-                    project,
-                    report,
-                    topic,
-                    content_obj,
-                )
-
-                print(f"[AUTO] Topic content generated → Topic {topic.id}")
-
-                content_json = content_obj.content_json
-                sections = content_json.get("sections", [])
-
-                # ---------------------------------------
-                # 3️⃣ Compute ONLY VISUAL placeholders
-                # ---------------------------------------
-                tasks = []
-
-                with ThreadPoolExecutor(max_workers=6) as executor:
-
-                    for s_index, section in enumerate(sections):
-
-                        blocks = section.get("content_blocks", [])
-
-                        for b_index, block in enumerate(blocks):
-
-                            # skip removed placeholders
-                            if block.get("type") == "removed_placeholder":
-                                continue
-
-                            # only handle visuals
-                            if block.get("type") != "visual_placeholder":
-                                continue
-
-                            # skip already generated visuals
-                            if block.get("generated_visual"):
-                                continue
-
-                            print(
-                                f"[AUTO] Visual placeholder detected → Topic {topic.id} | Section {s_index} Block {b_index}"
+                        tasks.append(
+                            executor.submit(
+                                self._process_visual_block_pipeline,
+                                project,
+                                report,
+                                topic,
+                                content_obj,
+                                s_index,
+                                b_index,
                             )
-
-                            tasks.append(
-                                executor.submit(
-                                    self.compute_visual_block,
-                                    project,
-                                    report,
-                                    topic,
-                                    content_obj,
-                                    s_index,
-                                    b_index,
-                                )
-                            )
-
-                    # wait for all
-                    for task in tasks:
-                        try:
-                            task.result()
-                        except Exception as e:
-                            print(f"[AUTO] Visual computation failed → Topic {topic.id}: {e}")
-
-                print(f"[AUTO] Topic pipeline completed → Topic {topic.id}")
-
-            except Exception as e:
-                print(f"[AUTO] Topic pipeline crashed → Topic {topic.id}: {e}")
-
-                try:
-
-                    # fallback
-                    plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
-                    plan_obj.is_approved = True
-                    topic.is_approved = True
-
-                    topic.save()
-                    plan_obj.save()
-
-                    content_obj = self.content_agent.get_topic_content(topic)
-
-                    content_obj = self.generate_topic_content(
-                        project,
-                        report,
-                        topic,
-                        content_obj,
-                    )
-
-                    content_json = content_obj.content_json
-                    sections = content_json.get("sections", [])
-
-                    for s_index, section in enumerate(sections):
-
-                        blocks = section.get("content_blocks", [])
-
-                        for b_index, block in enumerate(blocks):
-
-                            try:
-
-                                # ONLY visual handling
-                                if block.get("type") == "visual_placeholder":
-
-                                    self.compute_visual_block(
-                                        project,
-                                        report,
-                                        topic,
-                                        content_obj,
-                                        s_index,
-                                        b_index,
-                                    )
-
-                            except Exception:
-                                pass
-
-                except Exception:
-                    pass
-
-                try:
-
-                    print(f"[AUTO] Starting topic pipeline → Topic ID: {topic.id} | {topic.title}")
-
-                    # ---------------------------------------
-                    # 1️⃣ Generate analysis plan
-                    # ---------------------------------------
-                    plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
-                    plan_obj.is_approved = True
-                    topic.is_approved = True
-
-                    topic.save()
-                    plan_obj.save()
-
-                    print(f"[AUTO] Analysis plan generated → Topic {topic.id}")
-
-                    # ---------------------------------------
-                    # 2️⃣ Generate topic content
-                    # ---------------------------------------
-                    content_obj = self.content_agent.get_topic_content(topic)
-
-                    content_obj = self.generate_topic_content(
-                        project,
-                        report,
-                        topic,
-                        content_obj,
-                    )
-
-                    print(f"[AUTO] Topic content generated → Topic {topic.id}")
-
-                    content_json = content_obj.content_json
-                    sections = content_json.get("sections", [])
-
-                    # ---------------------------------------
-                    # 3️⃣ Compute SQL / Visual placeholders with RETRIES
-                    # ---------------------------------------
-
-                    MAX_RETRY_ROUNDS = 3
-
-                    for attempt in range(MAX_RETRY_ROUNDS):
-
-                        print(f"[AUTO] Placeholder execution round {attempt + 1} → Topic {topic.id}")
-
-                        tasks = []
-
-                        with ThreadPoolExecutor(max_workers=6) as executor:
-
-                            for s_index, section in enumerate(sections):
-
-                                blocks = section.get("content_blocks", [])
-
-                                for b_index, block in enumerate(blocks):
-
-                                    # ✅ Skip removed placeholders
-                                    if block.get("type") == "removed_placeholder":
-                                        continue
-
-                                    # ✅ Skip already successful visuals
-                                    if block.get("type") == "visual_placeholder" and block.get("generated_visual"):
-                                        continue
-
-                                    # ✅ Skip already computed SQL (optional improvement)
-                                    if block.get("type") == "sql_placeholder" and block.get("computed"):
-                                        continue
-
-                                    if block.get("type") == "sql_placeholder":
-                                        retry_meta = block.get("retry_meta", {})
-                                        print(
-                                            f"[DEBUG] SQL block status → computed={block.get('computed')} attempts={block.get('retry_meta', {}).get('attempts')}"
-                                        )
-                                        if retry_meta.get("attempts", 0) >= retry_meta.get("max_attempts", 3):
-                                            continue
-                                        print(
-                                            f"[AUTO] SQL placeholder detected → Topic {topic.id} | Section {s_index} Block {b_index}"
-                                        )
-
-                                        tasks.append(
-                                            executor.submit(
-                                                self.compute_sql_block,
-                                                project,
-                                                report,
-                                                topic,
-                                                content_obj,
-                                                s_index,
-                                                b_index,
-                                            )
-                                        )
-
-                                    elif block.get("type") == "visual_placeholder":
-
-                                        print(
-                                            f"[AUTO] Visual placeholder detected → Topic {topic.id} | Section {s_index} Block {b_index}"
-                                        )
-
-                                        tasks.append(
-                                            executor.submit(
-                                                self.compute_visual_block,
-                                                project,
-                                                report,
-                                                topic,
-                                                content_obj,
-                                                s_index,
-                                                b_index,
-                                            )
-                                        )
-
-                            # -----------------------------
-                            # WAIT FOR ALL TASKS
-                            # -----------------------------
-                            for task in tasks:
-                                try:
-                                    task.result()
-                                except Exception as e:
-                                    print(f"[AUTO] Placeholder computation failed → Topic {topic.id}: {e}")
-
-                        # ---------------------------------------
-                        # 🔥 CHECK IF ANY VISUALS STILL REMAIN
-                        # ---------------------------------------
-                        remaining_work = False
-
-                        for section in sections:
-                            for block in section.get("content_blocks", []):
-
-                                # -----------------------------
-                                # VISUAL STILL PENDING
-                                # -----------------------------
-                                if (
-                                    block.get("type") == "visual_placeholder"
-                                    and not block.get("generated_visual")
-                                ):
-                                    remaining_work = True
-                                    break
-
-                                # -----------------------------
-                                # SQL STILL PENDING
-                                # -----------------------------
-                                if (
-                                    block.get("type") == "sql_placeholder"
-                                    and not block.get("computed")
-                                ):
-                                    remaining_work = True
-                                    break
-
-                            if remaining_work:
-                                break
-
-                        if not remaining_work:
-                            print(f"[AUTO] All placeholders computed → Topic {topic.id}")
-                            break
-
-                    print(f"[AUTO] Topic pipeline completed → Topic {topic.id}")
-
-                except Exception as e:
-                    print(f"[AUTO] Topic pipeline crashed → Topic {topic.id}: {e}")
-
-                    try:
-
-                        # Fallback (unchanged)
-                        plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
-                        plan_obj.is_approved = True
-                        topic.is_approved = True
-
-                        topic.save()
-                        plan_obj.save()
-
-                        content_obj = self.content_agent.get_topic_content(topic)
-
-                        content_obj = self.generate_topic_content(
-                            project,
-                            report,
-                            topic,
-                            content_obj,
                         )
 
-                        content_json = content_obj.content_json
-                        sections = content_json.get("sections", [])
+                for t in tasks:
+                    try:
+                        t.result()
+                    except Exception as e:
+                        print(f"[VISUAL ERROR] {e}")
 
-                        for s_index, section in enumerate(sections):
+            # -----------------------------
+            # CHECK REMAINING
+            # -----------------------------
+            if not self._has_pending_visuals(content_obj):
+                print(f"[STAGE 3] All visuals done → Topic {topic.id}")
+                break
 
-                            blocks = section.get("content_blocks", [])
+        return content_obj
+    
+    def _process_visual_block_pipeline(
+        self,
+        project,
+        report,
+        topic,
+        content_obj,
+        section_index,
+        block_index,
+    ):
 
-                            for b_index, block in enumerate(blocks):
+        # -------------------------
+        # 1. GENERATE VISUAL
+        # -------------------------
+        self.compute_visual_block(
+            project,
+            report,
+            topic,
+            content_obj,
+            section_index,
+            block_index,
+        )
 
-                                try:
+    def _inject_visual_with_narrative(
+        self,
+        content_obj,
+        section_index,
+        block_index,
+        narrative,
+        visual_block,
+    ):
 
-                                    if block.get("type") == "sql_placeholder":
+        sections = content_obj.content_json["sections"]
+        blocks = sections[section_index]["content_blocks"]
 
-                                        self.compute_sql_block(
-                                            project,
-                                            report,
-                                            topic,
-                                            content_obj,
-                                            s_index,
-                                            b_index,
-                                        )
+        before = narrative.get("before_block")
+        after = narrative.get("after_block")
 
-                                    elif block.get("type") == "visual_placeholder":
+        # replace placeholder with:
+        # before → visual → after
 
-                                        self.compute_visual_block(
-                                            project,
-                                            report,
-                                            topic,
-                                            content_obj,
-                                            s_index,
-                                            b_index,
-                                        )
+        new_blocks = []
 
-                                except Exception:
-                                    pass
+        if before:
+            new_blocks.append(before)
 
-                    except Exception:
-                        pass
+        new_blocks.append(visual_block)
+
+        if after:
+            new_blocks.append(after)
+
+        # replace original placeholder
+        blocks[block_index:block_index+1] = new_blocks
+
+        content_obj.save()
+
+    def _has_pending_visuals(self, content_obj):
+
+        for section in content_obj.content_json.get("sections", []):
+            for block in section.get("content_blocks", []):
+                if block.get("type") == "visual_placeholder" and not block.get("generated_visual"):
+                    return True
+
+        return False
 
     def generate_precomputed_sql_placeholders(self, topic, plan):
         
@@ -904,3 +562,169 @@ class ManagerAgent:
         content_obj.save()
 
         return content_obj
+
+    def _stage_repair_visual_narrative(self, project, report, topic, content_obj):
+
+        print(f"[STAGE 4] Block-level repair → Topic {topic.id}")
+
+        sections = content_obj.content_json.get("sections", [])
+
+        for section in sections:
+
+            blocks = section.get("content_blocks", [])
+
+            # 1. Extract
+            formatted_blocks = self.build_prompt_blocks(blocks, self._decode_sql_result)
+
+            # 2. Chunk
+            chunks = self.build_block_chunks(formatted_blocks, chunk_size=6)
+
+            all_updates = []
+
+            for chunk in chunks:
+                try:
+                    updates = repair_content_chunk(
+                        blocks_chunk=chunk,
+                    )
+                    all_updates.extend(updates)
+                except Exception as e:
+                    print(f"[REPAIR ERROR] Topic {topic.id}")
+                    print(f"Error: {str(e)}")
+                    traceback.print_exc()
+            # 3. Apply
+            section["content_blocks"] = self.apply_repaired_blocks(
+                blocks,
+                all_updates
+            )
+
+        content_obj.save()
+
+        print(f"[STAGE 4] Completed → Topic {topic.id}")
+
+        return content_obj
+
+
+    def decode_bdata(self, bdata, dtype):
+        binary = base64.b64decode(bdata)
+
+        if dtype == "f8":
+            return list(struct.unpack(f"{len(binary)//8}d", binary))
+        elif dtype == "f4":
+            return list(struct.unpack(f"{len(binary)//4}f", binary))
+        elif dtype == "i4":
+            return list(struct.unpack(f"{len(binary)//4}i", binary))
+        elif dtype == "i2":
+            return list(struct.unpack(f"{len(binary)//2}h", binary))
+        elif dtype == "i1":
+            return list(struct.unpack(f"{len(binary)}b", binary))
+
+        return []
+    
+    def _decode_sql_result(self, sql_result):
+
+        if not sql_result:
+            return sql_result
+
+        # table format
+        if isinstance(sql_result, dict) and "rows" in sql_result:
+            return sql_result
+
+        # chart format
+        if isinstance(sql_result, dict):
+
+            decoded = {}
+
+            for key, val in sql_result.items():
+
+                if isinstance(val, dict) and "bdata" in val:
+                    decoded[key] = self.decode_bdata(val["bdata"], val.get("dtype"))
+                else:
+                    decoded[key] = val
+
+            return decoded
+
+        return sql_result
+    
+
+    def build_prompt_blocks(self, blocks, decode_fn):
+
+        formatted = []
+
+        for i, block in enumerate(blocks):
+
+            if block["type"] == "visual_placeholder":
+                block = self.normalize_visual_block(block)
+
+                content = block.get("content", {})
+
+                decoded = decode_fn(
+                    block.get("generated_visual", {}).get("data")
+                )
+
+                formatted.append({
+                    "block_index": i,
+                    "type": "visual",
+                    "visual_id": content.get("id"),
+                    "visual_type": content.get("type"),
+                    "purpose": content.get("purpose"),
+                    "data": decoded
+                })
+
+            elif block["type"] in ["paragraph", "bullet_list"]:
+
+                formatted.append({
+                    "block_index": i,
+                    "type": block["type"],
+                    "content": block["content"]
+                })
+
+        return formatted
+    
+    def build_block_chunks(self,blocks, chunk_size=8):
+        """
+        Chunk based on number of repairable blocks
+        """
+        chunks = []
+
+        for i in range(0, len(blocks), chunk_size):
+            chunks.append(blocks[i:i+chunk_size])
+
+        return chunks
+    
+    def apply_repaired_blocks(self,original_blocks, repaired_blocks):
+
+        for updated in repaired_blocks:
+
+            idx = updated["block_index"]
+
+            if idx >= len(original_blocks):
+                continue
+
+            if original_blocks[idx]["type"] not in ["paragraph", "bullet_list"]:
+                continue
+
+            original_blocks[idx]["content"] = updated["content"]
+
+        return original_blocks
+    
+    def normalize_visual_block(self, block):
+        raw = block.get("content")
+
+        if isinstance(raw, dict):
+            return block  # already correct
+
+        if isinstance(raw, str) and "{{VISUAL" in raw:
+
+            import re
+
+            def extract(field):
+                match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.DOTALL)
+                return match.group(1).strip().strip('"') if match else ""
+
+            block["content"] = {
+                "id": extract("id"),
+                "type": extract("type"),
+                "purpose": extract("purpose"),
+            }
+
+        return block

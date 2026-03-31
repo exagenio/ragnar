@@ -17,8 +17,6 @@
     <div class="space-y-6">
         {% for section in content.content_json.sections %}
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 class="text-xl font-semibold text-gray-900 mb-4">{{ section.heading }}</h3>
-
             <div class="space-y-4">
                 {% for block in section.content_blocks %}
                 {% with section_index=forloop.parentloop.counter0 block_index=forloop.counter0 %}
@@ -100,9 +98,17 @@ function decodeBData(bdata, dtype) {
                                 console.log("\n\n\n\n\n_______chart data before convert______\n\n ")
                                 console.log(fig.data);
                                 fig.data.forEach(trace => {
+
+                                    // BAR / LINE charts
                                     if (trace.y && trace.y.bdata) {
                                         trace.y = decodeBData(trace.y.bdata, trace.y.dtype);
                                     }
+
+                                    // PIE charts
+                                    if (trace.values && trace.values.bdata) {
+                                        trace.values = decodeBData(trace.values.bdata, trace.values.dtype);
+                                    }
+
                                 });
                                  console.log("\n_chart data afterr_\n ")
                                 console.log(fig.data);

@@ -12,13 +12,18 @@ from app.services.llm_provider import (
     ModelSize,
 )
 from .vector_store import get_vector_store
+from sentence_transformers import SentenceTransformer, util
+
+# Load once (global)
+semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
+SIMILARITY_THRESHOLD = 0.8
 
 
 # ==========================
 # CONFIG
 # ==========================
 
-MAX_ITERATIONS_PER_ELEMENT = 4
+MAX_ITERATIONS_PER_ELEMENT = 2
 
 PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "topic_content_prompt.txt"
@@ -46,7 +51,6 @@ def generate_topic_content(
 ) -> Dict:
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
-
     llm = get_llm(
         backend=backend,
         model_size=ModelSize.PRIMARY,
@@ -91,9 +95,17 @@ def generate_topic_content(
         if element in content_state["completed_elements"]:
             continue
 
-        covered_points = content_state["element_progress"].get(element, [])
+        covered_points = []
 
-        for _ in range(MAX_ITERATIONS_PER_ELEMENT):
+
+        for elem, points in content_state["element_progress"].items():
+            for p in points:
+                covered_points.append(f"[{elem}] {p}")
+
+        iteration_count = 0
+        retry_used = False
+
+        while iteration_count < MAX_ITERATIONS_PER_ELEMENT:
 
             metadata_context = retrieve_metadata_context(
                 vector_store=vector_store,
@@ -119,27 +131,48 @@ def generate_topic_content(
                 metadata_context=metadata_context,
                 current_required_element=element,
                 covered_points=covered_points,
-                precomputed_sql_placeholders=precomputed_sql_placeholders, 
+                precomputed_sql_placeholders=precomputed_sql_placeholders,
             )
 
-            # ---- Merge limitations (STRUCTURAL ONLY)
+            # ---- TRY MERGE CONTENT
+            all_blocks = []
+
+            for section in iteration_output.get("sections", []):
+                all_blocks.extend(section.get("content_blocks", []))
+
+            any_added = _merge_blocks(content_state["sections"], all_blocks)
+
+            # -------------------------------------
+            # CASE 1: DUPLICATE → RETRY LOGIC
+            # -------------------------------------
+            if not any_added:
+                print("[SKIP] Duplicate found, moving forward")
+                retry_used = False
+                iteration_count += 1
+                continue
+
+            # -------------------------------------
+            # CASE 2: SUCCESS → UPDATE STATE
+            # -------------------------------------
+
+            retry_used = False
+            iteration_count += 1
+
+            # ---- Merge limitations
             existing_limits = content_state.get("limitations", [])
             new_limits = iteration_output.get("limitations", [])
 
             content_state["limitations"] = list(
-                dict.fromkeys(existing_limits + new_limits)  # dedupe, preserve order
+                dict.fromkeys(existing_limits + new_limits)
             )
 
-            # ---- Merge content
-            for section in iteration_output.get("sections", []):
-                _merge_blocks(content_state["sections"], section["content_blocks"])
-
-            # ---- Update semantic memory
+            # ---- Update semantic memory ONLY IF SUCCESS
             new_points = iteration_output.get("newly_covered_points", [])
             covered_points = list(dict.fromkeys(covered_points + new_points))
 
             content_state["element_progress"][element] = covered_points
 
+            # ---- Completion check ONLY IF SUCCESS
             if iteration_output.get("is_element_complete") is True:
                 content_state["completed_elements"].append(element)
                 break
@@ -218,16 +251,46 @@ def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: i
 def _build_metadata_query(section, subsection, topic, element):
     return f"{section} {subsection} {topic} {element}"
 
+def _merge_blocks(sections: List[Dict], new_blocks: List[Dict]) -> bool:
+    """
+    Atomic merge:
+    - Validate ALL blocks first
+    - If ANY duplicate → reject entire batch
+    - If ALL unique → append ALL
+    Returns True if merged, False if rejected
+    """
 
-def _merge_blocks(sections: List[Dict], new_blocks: List[Dict]):
     if not sections:
         sections.append({"heading": "Analysis", "content_blocks": []})
 
     existing_blocks = sections[0]["content_blocks"]
 
+    # -------------------------
+    # TEMP BUFFER (CRITICAL)
+    # -------------------------
+    temp_blocks = []
+
     for block in new_blocks:
-        if block not in existing_blocks:
-            existing_blocks.append(block)
+
+        # Compare against BOTH:
+        # 1. existing content
+        # 2. already validated new blocks
+        comparison_pool = existing_blocks + temp_blocks
+
+        is_duplicate = filter_similar_blocks(comparison_pool, block)
+
+        if is_duplicate:
+            print(f"[REJECTED BATCH - DUPLICATE FOUND] {block.get('type')}")
+            return False  # ❌ Reject entire batch
+
+        temp_blocks.append(block)
+
+    # -------------------------
+    # COMMIT (ALL AT ONCE)
+    # -------------------------
+    existing_blocks.extend(temp_blocks)
+
+    return True
 
 
 def render_prompt(prompt_path: Path, context: dict) -> str:
@@ -237,12 +300,108 @@ def render_prompt(prompt_path: Path, context: dict) -> str:
     return prompt
 
 
-def extract_json_or_fail(raw_text: str) -> dict:
+def extract_json_or_fail(raw_text: str):
+
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
-    match = re.search(r"\{[\s\S]*\}", raw_text)
-    if not match:
-        raise ValueError(f"LLM did not return JSON:\n{raw_text[:500]}")
+    raw_text = raw_text.strip()
 
-    return json.loads(match.group())
+    import re
+
+    # -----------------------------
+    # TRY ARRAY FIRST
+    # -----------------------------
+    array_match = re.search(r"\[[\s\S]*\]", raw_text)
+
+    if array_match:
+        try:
+            return json.loads(array_match.group())
+        except Exception:
+            pass
+
+    # -----------------------------
+    # FALLBACK OBJECT
+    # -----------------------------
+    obj_match = re.search(r"\{[\s\S]*\}", raw_text)
+
+    if obj_match:
+        try:
+            return json.loads(obj_match.group())
+        except Exception:
+            pass
+
+    # -----------------------------
+    # DEBUG
+    # -----------------------------
+    raise ValueError(f"Invalid JSON from LLM:\n{raw_text[:1000]}")
+
+def _extract_visual_purpose(content: str) -> str:
+    """
+    Extract purpose text from VISUAL placeholder string.
+    """
+    match = re.search(r'purpose:\s*"(.*?)"', content, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+def _is_similar(text1: str, text2: str) -> bool:
+    if not text1 or not text2:
+        return False
+
+    emb1 = semantic_model.encode(text1, convert_to_tensor=True)
+    emb2 = semantic_model.encode(text2, convert_to_tensor=True)
+
+    score = util.cos_sim(emb1, emb2)
+    score_value = float(score.max())
+    return score_value >= SIMILARITY_THRESHOLD
+
+def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
+    """
+    Returns True → if block is similar (should be REMOVED)
+    Returns False → if block is unique (should be ADDED)
+    """
+
+    new_type = new_block.get("type")
+
+    # -------------------------
+    # CASE 1: PARAGRAPH / BULLET
+    # -------------------------
+    if new_type in ["paragraph", "bullet_list"]:
+
+        new_text = new_block.get("content", "")
+        new_text = _normalize_bullet_content(new_text)
+        for block in existing_blocks:
+            if block.get("type") not in ["paragraph", "bullet_list"]:
+                continue
+
+            existing_text = block.get("content", "")
+            existing_text = _normalize_bullet_content(existing_text)
+            if _is_similar(new_text, existing_text):
+                print("[simiar text new]",new_text)
+                print("[simiar text exist]",existing_text)
+                return True
+
+    # -------------------------
+    # CASE 2: VISUAL PLACEHOLDER
+    # -------------------------
+    elif new_type == "visual_placeholder":
+
+        new_purpose = _extract_visual_purpose(new_block.get("content", ""))
+
+        for block in existing_blocks:
+            if block.get("type") != "visual_placeholder":
+                continue
+
+            existing_purpose = _extract_visual_purpose(block.get("content", ""))
+
+            if _is_similar(new_purpose, existing_purpose):
+                return True
+
+    return False
+
+def _normalize_bullet_content(content):
+    """
+    Convert bullet list (list of strings) into a single string.
+    """
+    if isinstance(content, list):
+        return " ".join(content)
+    return content

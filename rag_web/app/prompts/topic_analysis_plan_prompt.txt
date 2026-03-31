@@ -38,68 +38,151 @@ You MUST only use these.
 DATA-GROUNDED ANALYSIS (CRITICAL)
 ====================
 
-All analysis MUST be strictly grounded in the available database schema.
+All analysis MUST be strictly grounded in the available schema.
 
-You MUST ensure that:
+You MUST ensure:
 
-• Every analytical element can be computed using the available tables and columns  
-• Every metric is derivable using SQL aggregations or transformations  
-• Every grouping or comparison dimension exists in the schema  
+• Every element is computable using available tables and columns  
+• Every metric is derivable using SQL (SUM, AVG, COUNT, etc.)  
+• Every grouping dimension exists in the schema  
 
 You MUST NOT include:
 
-• Analysis that requires external data not present in the schema  
-• Behavioral assumptions not measurable from the data  
-• Business concepts that cannot be mapped to actual columns  
-• Hypothetical or qualitative-only insights without data backing  
+• External or unavailable data  
+• Non-measurable concepts (e.g., satisfaction, loyalty)  
+• Hypothetical or qualitative-only insights  
 
-If a required insight CANNOT be computed from the schema:
+If an insight cannot be computed:
 
-→ DO NOT include it in the analysis plan
-
-The analysis must reflect ONLY what can be supported by actual data.
+→ DO NOT include it
 
 ====================
 INSTRUCTIONS
 ====================
 
-1. Define the analytical intent of this topic.
-2. Identify required analytical elements needed to answer the topic.
-3. Specify precise data requirements using ONLY the provided schema.
-4. Clearly define SQL-style analytical operations (NO execution).
-5. Ask relevant business questions the analysis should answer.
+1. Define the analytical intent of the topic  
+2. Identify key analytical elements  
+3. Specify data requirements (SQL-ready logic)  
+4. Define business questions  
 
 DO NOT:
-- Invent tables or columns
-- Assume metrics not derivable from schema
-- Write narrative text
-- Write conclusions
-- Include visualization decisions
-- Include chart types
 
-The analysis plan should describe **WHAT analysis is needed**, not **HOW it will be visualized**.
+- Invent tables or columns  
+- Write narrative explanations  
+- Include visualization details  
 
 ====================
-STRICT VALIDATION RULES
+ELEMENT DESIGN RULES (CRITICAL)
 ====================
 
-Before finalizing the plan, verify:
+You MUST design a SMALL SET of HIGH-IMPACT elements.
 
-• Every column referenced exists in the schema  
-• Every metric can be computed using allowed operations (SUM, AVG, COUNT, etc.)  
-• No vague terms like "engagement", "loyalty", or "satisfaction" unless directly measurable  
-• All elements are implementable as SQL queries  
+• Maximum: 4 elements (Recommended: 3)  
+• Prefer fewer, broader elements  
+• Each element must answer a DISTINCT analytical question  
 
-If any part fails validation:
-→ REMOVE or CORRECT it
+If more elements exist:
+
+→ MERGE into broader categories  
+
+====================
+TOPIC ALIGNMENT RULE
+====================
+
+All elements MUST directly answer the topic.
+
+You MUST:
+
+• Identify the PRIMARY objective  
+• Include ONLY relevant analysis  
+
+DO NOT include:
+
+• Adjacent analysis (e.g., trends inside product drivers)  
+• Supporting analysis belonging to other topics  
+
+====================
+NON-OVERLAP RULE
+====================
+
+Each element MUST be unique.
+
+You MUST ensure:
+
+• No repeated metrics across elements  
+• No same analysis with different groupings  
+• No slight variations of the same idea  
+
+If overlap exists:
+
+→ MERGE into ONE element  
+
+====================
+ANTI-FRAGMENTATION RULE
+====================
+
+Avoid splitting analysis into small pieces.
+
+Each element should:
+
+• Represent a complete analytical perspective  
+• Combine related metrics into one element  
+
+Example:
+
+BAD:
+- Revenue by product  
+- Revenue by category  
+
+GOOD:
+- Revenue distribution across products and categories  
+
+====================
+ELEMENT DIVERSITY RULE
+====================
+
+Each element MUST represent a DIFFERENT analytical perspective.
+
+Allowed perspectives:
+
+• Overall performance  
+• Distribution  
+• Comparison  
+• Ratios / efficiency  
+
+DO NOT repeat the same perspective.
+
+====================
+ELEMENT PRIORITY RULE
+====================
+
+Prioritize elements:
+
+1. Core drivers (most important)  
+2. Structural patterns  
+3. Supporting insights  
+
+Remove low-impact elements.
+
+====================
+STRICT VALIDATION
+====================
+
+Before finalizing:
+
+• All columns must exist  
+• All metrics must be computable  
+• All elements must be SQL-implementable  
+
+If invalid:
+
+→ REMOVE or FIX
 
 ====================
 OUTPUT FORMAT
 ====================
 
-Output MUST be valid JSON.
-Output ONLY the JSON object.
-No markdown.
+Return ONLY valid JSON.
 
 {
   "topic": "{{topic_title}}",
@@ -107,7 +190,7 @@ No markdown.
   "required_elements": ["..."],
   "data_requirements": [
     {
-      "type": "aggregation | comparison | trend | segmentation",
+      "type": "aggregation | comparison | segmentation",
       "operation": "sum | avg | count | min | max | ratio",
       "tables": ["..."],
       "columns": ["..."],

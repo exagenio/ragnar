@@ -224,20 +224,24 @@ class VisualAgent:
                 error=e if 'e' in locals() else None,
             )
 
-            content_obj.content_json = content_json
-            content_obj.save()
+        if (
+            not sql_result
+            or sql_result.get("status") != "ok"
+            or sql_result.get("row_count", 0) == 0
+            or not sql_result.get("result")
+        ):
+            print("[VISUAL] Empty SQL result → triggering failure handler")
 
-            return {
-                "success": False,
-                "placeholder_removed": True
-            }
-
-        relative_path = (
-            Path("generated_visuals")
-            / f"project_{project.id}"
-            / f"topic_{topic.id}"
-            / f"section_{section_index}_block_{block_index}.png"
-        )
+            return self._handle_visual_failure(
+                sections=sections,
+                section_index=section_index,
+                block_index=block_index,
+                content_obj=content_obj,
+                content_json=content_json,
+                retry_meta=retry_meta,
+                reason="Empty SQL result",
+                error=None,
+            )
 
         visual_output = render_visual(
             visual_spec=visual_plan["visual_spec"],

@@ -35,8 +35,8 @@ Instructions:
 - Do NOT generate filler or speculative topics
 - The number of topics is NOT fixed
 - Generate as many topics as are justified by the data
-- Maximum number of topics: 10
-- It is acceptable to return fewer than 4 topics
+- Maximum number of topics: 6
+- It is acceptable to return fewer than 3 topics
 - It is acceptable to return an empty list if no valid topics exist
 
 Topic quality rules:

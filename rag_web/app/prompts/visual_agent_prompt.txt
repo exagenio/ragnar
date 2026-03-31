@@ -174,6 +174,46 @@ No explanations.
 No comments.
 
 ========================
+TIME SCOPE DEFINITION (CRITICAL)
+========================
+
+You MUST explicitly define the time scope of the analysis.
+
+You MUST include time logic in the SQL request description.
+
+Rules:
+
+1. If analysis involves time (monthly, yearly, trends):
+   → You MUST specify how the time range should be selected
+
+2. DO NOT use:
+   "previous year"
+   "year - 1"
+   fixed year assumptions
+
+3. ALWAYS use ONE of the following strategies:
+
+   Rolling window (PREFERRED):
+   "last 1 year based on MAX(date_column)"
+
+   Full dataset:
+   "entire available date range"
+
+4. The time scope MUST be derivable from data:
+   → based on MAX(date_column)
+
+5. If no time dimension exists:
+   → do not include time logic
+
+Example (GOOD):
+
+"Aggregate monthly revenue over the last 1 year based on the latest available date in the dataset"
+
+Example (BAD):
+
+"Use previous year data"
+
+========================
 SUCCESS RESPONSE FORMAT
 ========================
 

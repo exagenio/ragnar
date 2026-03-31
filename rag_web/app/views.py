@@ -663,13 +663,19 @@ def generate_topic_content_view(
 
         if action == "regenerate":
 
-            # Reset content
+            existing_content = content_obj.content_json or {}
+
+            # Preserve SQL placeholders
+            preserved_sql = existing_content.get("precomputed_sql_placeholders", [])
+
+            # Reset content BUT keep SQL placeholders
             content_obj.content_json = {
                 "sections": [],
                 "element_progress": {},
                 "completed_elements": [],
                 "limitations": [],
                 "status": "in_progress",
+                "precomputed_sql_placeholders": preserved_sql,
             }
             content_obj.iteration_count = 0
             content_obj.status = "draft"

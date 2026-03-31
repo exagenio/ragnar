@@ -63,7 +63,6 @@ def render_visual(
     )
 
     fig.update_layout(autosize=True)
-    print("Visual generated")
 
     return {
         "status": "ok",

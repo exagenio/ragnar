@@ -108,39 +108,45 @@ DATE_TRUNC('month',"Order_Date") AS "Month",
 SUM("Sales_Amount") AS "Total Revenue"
 
 ========================
-TIME PERIOD HANDLING (CRITICAL)
+TIME HANDLING ENFORCEMENT (STRICT)
 ========================
 
-If the business request contains ambiguous time expressions such as:
+You MUST strictly follow the time logic defined in the visual plan.
 
-- "one-year period"
-- "last year"
-- "recent period"
-- "analysis period"
+DO NOT invent or modify time filters.
 
-You MUST resolve them using the dataset.
+CRITICAL RULES:
 
-RULES:
+1. If the plan includes time scope:
+   → You MUST implement it EXACTLY
 
-1. If a date/time column exists:
-   → Assume analysis period = FULL AVAILABLE DATA RANGE
+2. If the plan says "last 1 year":
+   → ALWAYS use:
 
-2. If explicitly "one-year":
-   → Use last 1 year based on MAX(date_column)
+   WHERE "date_column" >= (
+       SELECT MAX("date_column") - INTERVAL '1 year'
+       FROM table
+   )
+
+3. NEVER use:
+   EXTRACT(YEAR FROM MAX(date)) - 1
+   fixed year filters
+   CURRENT_DATE
+
+4. If the plan does NOT define time scope:
+   → Use FULL DATA RANGE
+
+5. NEVER generate a query that may return empty results due to time filtering.
+
+6. Prefer continuous time filtering over discrete year filtering.
 
 Example:
 
-WHERE "Order_Date" >= (
-    SELECT MAX("Order_Date") - INTERVAL '1 year'
-    FROM table
-)
+BAD:
+EXTRACT(YEAR FROM date) = (MAX(year) - 1)
 
-3. Prefer MAX(date_column) instead of CURRENT_DATE
-
-4. If multiple date columns exist:
-   → Use the most relevant transactional date column
-
-5. NEVER fail due to ambiguous time period if a date column exists
+GOOD:
+date >= MAX(date) - INTERVAL '1 year'
 
 ========================
 AVAILABLE DATA METADATA

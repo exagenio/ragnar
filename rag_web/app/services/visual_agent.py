@@ -113,42 +113,56 @@ def _render_visual_agent_prompt(
     return prompt
 
 
-# ==========================
-# PARSING
-# ==========================
+import re
+from typing import Dict, Any
+
 
 def parse_visual_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
     """
-    Extract type & purpose from VISUAL placeholder block.
+    Extract id, type & purpose from VISUAL placeholder block.
     """
 
     raw = block.get("content")
 
-    # Content may already be parsed / structured
+    # -------------------------
+    # CASE 1: Already structured
+    # -------------------------
     if isinstance(raw, dict):
-        if not raw.get("type") or not raw.get("purpose"):
-            raise ValueError("Structured VISUAL placeholder missing type or purpose")
+
+        required_fields = ["id", "type", "purpose"]
+
+        for field in required_fields:
+            if not raw.get(field):
+                raise ValueError(f"Structured VISUAL missing '{field}'")
 
         return {
+            "id": raw["id"],
             "type": raw["type"],
             "purpose": raw["purpose"],
         }
 
+    # -------------------------
+    # CASE 2: String format
+    # -------------------------
     if not isinstance(raw, str) or not raw.strip().startswith("{{VISUAL"):
         raise ValueError("Invalid VISUAL placeholder")
 
-
     def extract(field: str) -> str:
-        match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            rf"{field}\s*:\s*(.*?);",
+            raw,
+            re.IGNORECASE | re.DOTALL
+        )
         if not match:
             raise ValueError(f"Missing '{field}' in VISUAL placeholder")
+
         return match.group(1).strip().strip('"')
 
     return {
+        "id": extract("id"),
         "type": extract("type"),
         "purpose": extract("purpose"),
     }
-
 
 # ==========================
 # JSON SAFETY

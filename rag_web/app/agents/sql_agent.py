@@ -323,7 +323,7 @@ class SQLAgent:
 
         topic_content_obj.content_json = content_json
         topic_content_obj.save()
-
+        print("[SQL Calculation ] generateda and computed all the numerical values for the content")
         return topic_content_obj
 
     def _process_single_placeholder(
