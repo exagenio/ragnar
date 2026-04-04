@@ -25,8 +25,8 @@ class ContentAgent:
         """
         Creates a new report and generates its outline.
         """
-
-        outline = generate_report_outline(data)
+        
+        outline = generate_report_outline(data=data, project_id=project.id)
 
         report = Report.objects.create(
             project=project,
@@ -108,6 +108,8 @@ class ContentAgent:
             context=context,
             project_id=project_id,
         )
+        print("topics")
+        print(result)
 
         for topic_title in result.get("topics", []):
             Topic.objects.create(

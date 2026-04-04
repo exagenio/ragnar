@@ -48,7 +48,12 @@ Generate a section introduction that:
 4. Identifies high-level patterns, relationships, or insights that emerge when viewing subsections together
 5. Establishes the narrative flow that connects the subsections
 6. Prepares the reader for the detailed subsection-by-subsection analysis that follows
-
+7. Do NOT mention, quote, or restate the subsection title in any form
+8. Do NOT use phrases like:
+   - "This section..."
+   - "This [title] analysis..."
+9. Do NOT include the drvtion title in quotes or paraphrased form
+10. Start directly with the business context, not structural references
 ========================
 WRITING RULES (STRICT)
 ========================
@@ -63,6 +68,16 @@ WRITING RULES (STRICT)
 8. Do NOT create numbered lists or bullet points in the introduction
 9. Write in flowing, narrative paragraphs
 10. Emphasize the "why it matters" over the "what"
+
+PROHIBITED PATTERNS (CRITICAL)
+
+The following patterns are NOT allowed:
+
+- "This section, 'X', ..."
+- "This 'X' section..."
+- "This section provides..."
+- "This analysis explores..."
+- "This report section..."
 
 ========================
 TONE AND STYLE

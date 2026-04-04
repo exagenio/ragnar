@@ -26,6 +26,50 @@ Additional Notes (optional):
 {additional_notes}
 
 ====================
+AVAILABLE DATA CONTEXT
+====================
+
+The following describes the FULL database schema.
+
+You MUST:
+- design ONLY sections that can be supported by this data
+- avoid generating sections requiring unavailable data
+
+{{retrieved_context}}
+
+====================
+SCHEMA INTERPRETATION (CRITICAL)
+====================
+
+You MUST infer what analyses are possible from the schema.
+
+Typical supported analytical patterns include:
+- Aggregation (SUM, COUNT, AVG)
+- Grouping (by category, time, customer, product)
+- Ratios (e.g., averages, per-transaction metrics)
+- Trends (ONLY if time/date column exists)
+
+You MUST identify:
+- Available dimensions (e.g., time, category, customer, product)
+- Available measures (e.g., sales, quantity)
+
+You MUST NOT assume:
+- customer demographics
+- pricing history unless explicitly derivable
+- external or behavioral attributes
+
+Only design sections that map to valid analytical patterns.
+
+====================
+QUALITY RULES
+====================
+
+- Each section must represent a DISTINCT analytical area
+- No overlapping sections
+- No vague titles (e.g., "Insights", "Analysis", "Appendix")
+- Titles must be specific and professional
+
+====================
 INSTRUCTIONS
 ====================
 
@@ -41,6 +85,15 @@ INSTRUCTIONS
 7. Do NOT reference specific data, numbers, tables, or charts.
 8. Do NOT assume any results or findings.
 
+DATA FEASIBILITY RULE (CRITICAL)
+
+You MUST ONLY generate sections and subsections that can be supported
+by the available database schema.
+
+If a concept requires unavailable data:
+
+→ DO NOT include it
+
 ====================
 OUTPUT FORMAT RULES
 ====================
@@ -50,6 +103,38 @@ OUTPUT FORMAT RULES
 - Do NOT wrap the output in code blocks.
 - Follow EXACTLY the schema below.
 - The first character of your response MUST be '{{' and the last character MUST be '}}'.
+
+
+====================
+TITLE FORMATTING RULES (STRICT)
+====================
+
+All titles MUST follow professional report naming standards.
+
+You MUST:
+
+- Write titles as clean, standalone phrases
+- Use concise and formal business language
+- Ensure titles are directly usable as report headings
+
+You MUST NOT include:
+
+- Examples (e.g.,, such as, including, etc.)
+- Parentheses or brackets of any kind
+- Explanatory phrases inside titles
+- Slashes (/) to combine multiple ideas
+- Informal or conversational wording
+
+BAD examples:
+- Revenue Contribution by Transaction Type (e.g., Discounted vs. Full Price)
+- Customer Segments (such as high-value customers)
+- Sales Trends (including seasonal variations)
+
+GOOD examples:
+- Revenue Contribution by Transaction Type
+- Customer Segment Distribution
+- Seasonal Sales Trends
+
 
 ====================
 OUTPUT SCHEMA

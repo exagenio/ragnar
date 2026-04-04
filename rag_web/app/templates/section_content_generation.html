@@ -88,7 +88,10 @@
                 ▶ Generate Section Content
             </button>
             {% else %}
-            <p class="text-green-600 font-medium">✅ Section content generation complete.</p>
+            <button type="submit" name="action" value="regenerate"
+                class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700">
+                🔄 Regenerate Section Content
+            </button>
             {% endif %}
         </form>
 

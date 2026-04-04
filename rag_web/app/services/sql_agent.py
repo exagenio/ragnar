@@ -8,6 +8,7 @@ from app.services.llm_provider import (
     LLMBackend,
     ModelSize,
 )
+from app.agents.rate_limiter import rate_limiter
 
 SQL_METRIC_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_metric_prompt.txt"
 SQL_VISUAL_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_visual_prompt.txt"
@@ -51,6 +52,10 @@ def generate_sql_from_placeholder(
         query_intent=query_intent,
         visual_context=visual_context,
     )
+
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     content = response.content
@@ -227,6 +232,10 @@ def generate_sql_from_visual_plan(
         visual_plan=visual_plan,
     )
 
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
+
     response = llm.invoke(prompt)
     content = response.content
 
@@ -281,6 +290,10 @@ def generate_sql_placeholders_from_plan(
     # -------------------------
     # LLM CALL
     # -------------------------
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
+
     response = llm.invoke(prompt)
 
     content = response.content
@@ -326,6 +339,10 @@ def generate_sql_for_precomputed_placeholder(
         database_schema=database_schema,
     )
 
+
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     raw_text = _extract_llm_text(response)

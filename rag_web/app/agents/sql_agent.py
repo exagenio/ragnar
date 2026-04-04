@@ -298,7 +298,7 @@ class SQLAgent:
         results = []
 
         # 🔥 control concurrency (important)
-        max_workers = min(5, len(placeholders))  
+        max_workers = 2  
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
 

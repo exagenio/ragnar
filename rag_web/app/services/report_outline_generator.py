@@ -11,8 +11,8 @@ from app.services.llm_provider import (
     ModelSize,
 )
 from .industry_guidance import get_industry_guidance
-
-
+from app.services.vector_store import get_vector_store
+from app.services.subsection_topic_generator import build_retrieved_context
 # ==========================
 # CONFIG
 # ==========================
@@ -46,11 +46,9 @@ def extract_json(text: str) -> dict:
 def generate_report_outline(
     data: dict,
     *,
+    project_id: int,
     backend: LLMBackend | None = None,
 ) -> dict:
-    """
-    Generate a structured report outline using the unified LLM provider.
-    """
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -58,6 +56,32 @@ def generate_report_outline(
 
     industry_guidance = get_industry_guidance(data["industry"])
 
+    # -------------------------
+    # 🔹 VECTOR RETRIEVAL (NEW)
+    # -------------------------
+    vector_store = get_vector_store(backend=backend)
+
+    docs = vector_store.similarity_search(
+        query="full database schema tables columns analytical capabilities",
+        k=50,
+        filter={
+            "project_id": project_id,
+            "type": [
+                "table_description",
+                "column",
+                "analytical_capability",
+                "confidence_note",
+            ],
+        },
+    )
+
+    print(docs)
+
+    retrieved_context = build_retrieved_context(docs)
+
+    # -------------------------
+    # 🔹 PROMPT BUILD
+    # -------------------------
     prompt = prompt_template.format_map(
         defaultdict(
             str,
@@ -73,20 +97,22 @@ def generate_report_outline(
         )
     )
 
-    # 🔹 Get LLM from provider
+    prompt = prompt.replace("{{retrieved_context}}", retrieved_context)
+
+    # -------------------------
+    # 🔹 LLM
+    # -------------------------
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,  # outline quality is important
+        model_size=ModelSize.PRIMARY,
         temperature=0,
     )
 
-    # 🔹 Invoke via LangChain
     response = llm.invoke(prompt)
 
     content = response.content
 
     if isinstance(content, list):
-        # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_output = content[0]["text"].strip()
         else:

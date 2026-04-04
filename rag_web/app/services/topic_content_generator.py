@@ -13,6 +13,7 @@ from app.services.llm_provider import (
 )
 from .vector_store import get_vector_store
 from sentence_transformers import SentenceTransformer, util
+from app.agents.rate_limiter import rate_limiter
 
 # Load once (global)
 semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -151,6 +152,8 @@ def generate_topic_content(
                 iteration_count += 1
                 continue
 
+            
+
             # -------------------------------------
             # CASE 2: SUCCESS → UPDATE STATE
             # -------------------------------------
@@ -219,6 +222,10 @@ def generate_single_iteration(
             "precomputed_sql_json": json.dumps(precomputed_sql_placeholders or [], indent=2),
         },
     )
+
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     content = response.content
@@ -336,12 +343,23 @@ def extract_json_or_fail(raw_text: str):
     # -----------------------------
     raise ValueError(f"Invalid JSON from LLM:\n{raw_text[:1000]}")
 
-def _extract_visual_purpose(content: str) -> str:
+def _extract_visual_purpose(content) -> str:
     """
-    Extract purpose text from VISUAL placeholder string.
+    Supports both:
+    - string placeholder
+    - structured dict
     """
-    match = re.search(r'purpose:\s*"(.*?)"', content, re.DOTALL)
-    return match.group(1).strip() if match else ""
+
+    # NEW FORMAT (dict)
+    if isinstance(content, dict):
+        return content.get("purpose", "") or ""
+
+    # OLD FORMAT (string)
+    if isinstance(content, str):
+        match = re.search(r'purpose:\s*"(.*?)"', content, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
+    return ""
 
 def _is_similar(text1: str, text2: str) -> bool:
     if not text1 or not text2:
@@ -384,8 +402,8 @@ def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
     # CASE 2: VISUAL PLACEHOLDER
     # -------------------------
     elif new_type == "visual_placeholder":
-
-        new_purpose = _extract_visual_purpose(new_block.get("content", ""))
+        content = new_block.get("content")
+        new_purpose = _extract_visual_purpose(content)
 
         for block in existing_blocks:
             if block.get("type") != "visual_placeholder":

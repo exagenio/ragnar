@@ -11,6 +11,7 @@ from app.services.llm_provider import (
     LLMBackend,
     ModelSize,
 )
+from app.agents.rate_limiter import rate_limiter
 
 VISUAL_AGENT_PROMPT_PATH = (
     settings.BASE_DIR / "app" / "prompts" / "visual_agent_prompt.txt"
@@ -57,6 +58,10 @@ def generate_visual_plan(
         database_schema=database_schema,
         existing_visuals=existing_visuals or [],
     )
+
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     content = response.content

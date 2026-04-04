@@ -10,6 +10,7 @@ from app.services.llm_provider import (
     LLMBackend,
     ModelSize,
 )
+from app.agents.rate_limiter import rate_limiter
 
 
 REPAIR_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "topic_content_repair_prompt.txt"
@@ -69,6 +70,10 @@ def repair_topic_content(
                 ),
             },
         )
+
+        estimated_tokens = len(prompt) // 4  # rough estimate
+
+        rate_limiter.consume(estimated_tokens)
 
         response = llm.invoke(prompt)
 

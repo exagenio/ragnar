@@ -7,6 +7,7 @@ from app.services.llm_provider import (
 from django.conf import settings
 from app.services.visual_agent import parse_visual_placeholder
 from app.services.topic_content_generator import extract_json_or_fail
+from app.agents.rate_limiter import rate_limiter
 
 def generate_visual_narrative(
     *,
@@ -288,6 +289,10 @@ Return ONLY JSON
     # ----------------------------------------
     # STEP 5: INVOKE
     # ----------------------------------------
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
+
     response = llm.invoke(prompt)
 
     content = response.content

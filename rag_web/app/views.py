@@ -788,6 +788,25 @@ def generate_subsection_content_view(
 
             return redirect(request.path)
 
+        if action == "regenerate":
+
+                # 🔥 RESET CONTENT
+                content_obj.content_json = {}
+                content_obj.status = "pending"
+                content_obj.save()
+
+                # 🔥 GENERATE AGAIN
+                content_obj = manager.generate_subsection_content(
+                    project,
+                    report,
+                    subsection,
+                    topics,
+                    content_obj,
+                )
+
+                messages.success(request, "Subsection content regenerated successfully.")
+                return redirect(request.path)
+
     return render(
         request,
         "subsection_content_generation.html",
@@ -837,6 +856,23 @@ def generate_section_content_view(
             )
 
             return redirect(request.path)
+        
+        if action == "regenerate":
+
+                content_obj.content_json = {}
+                content_obj.status = "pending"
+                content_obj.save()
+
+                content_obj = manager.generate_section_content(
+                    project,
+                    report,
+                    section,
+                    subsections,
+                    content_obj,
+                )
+
+                messages.success(request, "Section content regenerated successfully.")
+                return redirect(request.path)
 
     return render(
         request,

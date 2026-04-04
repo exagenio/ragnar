@@ -1,382 +1,507 @@
-# app/services/evaluation_service.py
-
 import json
+from concurrent.futures import ThreadPoolExecutor
+
 from django.conf import settings
-from app.models import (
-    Project,
-    Topic,
-    TopicContent,
-    TopicEvaluation,
-    ReportEvaluation,
-    Report,
-)
-from app.services.llm_provider import (
-    get_llm,
-    LLMBackend,
-    ModelSize,
-)
-from app.services.llm_provider import get_embeddings
-from .vector_store import get_vector_store
-import re
-from app.services.topic_content_generator import extract_json_or_fail
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from openevals.llm import create_llm_as_judge
+# from openevals.prompts import (
+#     CORRECTNESS_PROMPT,
+#     ANSWER_RELEVANCE_PROMPT,
+#     CONCISENESS_PROMPT,
+#     HALLUCINATION_PROMPT,
+# )
 
-# =========================
-# METADATA RETRIEVAL
-# =========================
-def retrieve_metadata_for_topic(project, topic):
-    vector_store = get_vector_store()
+from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
+from app.services.vector_store import get_vector_store
 
-    docs = vector_store.similarity_search(
-        f"{topic.title}",
-        k=8,
-        filter={"project_id": project.id},
-    )
+import base64
+import struct
+from django.shortcuts import render, get_object_or_404
 
-    return [
-        {"content": d.page_content, "metadata": d.metadata}
-        for d in docs
-    ]
+EVAL_SYSTEM_CONTEXT = """
+You are evaluating a BUSINESS ANALYTICAL REPORT SECTION.
 
+IMPORTANT CONTEXT ABOUT HOW THIS REPORT WAS GENERATED:
 
-# =========================
-# PROMPT BUILDER
-# =========================
-def build_evaluation_prompt(
-    *,
-    project,
-    topic,
-    content_json,
-    metadata_context,
-    sql_results,
-):
-    return f"""
-You are a STRICT, DOMAIN-AWARE evaluation judge for data-driven business reports.
+- This is a sub-topic of a professional analytical report
+- The report is generated using a structured pipeline:
 
-Your responsibility is to evaluate the quality of generated analytical content.
+  1. An analytical plan defines:
+     - intent
+     - required_elements
+     - business_questions
 
-You MUST behave like a critical reviewer, NOT a content generator.
+  2. SQL queries are executed to produce numerical results
 
-========================
-PROJECT CONTEXT
-========================
-Project ID: {project.id}
-Report Type: {topic.report.report_type}
-Topic: {topic.title}
+  3. Content is generated iteratively using:
+     - SQL results (numerical facts)
+     - metadata (table + column meaning)
 
-========================
-AVAILABLE DATA CONTEXT
-========================
-{json.dumps(metadata_context)}
+  4. Visual placeholders represent charts/tables:
+     - Each visual includes purpose + data
+     - Visuals are part of the analysis and must be explained
 
-========================
-PRECOMPUTED METRICS (SOURCE OF TRUTH)
-========================
-{json.dumps(sql_results)}
+  5. A final repair step ensures:
+     - logical flow
+     - no duplication
+     - alignment with required_elements
 
-========================
-GENERATED CONTENT
-========================
-{json.dumps(content_json)}
+CRITICAL EVALUATION PRINCIPLES:
 
-========================
-CRITICAL EVALUATION RULES
-========================
+- ALL insights MUST come from SQL data or provided context
+- NO invented numbers, trends, or explanations
+- Content MUST cover required_elements from the plan
+- Content MUST follow:
+  DATA → INTERPRETATION → IMPLICATION
+- Visuals MUST be correctly referenced and interpreted
+"""
 
-You MUST strictly enforce:
+CORRECTNESS_PROMPT = f"""
+{EVAL_SYSTEM_CONTEXT}
 
-1. DATA GROUNDING
-- Every claim MUST be supported by provided metrics or metadata
-- If a statement is not directly supported → penalize
+You are evaluating correctness of an analytical report.
 
-2. NO HALLUCINATION
-- No invented numbers
-- No fabricated trends
-- No assumptions beyond available data
+<Rubric>
+  A correct answer:
+  - Provides accurate and complete information
+  - Contains no factual errors
+  - Addresses all parts of the question
+  - Is logically consistent
+  - Uses precise and accurate terminology
 
-3. DOMAIN CONSISTENCY
-- Content must match business domain and topic intent
-- No generic filler explanations
+  When scoring, you should penalize:
+  - Factual errors or inaccuracies
+  - Incomplete or partial answers
+  - Misleading or ambiguous statements
+  - Incorrect terminology
+  - Logical inconsistencies
+  - Missing key information
+</Rubric>
 
-4. ANALYTICAL QUALITY
-- Must demonstrate reasoning (comparisons, trends, insights)
-- Not just descriptive statements
+<Instructions>
+  - Carefully read the input and output
+  - Check for factual accuracy and completeness
+  - Focus on correctness of information rather than style or verbosity
+</Instructions>
 
-5. CLARITY
-- Clear, structured, professional writing
-- No redundancy or vague wording
+<Reminder>
+  The goal is to evaluate factual correctness and completeness of the response.
+</Reminder>
 
-========================
-MANDATORY EVALUATION PROCESS
-========================
+<input>
+{{inputs}}
+</input>
 
-You MUST follow this process BEFORE assigning scores:
+<output>
+{{outputs}}
+</output>
 
-STEP 1 — CONTENT UNDERSTANDING
-- Identify what the topic is trying to analyze
+Use the reference outputs below to help you evaluate the correctness of the response:
 
-STEP 2 — DATA VERIFICATION
-- Check whether the claims in the content are supported by:
-  - Provided metadata
-  - Precomputed metrics
-
-STEP 3 — ISSUE IDENTIFICATION
-- List:
-  - Unsupported claims
-  - Missing insights where data exists
-  - Weak or generic explanations
-  - Redundant or unclear statements
-
-STEP 4 — QUALITY ASSESSMENT
-- Evaluate:
-  - Is analysis shallow or deep?
-  - Is reasoning present or missing?
-  - Is content aligned with topic?
-
-ONLY AFTER completing these steps:
-→ Assign scores
-
-========================
-SCORING (0–100)
-========================
-
-Each score MUST reflect actual observed quality based on the evaluation process.
-
-Do NOT assign 100 unless:
-- No issues are identified
-- All claims are fully supported by data
-- Strong analytical reasoning is present
-
-If ANY issue exists:
-→ Score MUST be reduced accordingly
-
-========================
-SCORING GUIDELINES
-========================
-
-hallucination:
-- Reduce score if ANY unsupported claim exists
-
-data_grounding:
-- Reduce score if content is not clearly tied to data
-
-relevance:
-- Reduce score if content includes generic or unrelated discussion
-
-analytical_depth:
-- Reduce score if:
-  - no comparisons
-  - no trends
-  - no reasoning
-
-clarity:
-- Reduce score if:
-  - repetition exists
-  - vague wording
-  - poor structure
-
-========================
-SCORING CALIBRATION
-========================
-
-You MUST score based on actual quality, NOT artificially high or low.
-
-Guidelines:
-
-- High-quality, fully data-grounded, well-structured analysis → 85–100
-- Good analysis with minor gaps → 70–84
-- Moderate quality with noticeable issues → 50–69
-- Weak analysis with major issues → 30–49
-- Poor or incorrect analysis → 0–29
-
-IMPORTANT:
-
-- Assign scores proportionally to the actual quality observed
-- Do NOT artificially lower or inflate scores
-- Be consistent across topics
-
-========================
-EVIDENCE-BASED EVALUATION
-========================
-
-Before assigning scores, you MUST:
-
-1. Identify whether claims in the content are supported by:
-   - Provided metadata
-   - Precomputed metrics
-
-2. Check for:
-   - Unsupported claims
-   - Missing analysis where data exists
-   - Incorrect interpretations
-
-3. Base your scores ONLY on this verification
-
-You MUST NOT rely on general impressions.
-
-========================
-HALLUCINATION DETECTION RULE
-========================
-
-If the content includes:
-
-- Specific numbers not present in provided metrics
-- Trends or comparisons not supported by data
-- Assumptions beyond available data
-
-You MUST reduce the hallucination and data_grounding scores accordingly.
-
-========================
-JUSTIFICATION REQUIREMENT
-========================
-
-For EACH score below 90:
-You MUST include at least one issue explaining the deduction.
-
-For scores above 90:
-You MUST ensure no meaningful issues exist.
-
-========================
-OUTPUT FORMAT (STRICT JSON)
-========================
-
-{{
-  "scores": {{
-    "hallucination": int,
-    "data_grounding": int,
-    "relevance": int,
-    "analytical_depth": int,
-    "clarity": int
-  }},
-  "issues": [
-    "specific issue 1",
-    "specific issue 2"
-  ],
-  "summary": "Concise evaluation summary"
-}}
-
-Return ONLY JSON.
 """
 
 
-# =========================
-# TOPIC EVALUATION
-# =========================
-def evaluate_topic(
-    *,
-    project,
-    topic,
-    llm,
-):
+CONCISENESS_PROMPT = f"""
+{EVAL_SYSTEM_CONTEXT}
+
+You are evaluating correctness of an analytical report.
+<Rubric>
+  A perfectly concise answer:
+  - Contains only the exact information requested.
+  - Uses the minimum number of words necessary to convey the complete answer.
+  - Omits pleasantries, hedging language, and unnecessary context.
+  - Excludes meta-commentary about the answer or the model's capabilities.
+  - Avoids redundant information or restatements.
+  - Does not include explanations unless explicitly requested.
+
+  When scoring, you should deduct points for:
+  - Introductory phrases like "I believe," "I think," or "The answer is."
+  - Hedging language like "probably," "likely," or "as far as I know."
+  - Unnecessary context or background information.
+  - Explanations when not requested.
+  - Follow-up questions or offers for more information.
+  - Redundant information or restatements.
+  - Polite phrases like "hope this helps" or "let me know if you need anything else."
+</Rubric>
+
+<Instructions>
+  - Carefully read the input and output.
+  - Check for any unnecessary elements, particularly those mentioned in the <Rubric> above.
+  - The score should reflect how close the response comes to containing only the essential information requested based on the rubric above.
+</Instructions>
+
+<Reminder>
+  The goal is to reward responses that provide complete answers with absolutely no extraneous information.
+</Reminder>
+
+<input>
+{{inputs}}
+</input>
+
+<output>
+{{outputs}}
+</output>
+"""
+
+HALLUCINATION_PROMPT = f"""
+{EVAL_SYSTEM_CONTEXT}
+
+You are evaluating correctness of an analytical report.
+
+<Rubric>
+  A response without hallucinations:
+  - Contains only verifiable facts that are directly supported by the input context
+  - Makes no unsupported claims or assumptions
+  - Does not add speculative or imagined details
+  - Maintains perfect accuracy in dates, numbers, and specific details
+  - Appropriately indicates uncertainty when information is incomplete
+</Rubric>
+
+<Instructions>
+  - Read the input context thoroughly
+  - Identify all claims made in the output
+  - Cross-reference each claim with the input context
+  - Note any unsupported or contradictory information
+  - Consider the severity and quantity of hallucinations
+</Instructions>
+
+<Reminder>
+  Focus solely on factual accuracy and support from the input context. Do not consider style, grammar, or presentation in scoring. A shorter, factual response should score higher than a longer response with unsupported claims.
+</Reminder>
+
+Use the following context to help you evaluate for hallucinations in the output:
+
+<context>
+{{context}}
+</context>
+
+<input>
+{{inputs}}
+</input>
+
+<output>
+{{outputs}}
+</output>
+
+"""
+
+ANSWER_RELEVANCE_PROMPT = f"""
+{EVAL_SYSTEM_CONTEXT}
+
+You are evaluating correctness of an analytical report.
+
+<Rubric>
+A relevant output:
+- Directly answers the question or addresses the request
+- Provides information specifically asked for
+- Stays on topic with the input's intent
+- Contributes meaningfully to fulfilling the request
+
+An irrelevant output:
+- Discusses topics not requested or implied by the input
+- Provides unnecessary tangents or digressions
+- Includes information that doesn't answer the question
+- Addresses a different question than what was asked
+</Rubric>
+
+<Instructions>
+For each output:
+- Read the original input carefully to understand what was asked
+- Examine the output and identify its core claim or purpose
+- Determine if the output directly addresses the input's request
+- Assess whether the information helps fulfill what was asked
+- Determine the answer relevancy of output and output a score
+</Instructions>
+
+<Reminder>
+Focus on whether each statement helps answer the specific input question, not whether the statement is true or well-written. A statement can be factually correct but still irrelevant if it doesn't address what was asked.
+</Reminder>
+
+Now, grade the following example according to the above instructions:
+
+<example>
+<input>
+{{inputs}}
+</input>
+
+<output>
+{{outputs}}
+</output>
+</example>
+"""
+
+
+# ==========================
+# LLM (GEMINI JUDGE)
+# ==========================
+
+def get_judge_llm():
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0,
+    )
+
+
+# ==========================
+# BLOCK → STRING (CRITICAL FIX)
+# ==========================
+
+def stringify_blocks(blocks):
+
+    lines = []
+
+    for block in blocks:
+
+        if block["type"] == "paragraph":
+            lines.append(block["content"])
+
+        elif block["type"] == "bullet_list":
+            for item in block["content"]:
+                lines.append(f"- {item}")
+
+        elif block["type"] == "visual":
+            lines.append(
+                f"[VISUAL]\n"
+                f"Type: {block.get('visual_type')}\n"
+                f"Purpose: {block.get('purpose')}\n"
+            )
+
+    return "\n\n".join(lines)
+
+
+# ==========================
+# BUILD INPUT (NEW)
+# ==========================
+
+def build_eval_input(topic, report):
+
+    plan = get_object_or_404(
+            TopicAnalysisPlan,
+            report=report,
+            topic=topic,
+        )
+
+    if not plan:
+        return ""
+
+    plan_json = plan.plan_json or {}
+
+    return f"""
+TOPIC: {plan_json.get("topic")}
+
+INTENT:
+{plan_json.get("intent")}
+
+REQUIRED ELEMENTS:
+{json.dumps(plan_json.get("required_elements", []), indent=2)}
+
+BUSINESS QUESTIONS:
+{json.dumps(plan_json.get("business_questions", []), indent=2)}
+
+"""
+
+
+# ==========================
+# HELPER FUNCTIONS
+# ==========================
+
+def extract_content_blocks_text(content_json):
+
+    sections = content_json.get("sections", [])
+    all_blocks = []
+
+    for section in sections:
+        all_blocks.extend(section.get("content_blocks", []))
+
+    formatted = build_prompt_blocks(all_blocks, _decode_sql_result)
+
+    return stringify_blocks(formatted)
+
+
+def retrieve_metadata_for_topic(project, topic, vector_store, report):
+
+    # -------------------------
+    # 1. GET SECTION + SUBSECTION
+    # -------------------------
+    section_title = topic.subsection.section.title
+    subsection_title = topic.subsection.title
+    topic_title = topic.title
+
+    # -------------------------
+    # 2. GET ANALYSIS PLAN
+    # -------------------------
+    plan = TopicAnalysisPlan.objects.filter(
+        topic=topic,
+        report=report
+    ).first()
+
+    required_elements = []
+
+    if plan and plan.plan_json:
+        required_elements = plan.plan_json.get("required_elements", [])
+
+    # -------------------------
+    # 3. BUILD SEMANTIC QUERY (CRITICAL)
+    # -------------------------
+    query = f"""
+    Section: {section_title}
+    Subsection: {subsection_title}
+    Topic: {topic_title}
+
+    Required Analysis:
+    {'; '.join(required_elements)}
+    """
+
+    # -------------------------
+    # 4. VECTOR SEARCH (CORRECT)
+    # -------------------------
+    docs = vector_store.similarity_search(
+        query=query,
+        k=10,  # slightly higher improves recall
+        filter={
+            "project_id": project.id,
+            "type": ["table_description", "column", "analytical_capability"],
+        },
+    )
+
+    return "\n".join([doc.page_content for doc in docs])
+
+# ==========================
+# EVALUATOR SETUP
+# ==========================
+
+def build_evaluators(llm):
+
+    return [
+        ("hallucination", create_llm_as_judge(
+            prompt=HALLUCINATION_PROMPT,
+            judge=llm,
+            continuous=True,
+            feedback_key="hallucination",
+        )),
+        ("correctness", create_llm_as_judge(
+            prompt=CORRECTNESS_PROMPT,
+            judge=llm,
+            continuous=True,
+            feedback_key="correctness",
+        )),
+        ("relevance", create_llm_as_judge(
+            prompt=ANSWER_RELEVANCE_PROMPT,
+            judge=llm,
+            continuous=True,
+            feedback_key="relevance",
+        )),
+        ("conciseness", create_llm_as_judge(
+            prompt=CONCISENESS_PROMPT,
+            judge=llm,
+            continuous=True,
+            feedback_key="conciseness",
+        )),
+    ]
+
+
+# ==========================
+# TOPIC EVALUATION (UPDATED)
+# ==========================
+
+def evaluate_topic(project, topic, evaluators, vector_store, report):
+
     content_obj = TopicContent.objects.filter(topic=topic).first()
     if not content_obj:
         return None
 
     content_json = content_obj.content_json or {}
 
+    # ✔ CONTENT (FIXED)
+    content_text = extract_content_blocks_text(content_json)
+
+    # ✔ INPUT (NEW)
+    input_text = build_eval_input(topic, report)
+
+    # ✔ CONTEXT (SQL + METADATA)
     sql_results = content_json.get("precomputed_sql_placeholders", [])
 
-    metadata_context = retrieve_metadata_for_topic(project, topic)
+    #should implement this below object
 
-    prompt = build_evaluation_prompt(
-        project=project,
-        topic=topic,
-        content_json=content_json,
-        metadata_context=metadata_context,
-        sql_results=sql_results,
+
+    metadata_context = retrieve_metadata_for_topic(
+        project, topic, vector_store, report
     )
 
-    print("\n================ EVALUATION PROMPT =================")
-    print(f"Topic ID: {topic.id}")
-    print(prompt)  # limit to avoid huge logs
-    print("===================================================\n")
+    context_str = f"""
+SQL DATA:
+{json.dumps(sql_results, indent=2)}
 
-    try:
-        response = llm.invoke(prompt)
+METADATA:
+{metadata_context}
+"""
 
-        content = response.content
+    results = []
 
-        if isinstance(content, list):
-            if isinstance(content[0], dict) and "text" in content[0]:
-                raw_text = content[0]["text"].strip()
-            else:
-                raw_text = str(content[0]).strip()
-        else:
-            raw_text = content.strip()
-
-        result = extract_json_or_fail(raw_text)
-        scores = result["scores"]
-
-        overall_score = sum(scores.values()) / len(scores)
-
-        print("\n✅ [EVAL SUCCESS]")
-        print(f"Topic ID: {topic.id}")
-        print(f"Scores: {scores}")
-        print(f"Overall Score: {overall_score}")
-        print("---------------------------------------------------\n")
-
-        return {
-            "scores": scores,
-            "issues": result.get("issues", []),
-            "summary": result.get("summary", ""),
-            "overall_score": overall_score,
-        }
-
-    except Exception as e:
-
-        print("\n❌ [EVAL ERROR]")
-        print(f"Topic ID: {topic.id}")
-        print(f"Error: {e}")
-
+    def run_eval(name, evaluator):
         try:
-            print("----- RAW LLM OUTPUT -----")
-            print(raw_text)
-        except:
-            print("No raw_text available")
 
-        print("---------------------------------------------------\n")
+            if name == "hallucination":
+                return evaluator(
+                    inputs=input_text,
+                    outputs=content_text,
+                    context=context_str,
+                )
 
+            elif name == "correctness":
+                return evaluator(
+                    inputs=input_text,
+                    outputs=content_text,
+                )
+
+            else:
+                return evaluator(
+                    inputs=input_text,
+                    outputs=content_text,
+                )
+
+        except Exception as e:
+            print(f"[EVAL ERROR] {name} → Topic {topic.id}: {e}")
+            return None
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+
+        futures = [
+            executor.submit(run_eval, name, evaluator)
+            for name, evaluator in evaluators
+        ]
+
+        for f in futures:
+            res = f.result()
+            if res:
+                results.append(res)
+
+    if not results:
         return None
 
+    scores = {}
 
-# =========================
-# REPORT AGGREGATION
-# =========================
-def compute_report_score(project, report, topic_results):
+    for r in results:
+        key = r.get("key")
+        score = float(r.get("score", 0)) * 100
+        scores[key] = score
 
-    if not topic_results:
-        return None
+    overall_score = sum(scores.values()) / len(scores)
 
-    aggregated = {
-        "hallucination": 0,
-        "data_grounding": 0,
-        "relevance": 0,
-        "analytical_depth": 0,
-        "clarity": 0,
-    }
-
-    for r in topic_results:
-        for k in aggregated:
-            aggregated[k] += r["scores"][k]
-
-    n = len(topic_results)
-
-    average_scores = {k: v / n for k, v in aggregated.items()}
-    overall_score = sum(average_scores.values()) / len(average_scores)
-
-    ReportEvaluation.objects.update_or_create(
-        report=report,
-        defaults={
-            "average_scores": average_scores,
-            "overall_score": overall_score,
-        },
-    )
+    issues = [r.get("comment", "") for r in results if r.get("comment")]
 
     return {
-        "average_scores": average_scores,
+        "scores": scores,
+        "issues": issues,
+        "summary": " | ".join(issues),
         "overall_score": overall_score,
     }
 
+
+# ==========================
+# PROJECT EVALUATION
+# ==========================
 
 def evaluate_project(project_id: int, report_id: int):
 
@@ -387,36 +512,180 @@ def evaluate_project(project_id: int, report_id: int):
         subsection__section__report=report
     )
 
-    llm = get_llm(
-        backend=settings.DEFAULT_LLM_BACKEND,
-        model_size=ModelSize.PRIMARY,
-        temperature=0,
+    vector_store = get_vector_store(
+        backend=settings.DEFAULT_LLM_BACKEND
     )
+
+    llm = get_judge_llm()
+    evaluators = build_evaluators(llm)
 
     topic_results = []
 
     for topic in topics:
 
         result = evaluate_topic(
-            project=project,
-            topic=topic,
-            llm=llm,
+            project,
+            topic,
+            evaluators,
+            vector_store,
+            report,
         )
 
         if not result:
             continue
+        topic_res={
+            "scores": result["scores"],
+            "issues": result["issues"],
+            "summary": result["summary"],
+            "overall_score": result["overall_score"],
+        }
+        print("\n\n__Result__\n", topic_res,"\n\n\n")
 
         TopicEvaluation.objects.update_or_create(
             topic=topic,
             report=report,
-            defaults={
-                "scores": result["scores"],
-                "issues": result["issues"],
-                "summary": result["summary"],
-                "overall_score": result["overall_score"],
-            },
+            defaults=topic_res,
         )
 
         topic_results.append(result)
 
-    return compute_report_score(project, report, topic_results)
+    return compute_report_score(topic_results)
+
+
+# ==========================
+# REPORT AGGREGATION
+# ==========================
+
+def compute_report_score(topic_results):
+
+    if not topic_results:
+        return {
+            "overall_score": 0,
+            "category_scores": {},
+            "topics_evaluated": 0,
+        }
+
+    category_scores = {}
+
+    for result in topic_results:
+        for key, value in result["scores"].items():
+            category_scores.setdefault(key, []).append(value)
+
+    averaged_scores = {
+        k: sum(v) / len(v)
+        for k, v in category_scores.items()
+    }
+
+    overall_score = sum(averaged_scores.values()) / len(averaged_scores)
+
+    return {
+        "overall_score": round(overall_score, 2),
+        "category_scores": averaged_scores,
+        "topics_evaluated": len(topic_results),
+    }
+
+
+# ==========================
+# DECODE HELPERS
+# ==========================
+
+def decode_bdata(bdata, dtype):
+
+    binary = base64.b64decode(bdata)
+
+    if dtype == "f8":
+        return list(struct.unpack(f"{len(binary)//8}d", binary))
+    elif dtype == "f4":
+        return list(struct.unpack(f"{len(binary)//4}f", binary))
+    elif dtype == "i4":
+        return list(struct.unpack(f"{len(binary)//4}i", binary))
+    elif dtype == "i2":
+        return list(struct.unpack(f"{len(binary)//2}h", binary))
+    elif dtype == "i1":
+        return list(struct.unpack(f"{len(binary)}b", binary))
+
+    return []
+
+
+def _decode_sql_result(sql_result):
+
+    if not sql_result:
+        return sql_result
+
+    if isinstance(sql_result, dict) and "rows" in sql_result:
+        return sql_result
+
+    if isinstance(sql_result, dict):
+
+        decoded = {}
+
+        for key, val in sql_result.items():
+
+            if isinstance(val, dict) and "bdata" in val:
+                decoded[key] = decode_bdata(val["bdata"], val.get("dtype"))
+            else:
+                decoded[key] = val
+
+        return decoded
+
+    return sql_result
+
+
+def build_prompt_blocks(blocks, decode_fn):
+
+    formatted = []
+
+    for i, block in enumerate(blocks):
+
+        if block["type"] == "visual_placeholder":
+            block = normalize_visual_block(block)
+
+            content = block.get("content", {})
+
+            decoded = decode_fn(
+                block.get("generated_visual", {}).get("data")
+            )
+
+            formatted.append({
+                "block_index": i,
+                "type": "visual",
+                "visual_id": content.get("id"),
+                "visual_type": content.get("type"),
+                "purpose": content.get("purpose"),
+                "data": decoded
+            })
+
+        elif block["type"] in ["paragraph", "bullet_list"]:
+
+            formatted.append({
+                "block_index": i,
+                "type": block["type"],
+                "content": block["content"]
+            })
+
+    return formatted
+
+
+def normalize_visual_block(block):
+
+    raw = block.get("content")
+
+    if isinstance(raw, dict):
+        return block
+
+    if isinstance(raw, str) and "{{VISUAL" in raw:
+
+        import re
+
+        def extract(field):
+            match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.DOTALL)
+            return match.group(1).strip().strip('"') if match else ""
+
+        block["content"] = {
+            "id": extract("id"),
+            "type": extract("type"),
+            "purpose": extract("purpose"),
+        }
+
+    return block
+

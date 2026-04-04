@@ -62,6 +62,13 @@ WRITING RULES (STRICT)
 7. Do NOT use jargon unless commonly understood by the audience
 8. Do NOT create numbered lists or bullet points in the introduction
 9. Write in flowing, narrative paragraphs
+10. Do NOT mention, quote, or restate the subsection title in any form
+11. Do NOT use phrases like:
+   - "This subsection..."
+   - "This section..."
+   - "This [title] analysis..."
+12. Do NOT include the subsection title in quotes or paraphrased form
+13. Start directly with the business context, not structural references
 
 ========================
 TONE AND STYLE
@@ -72,6 +79,18 @@ TONE AND STYLE
 - Forward-looking where appropriate
 - Objective and evidence-based
 - Free of hyperbole or marketing language
+
+PROHIBITED PATTERNS (CRITICAL)
+
+The following patterns are NOT allowed:
+
+- "This subsection, 'X', ..."
+- "This 'X' subsection..."
+- "This section provides..."
+- "This analysis explores..."
+- "This report section..."
+
+These are considered LOW-QUALITY and MUST NOT appear.
 
 ========================
 OUTPUT FORMAT (STRICT JSON ONLY)

@@ -35,7 +35,7 @@ class ModelSize(str, Enum):
 # ==========================
 
 CLOUD_MODELS = {
-    ModelSize.PRIMARY: "gemini-3-pro-preview",
+    ModelSize.PRIMARY: "gemini-2.5-flash",
     ModelSize.SMALL: "gemini-2.5-flash",
 }
 

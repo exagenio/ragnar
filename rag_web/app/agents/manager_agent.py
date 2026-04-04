@@ -258,7 +258,7 @@ class ManagerAgent:
             # -----------------------------
             # Concurrent Topic Pipelines
             # -----------------------------
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=3) as executor:
 
                 futures = []
 
@@ -342,6 +342,7 @@ class ManagerAgent:
             return content_obj
         except Exception as e:
             print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
+            traceback.print_exc()
 
 
     def _stage_analysis_and_sql(self, project, report, topic, plan_generated=False):
@@ -391,7 +392,7 @@ class ManagerAgent:
 
             tasks = []
 
-            with ThreadPoolExecutor(max_workers=6) as executor:
+            with ThreadPoolExecutor(max_workers=3) as executor:
 
                 for s_index, section in enumerate(sections):
 

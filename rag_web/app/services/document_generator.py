@@ -147,11 +147,11 @@ def _add_section_content(doc, content_json):
                 para.paragraph_format.space_after = Pt(12)
 
     # Strategic insights
-    if 'strategic_insights' in content_json and content_json['strategic_insights']:
-        doc.add_heading("Strategic Insights", level=2)
-        for insight in content_json['strategic_insights']:
-            para = doc.add_paragraph(insight, style='List Bullet')
-            para.paragraph_format.left_indent = Inches(0.5)
+    # if 'strategic_insights' in content_json and content_json['strategic_insights']:
+    #     doc.add_heading("Strategic Insights", level=2)
+    #     for insight in content_json['strategic_insights']:
+    #         para = doc.add_paragraph(insight, style='List Bullet')
+    #         para.paragraph_format.left_indent = Inches(0.5)
 
 
 def _add_subsection(doc, subsection, report, section_num, subsection_num):
@@ -185,11 +185,11 @@ def _add_subsection_content(doc, content_json):
                 para.paragraph_format.space_after = Pt(12)
 
     # Key themes
-    if 'key_themes' in content_json and content_json['key_themes']:
-        doc.add_heading("Key Themes", level=3)
-        for theme in content_json['key_themes']:
-            para = doc.add_paragraph(theme, style='List Bullet')
-            para.paragraph_format.left_indent = Inches(0.5)
+    # if 'key_themes' in content_json and content_json['key_themes']:
+    #     doc.add_heading("Key Themes", level=3)
+    #     for theme in content_json['key_themes']:
+    #         para = doc.add_paragraph(theme, style='List Bullet')
+    #         para.paragraph_format.left_indent = Inches(0.5)
 
 
 def _add_topic(doc, topic, section_num, subsection_num, topic_num):
@@ -214,8 +214,8 @@ def _add_topic_content(doc, content_json):
         for content_section in content_json['sections']:
 
             # Section heading (Level 4)
-            if 'heading' in content_section and content_section['heading']:
-                doc.add_heading(content_section['heading'], level=4)
+            # if 'heading' in content_section and content_section['heading']:
+            #     doc.add_heading(content_section['heading'], level=4)
 
             # Content blocks
             if 'content_blocks' in content_section:
@@ -239,9 +239,6 @@ def _add_content_block(doc, block):
         for item in items:
             para = doc.add_paragraph(item, style='List Bullet')
             para.paragraph_format.left_indent = Inches(0.5)
-
-    elif block_type == 'sql_placeholder':
-        _add_sql_result(doc, block)
 
     elif block_type == 'visual_placeholder':
         _add_visual(doc, block)
@@ -279,37 +276,86 @@ def _add_sql_result(doc, block):
         para.style = 'Intense Quote'
         para.paragraph_format.space_after = Pt(12)
 
+import plotly.io as pio
+from tempfile import NamedTemporaryFile
+
 
 def _add_visual(doc, block):
-    """Add visual/chart or placeholder."""
 
-    generated_visual = block.get('generated_visual', {})
+    generated_visual = block.get("generated_visual", {})
 
-    if generated_visual.get('status') == 'ok':
-        image_path = generated_visual.get('image_path', '')
-        if image_path:
-            try:
-                # Convert relative path to absolute path
-                if image_path.startswith('/media/'):
-                    # Remove /media/ prefix and join with MEDIA_ROOT
-                    relative_path = image_path.replace('/media/', '', 1)
-                    absolute_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-                else:
-                    # Use path as-is if it's already absolute
-                    absolute_path = image_path
+    if generated_visual.get("status") != "ok":
+        return
 
-                # Check if file exists before adding
-                if os.path.exists(absolute_path):
-                    doc.add_picture(absolute_path, width=Inches(6))
-                    last_paragraph = doc.paragraphs[-1]
-                    last_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    last_paragraph.paragraph_format.space_after = Pt(12)
-                else:
-                    # Skip if image doesn't exist (don't show error message)
-                    pass
-            except Exception:
-                # Skip if image can't be loaded (don't show error message)
-                pass
-    else:
-        # Visual not generated - skip without showing message
-        pass
+    fig_json = generated_visual.get("figure_json")
+    visual_spec = generated_visual.get("visual_spec", {})
+
+    if not fig_json:
+        return
+
+    fig = pio.from_json(fig_json)
+
+    # ----------------------------------
+    # TABLE → DOCX TABLE
+    # ----------------------------------
+    if visual_spec.get("type") == "table":
+        _render_table(doc, generated_visual)
+        return
+
+    # ----------------------------------
+    # CHART → PLOTLY IMAGE
+    # ----------------------------------
+    try:
+        tmp = NamedTemporaryFile(delete=False, suffix=".png")
+        fig.write_image(tmp.name)  # requires kaleido
+
+        doc.add_picture(tmp.name, width=Inches(6))
+        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    except Exception as e:
+        print("Plotly render error:", e)
+
+
+def _render_table(doc, generated_visual):
+
+    data = generated_visual.get("data", {})
+
+    if not data or "rows" not in data:
+        return
+
+    rows = data["rows"]
+    columns = data.get("columns", [])
+
+    if not rows:
+        return
+
+    table = doc.add_table(rows=len(rows) + 1, cols=len(columns))
+
+    # Header
+    for i, col in enumerate(columns):
+        table.rows[0].cells[i].text = str(col)
+
+    # Data
+    for r_idx, row in enumerate(rows):
+        for c_idx, val in enumerate(row):
+            table.rows[r_idx + 1].cells[c_idx].text = str(val)
+
+
+import base64
+import struct
+
+def decode_bdata(bdata, dtype):
+    binary = base64.b64decode(bdata)
+
+    if dtype == "f8":
+        return list(struct.unpack(f"{len(binary)//8}d", binary))
+    elif dtype == "f4":
+        return list(struct.unpack(f"{len(binary)//4}f", binary))
+    elif dtype == "i4":
+        return list(struct.unpack(f"{len(binary)//4}i", binary))
+    elif dtype == "i2":
+        return list(struct.unpack(f"{len(binary)//2}h", binary))
+    elif dtype == "i1":
+        return list(struct.unpack(f"{len(binary)}b", binary))
+
+    return []

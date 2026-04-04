@@ -10,6 +10,7 @@ from app.services.llm_provider import (
     LLMBackend,
     ModelSize,
 )
+from app.agents.rate_limiter import rate_limiter
 
 
 # ==========================
@@ -84,6 +85,10 @@ def generate_subsection_content(
     )
 
     # Invoke LLM
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
+
     response = llm.invoke(prompt)
     content = response.content
     if isinstance(content, list):

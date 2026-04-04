@@ -10,6 +10,7 @@ from app.services.llm_provider import (
     ModelSize,
 )
 from decimal import Decimal
+from app.agents.rate_limiter import rate_limiter
 
 PROMPT_PATH = (settings.BASE_DIR/ "app"/ "prompts"/ "sql_result_interpretation_prompt.txt")
 
@@ -72,6 +73,10 @@ def interpret_sql_result(
         draft_content=draft_text,
         computed_value=_format_value(computed_result["result"]),
     )
+
+    estimated_tokens = len(prompt) // 4  # rough estimate
+
+    rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     text = response.content.strip()

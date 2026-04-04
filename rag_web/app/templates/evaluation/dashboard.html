@@ -112,7 +112,7 @@
             {% for eval in topic_evals %}
             <tr class="border-t">
 
-                <td class="p-2">{{ eval.topic.title }}</td>
+                <td class="p-2">{{eval.topic_id}}{{ eval.topic.title }}</td>
                 <td class="p-2">{{ eval.overall_score|floatformat:2 }}</td>
                 <td class="p-2">{{ eval.scores.hallucination }}</td>
                 <td class="p-2">{{ eval.scores.data_grounding }}</td>

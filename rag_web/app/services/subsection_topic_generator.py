@@ -55,10 +55,10 @@ def generate_subsection_topics(
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
-
+    print(context)
     vector_store = get_vector_store(backend=backend)
     docs = vector_store.similarity_search(
-        query="database schema and analytical capabilities",
+        query = f"{context.get('section_title', '')} {context.get('subsection_title', '')}",
         k=50,
         filter={
             "project_id": project_id,
@@ -81,9 +81,12 @@ def generate_subsection_topics(
         temperature=0.2,
     )
 
+    print(prompt)
+
     # 🔹 Invoke LLM
     response = llm.invoke(prompt)
     content = response.content
+    print(response)
 
     if isinstance(content, list):
         # LangChain structured output
