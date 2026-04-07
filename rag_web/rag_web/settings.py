@@ -135,6 +135,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -143,7 +144,8 @@ MEDIA_URL = "/media/"
 
 if not GOOGLE_API_KEY:
     raise RuntimeError("GOOGLE_API_KEY is not set in environment variables")
-
+if not OPENROUTER_API_KEY:
+    raise RuntimeError("OPENROUTER_API_KEY is not set in environment variables")
 
 # Default behavior (can be changed per request)
 DEFAULT_LLM_BACKEND = "cloud"   # or "local"

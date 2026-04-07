@@ -49,6 +49,9 @@
                 class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
             ▶ Run Evaluation
         </button>
+        <button name="action" value="readability">
+            Run Readability Analysis
+        </button>
     </form>
 
     <!-- ========================= -->
@@ -100,10 +103,9 @@
                     <th class="p-2">Topic</th>
                     <th class="p-2">Overall</th>
                     <th class="p-2">Hallucination</th>
-                    <th class="p-2">Grounding</th>
+                    <th class="p-2">Correctness</th>
                     <th class="p-2">Relevance</th>
-                    <th class="p-2">Depth</th>
-                    <th class="p-2">Clarity</th>
+                    <th class="p-2">Conciseness</th>
                 </tr>
             </thead>
 
@@ -114,11 +116,10 @@
 
                 <td class="p-2">{{eval.topic_id}}{{ eval.topic.title }}</td>
                 <td class="p-2">{{ eval.overall_score|floatformat:2 }}</td>
-                <td class="p-2">{{ eval.scores.hallucination }}</td>
-                <td class="p-2">{{ eval.scores.data_grounding }}</td>
-                <td class="p-2">{{ eval.scores.relevance }}</td>
-                <td class="p-2">{{ eval.scores.analytical_depth }}</td>
-                <td class="p-2">{{ eval.scores.clarity }}</td>
+                <td class="p-2">{{ eval.scores.hallucination|default:"-" }}</td>
+                <td class="p-2">{{ eval.scores.correctness|default:"-" }}</td>
+                <td class="p-2">{{ eval.scores.relevance|default:"-" }}</td>
+                <td class="p-2">{{ eval.scores.conciseness|default:"-" }}</td>
 
             </tr>
             {% empty %}
@@ -131,6 +132,32 @@
 
             </tbody>
 
+        </table>
+
+        <h3 class="text-lg font-semibold mt-6 mb-4">Readability (Flesch-Kincaid Grade)</h3>
+
+        <table class="w-full text-sm border">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="p-2">Topic</th>
+                    <th class="p-2">Grade Level</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for r in readability_scores %}
+                <tr class="border-t">
+                    <td class="p-2">{{ r.topic.title }}</td>
+                    <td class="p-2">{{ r.flesch_kincaid_grade|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="2" class="p-4 text-center text-gray-500">
+                        No readability data
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
         </table>
 
     </div>

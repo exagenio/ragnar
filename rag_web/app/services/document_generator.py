@@ -4,6 +4,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 import os
 from django.conf import settings
+import json
 
 
 def generate_report_document(report, sections):
@@ -117,9 +118,13 @@ def _add_section(doc, section, report, section_num):
     """Add a complete section with all its subsections and topics."""
 
     # Section heading (Level 1)
-    section_heading = doc.add_heading(section.title, level=1)
+    section_title = f"{section_num}. {section.title}"
+    section_heading = doc.add_heading(section_title, level=1)
     section_heading_run = section_heading.runs[0]
+    style_heading(section_heading_run, level=1)
     section_heading_run.font.color.rgb = RGBColor(0, 51, 102)
+    section_heading.paragraph_format.space_before = Pt(18)
+    section_heading.paragraph_format.space_after = Pt(6)
 
     # Add section content if available
     if hasattr(section, 'content') and section.content.status == 'generated':
@@ -158,9 +163,13 @@ def _add_subsection(doc, subsection, report, section_num, subsection_num):
     """Add a complete subsection with all its topics."""
 
     # SubSection heading (Level 2)
-    subsection_heading = doc.add_heading(subsection.title, level=2)
+    subsection_title = f"{section_num}.{subsection_num} {subsection.title}"
+    subsection_heading = doc.add_heading(subsection_title, level=2)
     subsection_heading_run = subsection_heading.runs[0]
+    style_heading(subsection_heading_run, level=2)
     subsection_heading_run.font.color.rgb = RGBColor(51, 102, 153)
+    subsection_heading.paragraph_format.space_before = Pt(18)
+    subsection_heading.paragraph_format.space_after = Pt(12)
 
     # Add subsection content if available
     if hasattr(subsection, 'content') and subsection.content.status == 'generated':
@@ -199,6 +208,7 @@ def _add_topic(doc, topic, section_num, subsection_num, topic_num):
     topic_number = f"{section_num}.{subsection_num}.{topic_num}"
     topic_heading = doc.add_heading(f"{topic_number} {topic.title}", level=3)
     topic_heading_run = topic_heading.runs[0]
+    style_heading(topic_heading_run, level=3)
     topic_heading_run.font.color.rgb = RGBColor(102, 153, 204)
 
     # Add topic content if available
@@ -316,30 +326,116 @@ def _add_visual(doc, block):
         print("Plotly render error:", e)
 
 
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+
+def _set_cell_border(cell):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+
+    borders = OxmlElement('w:tcBorders')
+
+    for border_name in ['top', 'left', 'bottom', 'right']:
+        border = OxmlElement(f'w:{border_name}')
+        border.set(qn('w:val'), 'single')
+        border.set(qn('w:sz'), '4')  # thickness
+        border.set(qn('w:space'), '0')
+        border.set(qn('w:color'), '000000')
+        borders.append(border)
+
+    tcPr.append(borders)
+
+
+def _set_cell_shading(cell, fill):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:fill'), fill)
+    tcPr.append(shd)
+
+
 def _render_table(doc, generated_visual):
 
-    data = generated_visual.get("data", {})
+    fig_json = generated_visual.get("figure_json")
 
-    if not data or "rows" not in data:
+    if not fig_json:
         return
 
-    rows = data["rows"]
-    columns = data.get("columns", [])
-
-    if not rows:
+    try:
+        fig = json.loads(fig_json)
+    except Exception:
         return
 
-    table = doc.add_table(rows=len(rows) + 1, cols=len(columns))
+    if not fig.get("data"):
+        return
 
-    # Header
-    for i, col in enumerate(columns):
-        table.rows[0].cells[i].text = str(col)
+    table_data = fig["data"][0]
 
-    # Data
-    for r_idx, row in enumerate(rows):
-        for c_idx, val in enumerate(row):
-            table.rows[r_idx + 1].cells[c_idx].text = str(val)
+    if table_data.get("type") != "table":
+        return
 
+    headers = table_data.get("header", {}).get("values", [])
+    cells = table_data.get("cells", {}).get("values", [])
+
+    if not headers or not cells:
+        return
+
+    num_rows = len(cells[0])
+    num_cols = len(headers)
+
+    table = doc.add_table(rows=num_rows + 1, cols=num_cols)
+    table.style = "Table Grid"  # basic grid
+
+    # =========================
+    # HEADER ROW
+    # =========================
+    for col_idx, header in enumerate(headers):
+        cell = table.rows[0].cells[col_idx]
+        cell.text = str(header)
+
+        # Bold + center
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(10)
+
+        # Header background (light gray)
+        _set_cell_shading(cell, "D9E1F2")
+
+        # Borders
+        _set_cell_border(cell)
+
+    # =========================
+    # DATA ROWS
+    # =========================
+    for row_idx in range(num_rows):
+        for col_idx in range(num_cols):
+            value = cells[col_idx][row_idx]
+            cell = table.rows[row_idx + 1].cells[col_idx]
+
+            # Format numbers
+            if isinstance(value, float):
+                cell.text = f"{value:.2f}"
+            else:
+                cell.text = str(value)
+
+            # Alignment
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.size = Pt(10)
+
+            # Alternating row shading (zebra)
+            if row_idx % 2 == 0:
+                _set_cell_shading(cell, "F2F2F2")
+
+            # Borders
+            _set_cell_border(cell)
+    
+    space_para = doc.add_paragraph()
+    space_para.paragraph_format.space_after = Pt(12)
 
 import base64
 import struct
@@ -359,3 +455,16 @@ def decode_bdata(bdata, dtype):
         return list(struct.unpack(f"{len(binary)}b", binary))
 
     return []
+
+def style_heading(run, level):
+    if level == 1:
+        run.font.size = Pt(18)   # Section
+        run.font.bold = True
+
+    elif level == 2:
+        run.font.size = Pt(14)   # Subsection
+        run.font.bold = True
+
+    elif level == 3:
+        run.font.size = Pt(12)   # Topic
+        run.font.bold = True

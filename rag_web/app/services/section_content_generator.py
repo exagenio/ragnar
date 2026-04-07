@@ -59,7 +59,7 @@ def generate_section_content(
 
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,
+        model_size=ModelSize.SMALL,
         temperature=0.2,
     )
 

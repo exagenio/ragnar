@@ -77,7 +77,7 @@ def generate_topic_analysis_plan(
     # 🔹 Get LLM
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,  # analysis planning = quality > speed
+        model_size=ModelSize.SMALL,  # analysis planning = quality > speed
         temperature=0,
     )
 

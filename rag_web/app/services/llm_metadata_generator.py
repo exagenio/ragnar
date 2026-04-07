@@ -82,7 +82,7 @@ def generate_table_metadata(
     # 🔹 Get LLM from provider
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,  # metadata quality matters
+        model_size=ModelSize.SMALL,  # metadata quality matters
         temperature=0,
     )
 

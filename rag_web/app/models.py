@@ -277,3 +277,52 @@ class ReportEvaluation(models.Model):
 
     def __str__(self):
         return f"Evaluation - {self.report.title}"
+    
+
+class TopicGenerateTime(models.Model):
+    topic = models.ForeignKey("Topic", on_delete=models.CASCADE)
+    subsection = models.ForeignKey("SubSection", on_delete=models.CASCADE)
+    report = models.ForeignKey("Report", on_delete=models.CASCADE)
+
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    duration_seconds = models.FloatField()
+
+    status = models.CharField(max_length=20, default="success")  # success / failed
+    error_message = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SubSectionGenerateTime(models.Model):
+    subsection = models.ForeignKey("SubSection", on_delete=models.CASCADE)
+    report = models.ForeignKey("Report", on_delete=models.CASCADE)
+
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    duration_seconds = models.FloatField()
+
+    topics_count = models.IntegerField()
+
+    status = models.CharField(max_length=20, default="success")
+    error_message = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class TopicReadability(models.Model):
+    topic = models.OneToOneField(
+        "Topic",
+        on_delete=models.CASCADE,
+        related_name="readability"
+    )
+
+    report = models.ForeignKey(
+        "Report",
+        on_delete=models.CASCADE,
+        related_name="readability_scores"
+    )
+
+    flesch_kincaid_grade = models.FloatField()
+
+    created_at = models.DateTimeField(auto_now_add=True)

@@ -14,6 +14,7 @@ from langchain_google_genai import (
 )
 
 from django.conf import settings
+from langchain_openrouter import ChatOpenRouter
 
 
 # ==========================
@@ -34,8 +35,12 @@ class ModelSize(str, Enum):
 # MODEL REGISTRY
 # ==========================
 
+# CLOUD_MODELS = {
+#     ModelSize.PRIMARY: "x-ai/grok-4.20",
+#     ModelSize.SMALL: "x-ai/grok-4.1-fast",
+# }
 CLOUD_MODELS = {
-    ModelSize.PRIMARY: "gemini-2.5-flash",
+    ModelSize.PRIMARY: "gemini-2.5-pro",
     ModelSize.SMALL: "gemini-2.5-flash",
 }
 
@@ -64,6 +69,12 @@ def get_llm(
         )
 
     if backend == LLMBackend.CLOUD:
+        # return ChatOpenRouter(
+        #     model=CLOUD_MODELS[model_size],
+        #     temperature=temperature,
+        #     api_key=settings.OPENROUTER_API_KEY,
+        #     max_retries=2,
+        # )
         return ChatGoogleGenerativeAI(
             model=CLOUD_MODELS[model_size],
             google_api_key=settings.GOOGLE_API_KEY,

@@ -37,7 +37,7 @@ def generate_sql_from_placeholder(
 
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,
+        model_size=ModelSize.SMALL,
         temperature=0,
     )
 

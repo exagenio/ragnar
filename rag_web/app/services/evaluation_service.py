@@ -11,6 +11,7 @@ from openevals.llm import create_llm_as_judge
 #     CONCISENESS_PROMPT,
 #     HALLUCINATION_PROMPT,
 # )
+from langchain_openrouter import ChatOpenRouter
 
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
 from app.services.vector_store import get_vector_store
@@ -237,9 +238,15 @@ Now, grade the following example according to the above instructions:
 # ==========================
 
 def get_judge_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+    # return ChatGoogleGenerativeAI(
+    #     model="gemini-2.5-flash",
+    #     temperature=0,
+    # )
+    return ChatOpenRouter(
+        model="openai/gpt-5.4",
         temperature=0,
+        api_key=settings.OPENROUTER_API_KEY,
+        max_retries=2,
     )
 
 

@@ -18,6 +18,7 @@ from .models import (
     Section,
     SubSection,
     Topic,
+    TopicReadability
 )
 from .forms import ProjectDBConnectionForm
 
@@ -51,7 +52,7 @@ from app.services.project_service import ProjectService
 from app.agents.manager_agent import ManagerAgent
 from django.http import JsonResponse
 from app.services.evaluation_service import evaluate_project
-
+from app.services.readability_service import evaluate_project_readability
 manager = ManagerAgent()
 
 def create_project_and_connect_db(request):
@@ -959,10 +960,20 @@ def evaluation_dashboard_view(request, project_id):
         if request.method == "POST":
 
             report_id = request.POST.get("report_id")
+            action = request.POST.get("action")
 
             if not report_id:
                 messages.error(request, "Please select a report.")
                 return redirect("evaluation_dashboard", project_id=project.id)
+
+            if action == "readability":
+                evaluate_project_readability(project.id, report_id)
+
+                messages.success(request, "Flesch-Kincaid readability computed.")
+
+                return redirect(
+                    f"/projects/{project.id}/evaluation/?report_id={report_id}"
+                )
 
             evaluate_project(project_id, report_id)
 
@@ -975,6 +986,8 @@ def evaluation_dashboard_view(request, project_id):
         # -----------------------------
         # LOAD RESULTS
         # -----------------------------
+
+        readability_scores = None
         if selected_report:
             report_eval = ReportEvaluation.objects.filter(
                 report=selected_report
@@ -984,12 +997,34 @@ def evaluation_dashboard_view(request, project_id):
                 topic__subsection__section__report=selected_report
             ).select_related("topic")
 
+            readability_scores = TopicReadability.objects.filter(
+                report=selected_report
+            ).select_related("topic")
+
+            # -----------------------------
+            # 🔥 COMPUTE OVERALL SCORE (NEW)
+            # -----------------------------
+            for eval_obj in topic_evals:
+
+                scores = eval_obj.scores or {}
+
+                hallucination = float(scores.get("hallucination", 0))
+                correctness = float(scores.get("correctness", 0))
+                relevance = float(scores.get("relevance", 0))
+
+                # Simple average
+                overall = (hallucination + relevance) / 2
+
+                # Optional: round
+                eval_obj.overall_score = round(overall, 2)
+
         context = {
             "project": project,
             "reports": reports,
             "selected_report": selected_report,
             "report_eval": report_eval,
             "topic_evals": topic_evals,
+            "readability_scores": readability_scores,
         }
 
         return render(request, "evaluation/dashboard.html", context)

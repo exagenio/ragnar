@@ -6,12 +6,13 @@ from app.agents.visual_Agent import VisualAgent
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from app.models import Topic
-from app.models import Section, TopicContent, TopicAnalysisPlan
+from app.models import Section, TopicContent, TopicAnalysisPlan, SubSectionGenerateTime, TopicGenerateTime
 from app.services.vector_store import get_vector_store
 import base64
 import struct
 from app.services.visual_narrative_generator import repair_content_chunk
 import traceback
+from django.utils.timezone import now
 class ManagerAgent:
     """
     Central orchestrator of the system.
@@ -232,7 +233,9 @@ class ManagerAgent:
     # ---------------------------------------
 
     def _run_subsection_pipeline(self, project, report, subsection):
-
+        start_time = now()
+        status = "success"
+        error_message = ""
         try:
 
             section = subsection.section
@@ -299,7 +302,18 @@ class ManagerAgent:
             print("[AUTO] Subsection content generated")
 
         finally:
+            end_time = now()
 
+            SubSectionGenerateTime.objects.create(
+                subsection=subsection,
+                report=report,
+                start_time=start_time,
+                end_time=end_time,
+                duration_seconds=(end_time - start_time).total_seconds(),
+                topics_count=len(subsection.topics.all()),
+                status=status,
+                error_message=error_message,
+            )
             subsection.is_generating = False
             subsection.save()
 
@@ -310,7 +324,9 @@ class ManagerAgent:
     # ---------------------------------------
 
     def _run_topic_pipeline(self, project, report, topic, plan_generated=False):
-
+        start_time = now()
+        status = "success"
+        error_message = ""
         try:
             print(f"[PIPELINE] Start → Topic {topic.id}")
 
@@ -343,6 +359,19 @@ class ManagerAgent:
         except Exception as e:
             print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
             traceback.print_exc()
+        finally:
+            end_time = now()
+
+            TopicGenerateTime.objects.create(
+                topic=topic,
+                subsection=topic.subsection,
+                report=report,
+                start_time=start_time,
+                end_time=end_time,
+                duration_seconds=(end_time - start_time).total_seconds(),
+                status=status,
+                error_message=error_message,
+            )
 
 
     def _stage_analysis_and_sql(self, project, report, topic, plan_generated=False):

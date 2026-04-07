@@ -77,7 +77,7 @@ def generate_subsection_topics(
     # 🔹 Get LLM from provider
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,  # topic structure needs quality
+        model_size=ModelSize.SMALL,  # topic structure needs quality
         temperature=0.2,
     )
 

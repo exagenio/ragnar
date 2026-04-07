@@ -104,7 +104,7 @@ def generate_report_outline(
     # -------------------------
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.PRIMARY,
+        model_size=ModelSize.SMALL,
         temperature=0,
     )
 
