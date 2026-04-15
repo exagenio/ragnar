@@ -15,6 +15,8 @@ from langchain_google_genai import (
 
 from django.conf import settings
 from langchain_openrouter import ChatOpenRouter
+from langchain_google_vertexai import ChatVertexAI
+from langchain_google_vertexai import VertexAIEmbeddings
 
 
 # ==========================
@@ -35,14 +37,14 @@ class ModelSize(str, Enum):
 # MODEL REGISTRY
 # ==========================
 
-# CLOUD_MODELS = {
-#     ModelSize.PRIMARY: "x-ai/grok-4.20",
-#     ModelSize.SMALL: "x-ai/grok-4.1-fast",
-# }
 CLOUD_MODELS = {
-    ModelSize.PRIMARY: "gemini-2.5-pro",
-    ModelSize.SMALL: "gemini-2.5-flash",
+    ModelSize.PRIMARY: "openai/gpt-5.4",
+    ModelSize.SMALL: "openai/gpt-5.4-mini",
 }
+# CLOUD_MODELS = {
+#     ModelSize.PRIMARY: "gemini-2.5-pro",
+#     ModelSize.SMALL: "gemini-2.5-flash",
+# }
 
 LOCAL_MODEL = "llama3.1:8b"
 
@@ -69,18 +71,24 @@ def get_llm(
         )
 
     if backend == LLMBackend.CLOUD:
-        # return ChatOpenRouter(
-        #     model=CLOUD_MODELS[model_size],
-        #     temperature=temperature,
-        #     api_key=settings.OPENROUTER_API_KEY,
-        #     max_retries=2,
-        # )
-        return ChatGoogleGenerativeAI(
+        return ChatOpenRouter(
             model=CLOUD_MODELS[model_size],
-            google_api_key=settings.GOOGLE_API_KEY,
             temperature=temperature,
+            api_key=settings.OPENROUTER_API_KEY,
             max_retries=2,
         )
+        # return ChatGoogleGenerativeAI(
+        #     model=CLOUD_MODELS[model_size],
+        #     google_api_key=settings.GOOGLE_API_KEY,
+        #     temperature=temperature,
+        #     max_retries=2,
+        # )
+        # return ChatVertexAI(
+        #     model=CLOUD_MODELS[model_size],
+        #     temperature=temperature,
+        #     max_retries=2,
+        #     project="project-08491770-bd93-473e-a10",
+        # )
 
     raise ValueError(f"Unsupported LLM backend: {backend}")
 
@@ -104,9 +112,13 @@ def get_embeddings(
         )
 
     if backend == LLMBackend.CLOUD:
-        return GoogleGenerativeAIEmbeddings(
-            model="gemini-embedding-001",
-            google_api_key=settings.GOOGLE_API_KEY,
+        # return GoogleGenerativeAIEmbeddings(
+        #     model="gemini-embedding-001",
+        #     google_api_key=settings.GOOGLE_API_KEY,
+        # )
+        return VertexAIEmbeddings(
+            model_name="gemini-embedding-001",
+             project="project-08491770-bd93-473e-a10"
         )
 
     raise ValueError(f"Unsupported embeddings backend: {backend}")

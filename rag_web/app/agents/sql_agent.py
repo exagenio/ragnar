@@ -1,5 +1,4 @@
 # sql agent file
-from app.services.sql_agent import generate_sql_from_placeholder
 from app.services.sql_agent import generate_sql_for_precomputed_placeholder
 from app.services.sql_executor import execute_sql_safely
 from app.services.sql_result_interpreter import interpret_sql_result
@@ -73,184 +72,6 @@ class SQLAgent:
             pass
 
 
-    # -----------------------------------------
-    # COMPUTE SQL BLOCK
-    # -----------------------------------------
-    def compute_sql_block(
-        self,
-        project,
-        topic,
-        content_obj,
-        section_index,
-        block_index,
-    ):
-
-        content_json = content_obj.content_json
-        sections = content_json.get("sections", [])
-
-        try:
-            sql_block = sections[section_index]["content_blocks"][block_index]
-            # -----------------------------
-            # RETRY META
-            # -----------------------------
-            retry_meta = sql_block.setdefault("retry_meta", {
-                "attempts": 0,
-                "max_attempts": 3,
-                "errors": []
-            })
-
-            retry_meta["attempts"] += 1
-
-            print(f"[SQL] Attempt {retry_meta['attempts']} / {retry_meta['max_attempts']}")        
-        except (IndexError, KeyError, TypeError):
-            raise ValueError("Invalid SQL placeholder reference.")
-
-        if sql_block.get("type") != "sql_placeholder":
-            raise ValueError("Selected block is not a SQL placeholder.")
-
-        schema_context = self.build_schema_context(project)
-
-        # -----------------------------------------
-        # GENERATE SQL FROM PLACEHOLDER
-        # -----------------------------------------
-        try:
-
-            generated_sql = generate_sql_from_placeholder(
-                sql_placeholder=sql_block,
-                metadata_context=content_json.get("metadata_context"),
-                database_schema=schema_context,
-            )
-
-        except Exception as e:
-
-            print("SQL generation failed:", e)
-
-            return self._handle_sql_failure(
-                sections=sections,
-                section_index=section_index,
-                block_index=block_index,
-                content_obj=content_obj,
-                content_json=content_json,
-                retry_meta=retry_meta,
-                reason="sql_generation_failed",
-            )
-
-
-        # -----------------------------------------
-        # SQL AGENT MAY RETURN "not_possible"
-        # -----------------------------------------
-        if generated_sql.get("status") != "ok":
-
-            print("SQL generation not possible:", generated_sql)
-
-            return self._handle_sql_failure(
-            sections=sections,
-            section_index=section_index,
-            block_index=block_index,
-            content_obj=content_obj,
-            content_json=content_json,
-            retry_meta=retry_meta,
-            reason="sql_generation not possible",
-            )
-
-
-        # -----------------------------------------
-        # EXECUTE SQL
-        # -----------------------------------------
-        try:
-
-            result = execute_sql_safely(
-                generated_sql["sql"],
-                project_id=project.id,
-                expected_result_type=generated_sql.get("result_type", "scalar"),
-            )
-
-        except Exception as e:
-
-            print("SQL execution failed:", e)
-
-            return self._handle_sql_failure(
-                sections=sections,
-                section_index=section_index,
-                block_index=block_index,
-                content_obj=content_obj,
-                content_json=content_json,
-                retry_meta=retry_meta,
-                reason="sql execution failed",
-            )
-
-        blocks = sections[section_index]["content_blocks"]
-
-        # -----------------------------------------
-        # ENSURE PREVIOUS BLOCK EXISTS
-        # -----------------------------------------
-        if (
-            block_index == 0
-            or blocks[block_index - 1]["type"]
-            not in ["paragraph", "bullet_list"]
-        ):
-
-            print("SQL placeholder has no preceding paragraph.")
-
-            return self._handle_sql_failure(
-                sections=sections,
-                section_index=section_index,
-                block_index=block_index,
-                content_obj=content_obj,
-                content_json=content_json,
-                retry_meta=retry_meta,
-                reason="sql placeholder has no proceding paragraph",
-            )
-
-
-        previous_block = blocks[block_index - 1]
-
-        # -----------------------------------------
-        # INTERPRET SQL RESULT INTO TEXT
-        # -----------------------------------------
-        try:
-
-            interpreted_text = interpret_sql_result(
-                draft_content=previous_block["content"],
-                computed_result=result,
-            )
-
-            previous_block["content"] = interpreted_text
-
-        except Exception as e:
-
-            print("SQL interpretation failed:", e)
-
-            return self._handle_sql_failure(
-                sections=sections,
-                section_index=section_index,
-                block_index=block_index,
-                content_obj=content_obj,
-                content_json=content_json,
-                retry_meta=retry_meta,
-                reason="sql interpretation failed",
-            )
-
-
-        # -----------------------------------------
-        # STORE RESULT
-        # -----------------------------------------
-        sql_block["generated_result"] = {
-            "status": "ok",
-            "value": result["result"],
-            "row_count": result.get("row_count"),
-        }
-
-        sql_block["computed"] = True
-
-        content_obj.content_json = content_json
-        content_obj.save()
-
-        return {
-            "success": True,
-            "placeholder_removed": False
-        }
-    
     def generate_sql_placeholders_from_plan(
         self,
         *,
@@ -297,7 +118,7 @@ class SQLAgent:
 
         results = []
 
-        # 🔥 control concurrency (important)
+        # max concurrent task at once
         max_workers = 2  
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -313,13 +134,47 @@ class SQLAgent:
                 for p in placeholders
             ]
 
-            for future in as_completed(futures):
-                results.append(future.result())
+        results = [future.result() for future in futures]
+
+
+        # -----------------------------------------
+        # STEP: LLM INSIGHT GENERATION
+        # -----------------------------------------
+
+        from app.services.sql_result_interpreter import interpret_sql_result
+
+        batch_size = 2
+        final_results = []
+
+        for i in range(0, len(results), batch_size):
+
+            batch = results[i:i+batch_size]
+
+            try:
+                interpreted = interpret_sql_result(placeholders=batch)
+
+                mapping = {
+                    str(r["id"]).strip(): r["insights"]
+                    for r in interpreted.get("results", [])
+                }
+
+                for p in batch:
+                    pid = str(p.get("content", {}).get("id")).strip()
+
+                    if pid in mapping:
+                        p["content"]["query"]["insights"] = mapping[pid]
+                        p["content"]["query"].pop("result", None)
+
+            except Exception as e:
+                print(f"[INSIGHT ERROR] {str(e)}")
+
+            final_results.extend(batch)
+
 
         # -------------------------
         # SAVE BACK
         # -------------------------
-        content_json["precomputed_sql_placeholders"] = results
+        content_json["precomputed_sql_placeholders"] = final_results
 
         topic_content_obj.content_json = content_json
         topic_content_obj.save()

@@ -251,13 +251,17 @@ class TopicEvaluation(models.Model):
         related_name="topic_evaluations"
     )
 
-    scores = models.JSONField()
-    issues = models.JSONField(default=list)
-    summary = models.TextField()
-
-    overall_score = models.FloatField()
+    scores = models.JSONField(null=True, blank=True)
+    issues = models.JSONField(null=True, blank=True)
+    summary = models.TextField(null=True, blank=True)
+    overall_score = models.FloatField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+        # ===== GEVAL =====
+    geval_scores = models.JSONField(null=True, blank=True)
+    geval_issues = models.JSONField(default=list, blank=True)
+    geval_summary = models.TextField(null=True, blank=True)
+    geval_overall_score = models.FloatField(null=True, blank=True)
 
     class Meta:
         unique_together = ("topic", "report")

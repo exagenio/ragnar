@@ -16,10 +16,10 @@
     <!-- ========================= -->
     <!-- REPORT SELECT -->
     <!-- ========================= -->
+     
     <form method="get" class="mb-6 flex items-center gap-3">
 
-        <select name="report_id"
-                class="border rounded px-3 py-2 text-sm">
+        <select name="report_id" class="border rounded px-3 py-2 text-sm">
 
             <option value="">-- Select Report --</option>
 
@@ -32,6 +32,9 @@
 
         </select>
 
+        <!-- ✅ KEEP EVAL TYPE IN GET -->
+        <input type="hidden" name="eval_type" value="{{ eval_type }}">
+
         <button type="submit"
                 class="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-900">
             Load
@@ -41,16 +44,31 @@
 
     {% if selected_report %}
 
+    <!-- ========================= -->
     <!-- RUN EVALUATION -->
-    <form method="post" class="mb-6">
+    <!-- ========================= -->
+    <form method="post" class="mb-6 flex items-center gap-3">
         {% csrf_token %}
         <input type="hidden" name="report_id" value="{{ selected_report.id }}">
+
+        <!-- ✅ EVAL TYPE SELECT -->
+        <select name="eval_type" class="border rounded px-3 py-2 text-sm">
+            <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>
+                OpenEval
+            </option>
+            <option value="geval" {% if eval_type == "g-eval" %}selected{% endif %}>
+                GEval
+            </option>
+        </select>
+
         <button type="submit"
                 class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
             ▶ Run Evaluation
         </button>
-        <button name="action" value="readability">
-            Run Readability Analysis
+
+        <button type="submit" name="action" value="readability"
+                class="px-3 py-2 bg-gray-200 rounded text-sm">
+            Readability
         </button>
     </form>
 
@@ -61,8 +79,51 @@
 
         <h3 class="text-lg font-semibold mb-4">Overall Report Score</h3>
 
-        {% if report_eval %}
+        {% if eval_type == "g-eval" and geval_project_summary %}
 
+        <!-- ✅ GEVAL SUMMARY -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+
+            <div class="p-4 bg-blue-50 rounded text-center">
+                <div class="text-sm text-gray-500">Overall</div>
+                <div class="text-xl font-bold text-blue-600">
+                    {{ geval_project_summary.overall_score }}
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">Correctness</div>
+                <div class="font-semibold">
+                    {{ geval_project_summary.correctness }}
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">Relevance</div>
+                <div class="font-semibold">
+                    {{ geval_project_summary.relevance }}
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">Hallucination</div>
+                <div class="font-semibold">
+                    {{ geval_project_summary.hallucination }}
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded text-center">
+                <div class="text-sm text-gray-500">Conciseness</div>
+                <div class="font-semibold">
+                    {{ geval_project_summary.conciseness }}
+                </div>
+            </div>
+
+        </div>
+
+        {% elif report_eval %}
+
+        <!-- ✅ OPENEVAL -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
             <div class="p-4 bg-gray-50 rounded text-center">
@@ -114,17 +175,19 @@
             {% for eval in topic_evals %}
             <tr class="border-t">
 
-                <td class="p-2">{{eval.topic_id}}{{ eval.topic.title }}</td>
+                <td class="p-2">{{ eval.topic.title }}</td>
                 <td class="p-2">{{ eval.overall_score|floatformat:2 }}</td>
-                <td class="p-2">{{ eval.scores.hallucination|default:"-" }}</td>
-                <td class="p-2">{{ eval.scores.correctness|default:"-" }}</td>
-                <td class="p-2">{{ eval.scores.relevance|default:"-" }}</td>
-                <td class="p-2">{{ eval.scores.conciseness|default:"-" }}</td>
+
+                <!-- ✅ FIXED -->
+                <td class="p-2">{{ eval.display_scores.hallucination|default:"-" }}</td>
+                <td class="p-2">{{ eval.display_scores.correctness|default:"-" }}</td>
+                <td class="p-2">{{ eval.display_scores.relevance|default:"-" }}</td>
+                <td class="p-2">{{ eval.display_scores.conciseness|default:"-" }}</td>
 
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" class="p-4 text-center text-gray-500">
+                <td colspan="6" class="p-4 text-center text-gray-500">
                     No data
                 </td>
             </tr>
@@ -134,7 +197,12 @@
 
         </table>
 
-        <h3 class="text-lg font-semibold mt-6 mb-4">Readability (Flesch-Kincaid Grade)</h3>
+        <!-- ========================= -->
+        <!-- READABILITY -->
+        <!-- ========================= -->
+        <h3 class="text-lg font-semibold mt-6 mb-4">
+            Readability (Flesch-Kincaid Grade)
+        </h3>
 
         <table class="w-full text-sm border">
             <thead class="bg-gray-100">

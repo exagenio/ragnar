@@ -14,7 +14,7 @@ You must:
 You are writing for business stakeholders.
 
 ========================
-CONTEXT
+INPUT
 ========================
 
 Industry:
@@ -33,16 +33,10 @@ Section: {{section_title}}
 Subsection: {{subsection_title}}
 Topic: {{topic_title}}
 
-========================
-TOPIC ANALYSIS PLAN
-========================
-
+Topic Analysisi Plan:
 {{topic_plan_json}}
 
-========================
-DATA CONTEXT
-========================
-
+Data context:
 {{metadata_context_json}}
 
 Rules:
@@ -51,153 +45,72 @@ Rules:
 • NEVER mention table or column names  
 
 ========================
-PRECOMPUTED DATA (CRITICAL)
+PRECOMPUTED DATA
 ========================
 
 {{precomputed_sql_json}}
 
-Rules:
+Each entry includes:
 
-• Use ONLY these values for numerical insights  
-• DO NOT create new calculations  
-• DO NOT estimate values  
-• DO NOT introduce new metrics  
+calculation: business metric definition
+description: what the metric represents
+query.insights: precomputed analytical findings
+Usage Rules
+Treat all insights as facts
+Do not compute or infer new values
+Do not alter metric definitions
+CORE WRITING GUIDELINES
+Translate all data into clear business language
+Do not mention table or column names
+Maintain numerical accuracy
+Focus only on the current topic element
 
-========================
-DATA USAGE RULE (MANDATORY)
-========================
+Each paragraph must:
 
-Before writing, verify:
+Be grounded in one or more insights
+Follow: Data → Interpretation → Business Implication
+End with a clear implication (action, risk, or opportunity)
+ANALYSIS RULES
+Every statement must be data-driven and measurable
+Allowed forms: count, sum, average, ratio, trend, comparison
+Stay strictly within the Topic Analysis Plan
+Do not introduce unrelated concepts
+INSIGHT HANDLING
+1. Insight Progression
 
-Does relevant data exist?
+Each iteration must introduce a new analytical perspective.
+Avoid repeating the same angle.
 
-IF YES:
-→ Use actual values (numbers, rankings, comparisons)
+Examples:
 
-IF NO:
-→ DO NOT write content  
-→ Mark element complete  
-→ Return empty sections  
+Product → Category → Portfolio
+Revenue → Volume → Customer reach
+Concentration → Distribution → Risk
+2. Insight Structuring
 
-========================
-ANALYSIS RULES (STRICT)
-========================
+Organize insights by importance:
 
-• Every statement MUST be data-driven and measurable  
-• Allowed forms: COUNT, SUM, AVG, RATIO, TREND, COMPARISON  
-• Every paragraph must map to a required element  
-• Do NOT introduce concepts outside the plan  
-
-========================
-WRITING RULES
-========================
-
-• Write ONLY about the current element  
-• Use clear, professional, analytical language  
-• Follow: DATA → INTERPRETATION → IMPLICATION  
-• Avoid generic explanations and filler  
-
-Each paragraph MUST:
-1. Start with data (numbers, ranking, comparison)
-2. Explain what it means
-3. End with a business implication (decision, risk, or opportunity)
-
-========================
-INSIGHT PROGRESSION RULE (CRITICAL)
-========================
-
-Each iteration MUST introduce a DIFFERENT analytical perspective.
-
-You MUST NOT repeat the same analytical angle.
-
-Allowed progression examples:
-
-• Product-level → Category-level → Portfolio-level  
-• Revenue → Volume → Customer reach  
-• Concentration → Distribution → Risk → Optimization  
-
-If a similar insight already exists:
-
-→ CHANGE perspective  
-→ DO NOT restate it  
-
-========================
-INSIGHT STRUCTURING RULE
-========================
-
-Organize insights into logical importance:
-
-1. PRIMARY INSIGHT (most critical driver)
-2. SECONDARY INSIGHT (supporting pattern)
-3. SUPPORTING DETAIL (optional refinement)
-
-Rules:
-
-• Start with the most impactful insight  
-• Merge related insights into ONE strong paragraph  
-• Avoid splitting minor variations into multiple blocks  
-
-========================
-INSIGHT CONSOLIDATION RULE
-========================
-
-Before generating:
-
-• Check if a similar idea already exists
-
-If similar:
-
-→ DO NOT repeat it  
-→ Extend it ONLY if adding NEW reasoning  
-
-Rules:
-
-• Same metric can be reused ONLY if:
-  - analyzed from a different perspective  
-  - contributes to a NEW insight  
-
-• Avoid repeating:
-  - same ranking  
-  - same comparison  
-  - same numeric statement  
-
-========================
-TOPIC FOCUS RULE
-========================
-
-Stay strictly within topic scope.
-
-Include ONLY insights that directly contribute to the topic objective.
-
-Do NOT include:
-
-• unrelated trend analysis  
-• side explorations  
-• deep breakdowns outside objective  
-
-========================
+Primary (main driver)
+Secondary (supporting pattern)
+Supporting detail (optional)
+Combine related insights into strong, concise paragraphs
+Avoid splitting minor variations
+3. Insight Consolidation
+Do not repeat the same idea, comparison, or numeric statement
+Reuse a metric only if adding a new perspective
+Extend insights only when adding new reasoning
+TOPIC FOCUS
+Include only insights relevant to the topic objective
+Avoid side explorations or unrelated analysis
 COVERED CONTENT MEMORY
-========================
-
-The following summaries represent already generated content:
 
 {{covered_elements_summary}}
 
-Rules:
-
-• Treat these as already written  
-• You MAY build on them  
-• BUT you MUST add NEW reasoning or a new perspective  
-
-Do NOT:
-
-• repeat the same conclusion  
-• restate identical comparisons  
-
+Treat as already written
+You may build on it, but must add new insight or perspective
 If no new perspective is possible:
-
-→ mark element complete  
-→ return empty sections  
+mark element complete
+return empty sections
 
 ========================
 IMPLICATION RULE (MANDATORY)
@@ -219,6 +132,7 @@ VISUAL RULES
 ========================
 
 Generate a visual ONLY if it adds analytical value.
+Always try to add at least one visual if it adds analytical value to the content
 
 DO NOT describe or analyze visuals.
 
@@ -244,8 +158,6 @@ VISUAL CONSTRAINTS
 
 DO NOT generate if:
 
-• Insight is already clear in text  
-• Too many categories (>20)  
 • Data is uncertain  
 • Similar visual exists  
 
@@ -316,17 +228,13 @@ JSON VALIDATION RULES
 ========================
 FINAL VALIDATION
 ========================
-
 Before returning:
 
-1. Content is fully data-driven  
-2. No repeated analytical angle  
-3. No generic content  
-4. Each paragraph has a clear implication  
-5. JSON is valid  
-
-If any rule fails:
-→ fix before returning  
+Content is fully data-driven
+No repeated analytical perspective
+No generic or filler content
+Each paragraph includes a business implication
+JSON is valid
 
 ========================
 OUTPUT RULE (CRITICAL)

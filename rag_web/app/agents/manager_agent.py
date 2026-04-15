@@ -122,29 +122,6 @@ class ManagerAgent:
     def generate_topic_content(self, project, report, topic, content_obj):
         return self._run_topic_pipeline(project=project, report=report, topic=topic, plan_generated=True)
 
-    def compute_sql_block(self, project, report, topic, content_obj, section_index, block_index):
-
-        result = self.sql_agent.compute_sql_block(
-            project,
-            topic,
-            content_obj,
-            section_index,
-            block_index,
-        )
-
-        if isinstance(result, dict) and result.get("placeholder_removed") and not result.get("success"):
-
-            print(f"[REPAIR] SQL placeholder removed → Topic {topic.id}")
-
-            content_obj = self.content_agent.repair_topic_content(
-                project,
-                report,
-                topic,
-                content_obj,
-            )
-
-        return result
-
     def compute_visual_block(self, project, report, topic, content_obj, section_index, block_index):
         result = self.visual_agent.compute_visual_block(
             project,
@@ -569,18 +546,21 @@ class ManagerAgent:
         # -----------------------------
         # 3. FORMAT
         # -----------------------------
-        def to_sql_block(p):
+        def to_sql_block(p, topic_id, index):
             return {
                 "type": "sql_placeholder",
                 "content": {
-                    "id": p["id"],
+                    "id": f"{topic_id}_{index}",
                     "calculation": p["calculation"],
                     "description": p["description"],
                     "data_requirement_ref": p["data_requirement_ref"],
                 }
             }
 
-        sql_blocks = [to_sql_block(p) for p in placeholders]
+        sql_blocks = [
+            to_sql_block(p, topic.id, i)
+            for i, p in enumerate(placeholders)
+        ]
 
         # -----------------------------
         # 4. SAVE

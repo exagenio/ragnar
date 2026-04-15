@@ -15,72 +15,12 @@ SQL_VISUAL_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_visual_prompt.txt"
 SQL_PLACEHOLDER_PROMPT_PATH = (
     settings.BASE_DIR / "app/prompts/sql_placeholder_generation_prompt.txt"
 )
-def generate_sql_from_placeholder(
-    *,
-    sql_placeholder: Dict[str, Any],
-    metadata_context: Dict,
-    database_schema: Dict,
-    query_intent: str = "metric",
-    visual_context: Dict | None = None,
-    backend: LLMBackend | None = None,
-) -> Dict:
-    """
-    Convert a SQL_CALCULATION placeholder into an executable SQL query
-    using a schema-grounded SQL agent.
-
-    Returns a structured response:
-    - status: ok | not_possible
-    - sql (if ok)
-    """
-
-    backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
-
-    llm = get_llm(
-        backend=backend,
-        model_size=ModelSize.SMALL,
-        temperature=0,
-    )
-
-    parsed = parse_sql_placeholder(sql_placeholder)
-
-    prompt = _render_sql_agent_prompt(
-        calculation_id=parsed["id"],
-        calculation_expression=parsed["calculation"],
-        calculation_description=parsed["description"],
-        metadata_context=metadata_context,
-        database_schema=database_schema,
-        query_intent=query_intent,
-        visual_context=visual_context,
-    )
-
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
-    rate_limiter.consume(estimated_tokens)
-
-    response = llm.invoke(prompt)
-    content = response.content
-    if isinstance(content, list):
-        # LangChain structured output
-        if isinstance(content[0], dict) and "text" in content[0]:
-            raw_text = content[0]["text"].strip()
-        else:
-            raw_text = str(content[0]).strip()
-    else:
-        raw_text = content.strip()
-
-    result = _extract_json_or_fail(raw_text)
-
-    if query_intent == "visual" and result.get("result_type") != "table":
-        raise ValueError("Visual SQL must return a table result")
-
-    return result
-
 
 # ==========================
 # PROMPT RENDERING
 # ==========================
 
-
+#visual asset
 def _render_sql_agent_prompt(
     *,
     calculation_id: str,
@@ -196,7 +136,7 @@ def parse_precomputed_sql_placeholder(block: dict) -> dict:
         "description": content.get("description"),
     }
 
-
+#visual asset
 def generate_sql_from_visual_plan(
     *,
     visual_plan: Dict[str, Any],
@@ -387,58 +327,3 @@ def _extract_llm_text(response) -> str:
         return str(content[0]).strip()
 
     return content.strip()
-
-# TODO: DELETE THIS
-# def compute_precomputed_sql_placeholders(
-#     *,
-#     placeholders: list,
-#     project,
-#     metadata_context,
-#     database_schema,
-# ) -> list:
-#     """
-#     Compute SQL for all precomputed placeholders.
-#     """
-
-#     computed = []
-
-#     for p in placeholders:
-
-#         try:
-#             sql_result = generate_sql_for_precomputed_placeholder(
-#                 sql_placeholder=p,
-#                 metadata_context=metadata_context,
-#                 database_schema=database_schema,
-#             )
-
-#             if sql_result.get("status") != "ok":
-#                 p["content"]["query"] = {
-#                     "status": "failed",
-#                     "reason": sql_result.get("reason"),
-#                 }
-#                 computed.append(p)
-#                 continue
-
-#             execution = execute_sql_safely(
-#                 sql_result["sql"],
-#                 project_id=project.id,
-#                 expected_result_type=sql_result.get("result_type", "scalar"),
-#             )
-
-#             # attach result
-#             p["content"]["query"] = {
-#                 "status": "ok",
-#                 "result": execution["result"],
-#                 "row_count": execution.get("row_count"),
-#                 "sql": sql_result["sql"],
-#             }
-
-#         except Exception as e:
-#             p["content"]["query"] = {
-#                 "status": "failed",
-#                 "error": str(e),
-#             }
-
-#         computed.append(p)
-
-#     return computed

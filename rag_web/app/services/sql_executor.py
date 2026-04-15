@@ -45,8 +45,8 @@ FORBIDDEN_KEYWORDS = {
     ";",
 }
 
-MAX_ROWS = 1000
-QUERY_TIMEOUT_MS = 5000
+MAX_ROWS_PER_BATCH = 5000
+QUERY_TIMEOUT_MS = 10000
 
 
 # ==========================
@@ -97,7 +97,17 @@ def execute_sql_safely(
                     "row_count": 1 if row else 0,
                 }
 
-            rows = cursor.fetchmany(MAX_ROWS)
+            rows = []
+            batch_size = MAX_ROWS_PER_BATCH
+
+            while True:
+                batch = cursor.fetchmany(batch_size)
+
+                if not batch:
+                    break
+
+                rows.extend(batch)
+
             columns = [desc[0] for desc in cursor.description]
 
             return {

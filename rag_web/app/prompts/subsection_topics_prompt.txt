@@ -37,6 +37,9 @@ Instructions:
 - Generate as many topics as are justified by the data
 - Maximum number of topics: 5
 - It is acceptable to return fewer than 3 topics
+- You MUST generate at least 1 topic
+- If data is limited, generate the most meaningful and feasible single topic
+- Returning 0 topics is NOT allowed
 
 Topic quality rules:
 - Each topic must represent a clear, data-supported analytical angle

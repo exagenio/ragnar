@@ -4,7 +4,6 @@ from django.http import HttpResponse
 import psycopg2
 from django.shortcuts import render, get_object_or_404
 from django.utils.text import slugify
-from app.services.sql_agent import generate_sql_from_placeholder
 from app.services.sql_executor import execute_sql_safely
 from django.urls import reverse
 
@@ -45,7 +44,6 @@ from .services.column_introspector import get_table_columns
 from app.services.sql_result_interpreter import interpret_sql_result
 from app.services.visual_agent import generate_visual_plan
 from app.services.visual_renderer import render_visual
-from app.services.sql_agent import generate_sql_from_visual_plan
 from pathlib import Path
 from django.conf import settings
 from app.services.project_service import ProjectService
@@ -694,25 +692,6 @@ def generate_topic_content_view(
 
             return redirect(request.path)
 
-
-        if action == "compute_sql":
-
-            try:
-                manager.compute_sql_block(
-                    project,
-                    report,
-                    topic,
-                    content_obj,
-                    int(request.POST.get("section_index")),
-                    int(request.POST.get("block_index")),
-                )
-                messages.success(request, "SQL calculation completed.")
-
-            except ValueError as e:
-                messages.error(request, str(e))
-
-            return redirect(request.path)
-
         if action == "compute_visual":
 
             try:
@@ -934,61 +913,76 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
 from app.models import Project, Report, ReportEvaluation, TopicEvaluation
 from app.services.evaluation_service import evaluate_project
 
+
+from app.services.geval_evaluation_service import evaluate_project_geval  # NEW
+from app.services.evaluation_doc_generator import generate_evaluation_document
+
 def evaluation_dashboard_view(request, project_id):
-
     project = get_object_or_404(Project, id=project_id)
-
     reports = Report.objects.filter(project=project)
 
     selected_report = None
     report_eval = None
     topic_evals = None
 
-    try:
+    # ✅ GET eval_type (default = openeval)
+    eval_type = request.GET.get("eval_type", "openeval")
 
-        # -----------------------------
-        # HANDLE REPORT SELECTION
-        # -----------------------------
+    try:
         report_id = request.GET.get("report_id")
 
         if report_id:
-            selected_report = get_object_or_404(Report, id=report_id, project=project)
+            selected_report = get_object_or_404(
+                Report, id=report_id, project=project
+            )
 
-        # -----------------------------
-        # RUN EVALUATION
-        # -----------------------------
+        # =============================
+        # RUN EVALUATION (POST)
+        # =============================
         if request.method == "POST":
 
             report_id = request.POST.get("report_id")
             action = request.POST.get("action")
+            eval_type_post = request.POST.get("eval_type", "openeval")
 
             if not report_id:
                 messages.error(request, "Please select a report.")
-                return redirect("evaluation_dashboard", project_id=project.id)
+                return redirect("evaluation_dashboard_view", project_id=project.id)
 
+            # -------------------------
+            # READABILITY
+            # -------------------------
             if action == "readability":
                 evaluate_project_readability(project.id, report_id)
 
                 messages.success(request, "Flesch-Kincaid readability computed.")
 
                 return redirect(
-                    f"/projects/{project.id}/evaluation/?report_id={report_id}"
+                    f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
                 )
 
-            evaluate_project(project_id, report_id)
-
-            messages.success(request, "Evaluation completed successfully.")
+            # -------------------------
+            # SWITCH ENGINE
+            # -------------------------
+            if eval_type_post == "geval":
+                evaluate_project_geval(project.id, report_id)
+                messages.success(request, "GEval evaluation completed.")
+            else:
+                evaluate_project(project.id, report_id)
+                messages.success(request, "OpenEval evaluation completed.")
 
             return redirect(
-                f"/projects/{project.id}/evaluation/?report_id={report_id}"
+                f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
             )
 
-        # -----------------------------
-        # LOAD RESULTS
-        # -----------------------------
-
+        # =============================
+        # LOAD RESULTS (GET)
+        # =============================
         readability_scores = None
+        geval_project_summary = None
+
         if selected_report:
+
             report_eval = ReportEvaluation.objects.filter(
                 report=selected_report
             ).first()
@@ -1001,22 +995,66 @@ def evaluation_dashboard_view(request, project_id):
                 report=selected_report
             ).select_related("topic")
 
-            # -----------------------------
-            # 🔥 COMPUTE OVERALL SCORE (NEW)
-            # -----------------------------
+            # =============================
+            # 🔥 GEVAL CALCULATION (CUSTOM)
+            # =============================
+
+            project_overall_scores = []
+
+            agg_correctness = []
+            agg_relevance = []
+            agg_hallucination = []
+            agg_conciseness = []
+
             for eval_obj in topic_evals:
 
-                scores = eval_obj.scores or {}
+                if eval_type == "g-eval":
+                    scores = eval_obj.geval_scores or {}
+                else:
+                    scores = eval_obj.scores or {}
 
-                hallucination = float(scores.get("hallucination", 0))
                 correctness = float(scores.get("correctness", 0))
                 relevance = float(scores.get("relevance", 0))
+                hallucination = float(scores.get("hallucination", 0))
+                conciseness = float(scores.get("conciseness", 0))
 
-                # Simple average
-                overall = (hallucination + relevance) / 2
+                # ✅ REQUIRED FORMULA
+                # overall = (
+                #     correctness * 0.33 +
+                #     relevance * 0.33 +
+                #     hallucination * 0.33
+                # )
 
-                # Optional: round
+                overall = (
+                    correctness * 0.25 +
+                    relevance * 0.25 +
+                    hallucination * 0.25+
+                    conciseness * 0.25
+                )
+
                 eval_obj.overall_score = round(overall, 2)
+                eval_obj.display_scores = scores
+
+                # collect for project aggregation
+                project_overall_scores.append(overall)
+                agg_correctness.append(correctness)
+                agg_relevance.append(relevance)
+                agg_hallucination.append(hallucination)
+                agg_conciseness.append(conciseness)
+
+            # =============================
+            # PROJECT-LEVEL SUMMARY
+            # =============================
+            def safe_avg(arr):
+                return round(sum(arr) / len(arr), 2) if arr else 0
+
+            geval_project_summary = {
+                "overall_score": safe_avg(project_overall_scores),
+                "correctness": safe_avg(agg_correctness),
+                "relevance": safe_avg(agg_relevance),
+                "hallucination": safe_avg(agg_hallucination),
+                "conciseness": safe_avg(agg_conciseness),
+            }
 
         context = {
             "project": project,
@@ -1025,12 +1063,36 @@ def evaluation_dashboard_view(request, project_id):
             "report_eval": report_eval,
             "topic_evals": topic_evals,
             "readability_scores": readability_scores,
+            "geval_project_summary": geval_project_summary,
+            "eval_type": eval_type,
         }
 
         return render(request, "evaluation/dashboard.html", context)
 
     except Exception as e:
-
         messages.error(request, f"Evaluation failed: {str(e)}")
+        return redirect("evaluation_dashboard_view", project_id=project.id)
+    
+def export_evaluation_doc(request, project_id):
 
-        return redirect("evaluation_dashboard", project_id=project.id)
+    report_id = request.GET.get("report_id")
+
+    if not report_id:
+        return HttpResponse("Missing report_id", status=400)
+
+    report = get_object_or_404(Report, id=report_id)
+
+    topic_evals = TopicEvaluation.objects.filter(
+        topic__subsection__section__report=report
+    ).select_related("topic")
+
+    buffer = generate_evaluation_document(report, topic_evals)
+
+    response = HttpResponse(
+        buffer,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+    response["Content-Disposition"] = f'attachment; filename="evaluation_report_{report.id}.docx"'
+
+    return response

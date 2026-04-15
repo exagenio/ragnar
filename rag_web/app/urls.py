@@ -104,8 +104,13 @@ urlpatterns = [
     path(
         "projects/<int:project_id>/evaluation/",
         views.evaluation_dashboard_view,
-        name="evaluation_dashboard",
+        name="evaluation_dashboard_view",
     ),
+    path(
+    "projects/<int:project_id>/evaluation/export/",
+    views.export_evaluation_doc,
+    name="export_evaluation_doc",
+),
 ]
 
 if settings.DEBUG:
