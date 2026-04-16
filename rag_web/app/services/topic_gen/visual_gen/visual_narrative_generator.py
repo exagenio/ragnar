@@ -1,12 +1,12 @@
 import json
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from django.conf import settings
-from app.services.visual_agent import parse_visual_placeholder
-from app.services.topic_content_generator import extract_json_or_fail
+from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import parse_visual_placeholder
+from rag_web.app.services.topic_gen.topic_content_generator import extract_json_or_fail
 from app.agents.rate_limiter import rate_limiter
 
 def generate_visual_narrative(

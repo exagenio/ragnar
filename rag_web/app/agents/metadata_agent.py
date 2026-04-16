@@ -1,12 +1,12 @@
-from app.services.schema_introspector import get_tables
-from app.services.column_introspector import get_table_columns
-from app.services.row_sampler import sample_table_rows
+from rag_web.app.services.metadata_generation.schema_introspector import get_tables
+from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
+from rag_web.app.services.metadata_generation.row_sampler import sample_table_rows
 from app.models import SelectedTable
 from app.services.background_tasks import run_in_background
-from app.services.metadata_job import run_metadata_generation
+from rag_web.app.services.metadata_generation.metadata_job import run_metadata_generation
 from app.models import TableMetadata
-from app.services.vector_store import get_vector_store
-from app.services.metadata_to_documents import metadata_to_documents
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+from rag_web.app.services.metadata_generation.metadata_to_documents import metadata_to_documents
 
 class MetadataAgent:
 

@@ -3,49 +3,27 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 import os
-from django.conf import settings
 import json
-
+import plotly.io as pio
+from tempfile import NamedTemporaryFile
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+import base64
+import struct
 
 def generate_report_document(report, sections):
-    """
-    Generate a Word document from the report with hierarchical content.
-
-    Document Structure:
-    - Report Title Page
-    - Report Purpose
-    - Sections (Level 1)
-      - Section Content (if available)
-      - SubSections (Level 2)
-        - SubSection Content (if available)
-        - Topics (Level 3)
-          - Topic Content (if available)
-
-    Args:
-        report: Report model instance
-        sections: QuerySet of Section objects with prefetched relations
-
-    Returns:
-        BytesIO: Document buffer ready for download
-    """
-
+    """Generate a Word document from the report with hierarchical content."""
     doc = Document()
 
-    # ============================================
     # TITLE PAGE
-    # ============================================
     _add_title_page(doc, report)
     doc.add_page_break()
 
-    # ============================================
     # TABLE OF CONTENTS
-    # ============================================
     _add_table_of_contents(doc, sections)
     doc.add_page_break()
 
-    # ============================================
     # MAIN CONTENT - HIERARCHICAL STRUCTURE
-    # ============================================
     for section_num, section in enumerate(sections, start=1):
         _add_section(doc, section, report, section_num)
 
@@ -58,7 +36,7 @@ def generate_report_document(report, sections):
 
 
 def _add_title_page(doc, report):
-    """Add report title page - title only."""
+    """Add report title page - title only"""
 
     # Main title
     title = doc.add_heading(report.title, level=0)
@@ -68,10 +46,8 @@ def _add_title_page(doc, report):
     title_run.font.bold = True
     title_run.font.color.rgb = RGBColor(0, 51, 102)
 
-
 def _add_table_of_contents(doc, sections):
     """Add table of contents with sections, subsections, and topics."""
-
     # Table of Contents heading
     toc_heading = doc.add_heading("Table of Contents", level=1)
     toc_heading_run = toc_heading.runs[0]
@@ -182,7 +158,7 @@ def _add_subsection(doc, subsection, report, section_num, subsection_num):
 
 
 def _add_subsection_content(doc, content_json):
-    """Add subsection-level content (introduction and key themes)."""
+    """Add subsection-level content"""
 
     # Subsection introduction
     if 'subsection_introduction' in content_json:
@@ -234,7 +210,7 @@ def _add_topic_content(doc, content_json):
 
 
 def _add_content_block(doc, block):
-    """Add individual content blocks (paragraphs, lists, SQL results, visuals)."""
+    """Add individual content blocks"""
 
     block_type = block.get('type', '')
 
@@ -254,44 +230,8 @@ def _add_content_block(doc, block):
         _add_visual(doc, block)
 
 
-def _add_sql_result(doc, block):
-    """Add SQL analysis results or placeholder."""
-
-    generated_result = block.get('generated_result', {})
-
-    if generated_result.get('status') == 'ok':
-        interpretation = generated_result.get('interpretation', {})
-
-        # Analysis title
-        if 'title' in interpretation:
-            doc.add_heading(interpretation['title'], level=5)
-
-        # Interpretation paragraphs
-        if 'paragraphs' in interpretation:
-            for paragraph in interpretation['paragraphs']:
-                para = doc.add_paragraph(paragraph)
-                para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                para.paragraph_format.space_after = Pt(12)
-
-        # Key findings
-        if 'key_findings' in interpretation:
-            doc.add_heading("Key Findings", level=5)
-            for finding in interpretation['key_findings']:
-                para = doc.add_paragraph(finding, style='List Bullet')
-                para.paragraph_format.left_indent = Inches(0.5)
-    else:
-        # SQL not computed
-        placeholder_text = block.get('content', '[SQL Analysis Pending]')
-        para = doc.add_paragraph(f"⚠ Analysis Pending: {placeholder_text}")
-        para.style = 'Intense Quote'
-        para.paragraph_format.space_after = Pt(12)
-
-import plotly.io as pio
-from tempfile import NamedTemporaryFile
-
-
 def _add_visual(doc, block):
-
+    """add visual"""
     generated_visual = block.get("generated_visual", {})
 
     if generated_visual.get("status") != "ok":
@@ -305,16 +245,12 @@ def _add_visual(doc, block):
 
     fig = pio.from_json(fig_json)
 
-    # ----------------------------------
-    # TABLE → DOCX TABLE
-    # ----------------------------------
+    # DOCX TABLE
     if visual_spec.get("type") == "table":
         _render_table(doc, generated_visual)
         return
 
-    # ----------------------------------
-    # CHART → PLOTLY IMAGE
-    # ----------------------------------
+    # PLOTLY IMAGE
     try:
         tmp = NamedTemporaryFile(delete=False, suffix=".png")
         fig.write_image(tmp.name)  # requires kaleido
@@ -326,10 +262,8 @@ def _add_visual(doc, block):
         print("Plotly render error:", e)
 
 
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-
 def _set_cell_border(cell):
+    """render table cell"""
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
 
@@ -338,7 +272,7 @@ def _set_cell_border(cell):
     for border_name in ['top', 'left', 'bottom', 'right']:
         border = OxmlElement(f'w:{border_name}')
         border.set(qn('w:val'), 'single')
-        border.set(qn('w:sz'), '4')  # thickness
+        border.set(qn('w:sz'), '4')
         border.set(qn('w:space'), '0')
         border.set(qn('w:color'), '000000')
         borders.append(border)
@@ -347,6 +281,7 @@ def _set_cell_border(cell):
 
 
 def _set_cell_shading(cell, fill):
+    """set table cell shading"""
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
 
@@ -356,7 +291,7 @@ def _set_cell_shading(cell, fill):
 
 
 def _render_table(doc, generated_visual):
-
+    """render table"""
     fig_json = generated_visual.get("figure_json")
 
     if not fig_json:
@@ -387,29 +322,25 @@ def _render_table(doc, generated_visual):
     table = doc.add_table(rows=num_rows + 1, cols=num_cols)
     table.style = "Table Grid"  # basic grid
 
-    # =========================
     # HEADER ROW
-    # =========================
     for col_idx, header in enumerate(headers):
         cell = table.rows[0].cells[col_idx]
         cell.text = str(header)
 
-        # Bold + center
+        # text styles
         for paragraph in cell.paragraphs:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in paragraph.runs:
                 run.font.bold = True
                 run.font.size = Pt(10)
 
-        # Header background (light gray)
+        # Header background
         _set_cell_shading(cell, "D9E1F2")
 
         # Borders
         _set_cell_border(cell)
 
-    # =========================
     # DATA ROWS
-    # =========================
     for row_idx in range(num_rows):
         for col_idx in range(num_cols):
             value = cells[col_idx][row_idx]
@@ -437,10 +368,8 @@ def _render_table(doc, generated_visual):
     space_para = doc.add_paragraph()
     space_para.paragraph_format.space_after = Pt(12)
 
-import base64
-import struct
-
 def decode_bdata(bdata, dtype):
+    """decode visual binary data"""
     binary = base64.b64decode(bdata)
 
     if dtype == "f8":
@@ -457,6 +386,7 @@ def decode_bdata(bdata, dtype):
     return []
 
 def style_heading(run, level):
+    """add styles to heading"""
     if level == 1:
         run.font.size = Pt(18)   # Section
         run.font.bold = True

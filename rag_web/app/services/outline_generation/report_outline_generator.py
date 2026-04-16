@@ -5,14 +5,14 @@ from collections import defaultdict
 
 from django.conf import settings
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from .industry_guidance import get_industry_guidance
-from app.services.vector_store import get_vector_store
-from app.services.subsection_topic_generator import build_retrieved_context
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+from rag_web.app.services.sub_sec_gen.subsection_topic_generator import build_retrieved_context
 # ==========================
 # CONFIG
 # ==========================

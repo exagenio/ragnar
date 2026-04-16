@@ -4,54 +4,35 @@ from django.http import HttpResponse
 import psycopg2
 from django.shortcuts import render, get_object_or_404
 from django.utils.text import slugify
-from app.services.sql_executor import execute_sql_safely
 from django.urls import reverse
 
 
 from .models import (
     Project,
-    DBConnection,
     Report,
-    ReportOutline,
-    SelectedTable,
     Section,
     SubSection,
     Topic,
-    TopicReadability
+    TopicReadability,
 )
 from .forms import ProjectDBConnectionForm
 
 from .forms import ReportIntentForm, TableSelectionForm
 from .models import (
     Report,
-    ReportOutline,
     TopicAnalysisPlan,
     Section,
     SubSection,
-    TopicContent,
-    SubSectionContent,
-    SectionContent,
 )
-from .services.report_outline_generator import generate_report_outline
-from .services.subsection_topic_generator import generate_subsection_topics
-from .services.topic_analysis_plan_generator import generate_topic_analysis_plan
-from .services.sub_section_content_generator import generate_subsection_content
-from .services.section_content_generator import generate_section_content
-from .services.document_generator import generate_report_document
-
-from .services.schema_introspector import get_tables
-from .services.column_introspector import get_table_columns
-from app.services.sql_result_interpreter import interpret_sql_result
-from app.services.visual_agent import generate_visual_plan
-from app.services.visual_renderer import render_visual
 from pathlib import Path
 from django.conf import settings
-from app.services.project_service import ProjectService
 from app.agents.manager_agent import ManagerAgent
 from django.http import JsonResponse
-from app.services.evaluation_service import evaluate_project
-from app.services.readability_service import evaluate_project_readability
+from rag_web.app.services.evaluation.evaluation_service import evaluate_project
+from rag_web.app.services.evaluation.readability_service import evaluate_project_readability
+
 manager = ManagerAgent()
+
 
 def create_project_and_connect_db(request):
 
@@ -78,6 +59,7 @@ def create_project_and_connect_db(request):
         form = ProjectDBConnectionForm()
 
     return render(request, "project_create.html", {"form": form})
+
 
 def project_detail(request, project_id):
     project = get_object_or_404(Project, id=project_id)
@@ -126,6 +108,7 @@ def select_tables(request, project_id):
         },
     )
 
+
 def column_introspection(request, project_id):
 
     project = get_object_or_404(Project, id=project_id)
@@ -166,13 +149,6 @@ def row_sampling(request, project_id):
     )
 
 
-from .services.llm_metadata_generator import generate_table_metadata
-from .services.column_introspector import get_table_columns
-from .services.row_sampler import sample_table_rows
-from .services.background_tasks import run_in_background
-from .services.metadata_job import run_metadata_generation
-
-
 def metadata_generation(request, project_id):
 
     project = get_object_or_404(Project, id=project_id)
@@ -193,8 +169,10 @@ def metadata_generation(request, project_id):
         },
     )
 
+
 from .models import TableMetadata
 import json
+
 
 def review_metadata(request, project_id, table_name):
 
@@ -254,6 +232,7 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
+
 
 def start_report(request, project_id):
 
@@ -368,6 +347,7 @@ def review_outline(request, report_id):
         },
     )
 
+
 def generate_topics(request, project_id, report_id, subsection_id):
 
     report = get_object_or_404(Report, id=report_id)
@@ -451,6 +431,7 @@ def generate_topics(request, project_id, report_id, subsection_id):
         },
     )
 
+
 def subtopic_dashboard(request, project_id, report_id):
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -464,10 +445,15 @@ def subtopic_dashboard(request, project_id, report_id):
     # Check if all subsections have generated content for each section
     for section in sections:
         subsections = section.sub_sections.all()
-        section.all_subsections_have_content = all(
-            hasattr(subsection, 'content') and subsection.content.status == 'generated'
-            for subsection in subsections
-        ) if subsections.exists() else False
+        section.all_subsections_have_content = (
+            all(
+                hasattr(subsection, "content")
+                and subsection.content.status == "generated"
+                for subsection in subsections
+            )
+            if subsections.exists()
+            else False
+        )
 
     return render(
         request,
@@ -489,7 +475,7 @@ def view_topics(request, project_id, report_id, subsection_id):
 
     # Check if all topics have generated content
     all_topics_have_content = all(
-        hasattr(topic, 'content') and topic.content.status == 'generated'
+        hasattr(topic, "content") and topic.content.status == "generated"
         for topic in topics
     )
 
@@ -569,6 +555,7 @@ def generate_topic_analysis_plan_view(
         },
     )
 
+
 from app.utils.text import normalize_title
 
 
@@ -623,6 +610,7 @@ from django.contrib import messages
 
 from .models import Project, Report, Topic
 
+
 def generate_topic_content_view(
     request,
     project_id,
@@ -658,7 +646,6 @@ def generate_topic_content_view(
             )
 
             return redirect(request.path)
-
 
         if action == "regenerate":
 
@@ -729,6 +716,7 @@ def generate_topic_content_view(
         },
     )
 
+
 def generate_subsection_content_view(
     request,
     project_id,
@@ -770,22 +758,22 @@ def generate_subsection_content_view(
 
         if action == "regenerate":
 
-                # 🔥 RESET CONTENT
-                content_obj.content_json = {}
-                content_obj.status = "pending"
-                content_obj.save()
+            # 🔥 RESET CONTENT
+            content_obj.content_json = {}
+            content_obj.status = "pending"
+            content_obj.save()
 
-                # 🔥 GENERATE AGAIN
-                content_obj = manager.generate_subsection_content(
-                    project,
-                    report,
-                    subsection,
-                    topics,
-                    content_obj,
-                )
+            # 🔥 GENERATE AGAIN
+            content_obj = manager.generate_subsection_content(
+                project,
+                report,
+                subsection,
+                topics,
+                content_obj,
+            )
 
-                messages.success(request, "Subsection content regenerated successfully.")
-                return redirect(request.path)
+            messages.success(request, "Subsection content regenerated successfully.")
+            return redirect(request.path)
 
     return render(
         request,
@@ -797,6 +785,7 @@ def generate_subsection_content_view(
             "content": content_obj,
         },
     )
+
 
 def generate_section_content_view(
     request,
@@ -836,23 +825,23 @@ def generate_section_content_view(
             )
 
             return redirect(request.path)
-        
+
         if action == "regenerate":
 
-                content_obj.content_json = {}
-                content_obj.status = "pending"
-                content_obj.save()
+            content_obj.content_json = {}
+            content_obj.status = "pending"
+            content_obj.save()
 
-                content_obj = manager.generate_section_content(
-                    project,
-                    report,
-                    section,
-                    subsections,
-                    content_obj,
-                )
+            content_obj = manager.generate_section_content(
+                project,
+                report,
+                section,
+                subsections,
+                content_obj,
+            )
 
-                messages.success(request, "Section content regenerated successfully.")
-                return redirect(request.path)
+            messages.success(request, "Section content regenerated successfully.")
+            return redirect(request.path)
 
     return render(
         request,
@@ -864,6 +853,7 @@ def generate_section_content_view(
             "content": content_obj,
         },
     )
+
 
 def generate_document_view(request, project_id, report_id):
 
@@ -892,7 +882,8 @@ def generate_document_view(request, project_id, report_id):
             project_id=project.id,
             report_id=report.id,
         )
-    
+
+
 def trigger_auto_generate_subsection(request, project_id, report_id, subsection_id):
 
     project = get_object_or_404(Project, id=project_id)
@@ -905,17 +896,16 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
         subsection,
     )
 
-    return JsonResponse({
-        "started": started
-    })
+    return JsonResponse({"started": started})
 
 
 from app.models import Project, Report, ReportEvaluation, TopicEvaluation
-from app.services.evaluation_service import evaluate_project
+from rag_web.app.services.evaluation.evaluation_service import evaluate_project
 
 
-from app.services.geval_evaluation_service import evaluate_project_geval  # NEW
-from app.services.evaluation_doc_generator import generate_evaluation_document
+from rag_web.app.services.evaluation.geval_evaluation_service import evaluate_project_geval  # NEW
+from rag_web.app.services.evaluation.evaluation_doc_generator import generate_evaluation_document
+
 
 def evaluation_dashboard_view(request, project_id):
     project = get_object_or_404(Project, id=project_id)
@@ -932,9 +922,7 @@ def evaluation_dashboard_view(request, project_id):
         report_id = request.GET.get("report_id")
 
         if report_id:
-            selected_report = get_object_or_404(
-                Report, id=report_id, project=project
-            )
+            selected_report = get_object_or_404(Report, id=report_id, project=project)
 
         # =============================
         # RUN EVALUATION (POST)
@@ -1026,10 +1014,10 @@ def evaluation_dashboard_view(request, project_id):
                 # )
 
                 overall = (
-                    correctness * 0.25 +
-                    relevance * 0.25 +
-                    hallucination * 0.25+
-                    conciseness * 0.25
+                    correctness * 0.25
+                    + relevance * 0.25
+                    + hallucination * 0.25
+                    + conciseness * 0.25
                 )
 
                 eval_obj.overall_score = round(overall, 2)
@@ -1072,7 +1060,8 @@ def evaluation_dashboard_view(request, project_id):
     except Exception as e:
         messages.error(request, f"Evaluation failed: {str(e)}")
         return redirect("evaluation_dashboard_view", project_id=project.id)
-    
+
+
 def export_evaluation_doc(request, project_id):
 
     report_id = request.GET.get("report_id")
@@ -1093,6 +1082,8 @@ def export_evaluation_doc(request, project_id):
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
 
-    response["Content-Disposition"] = f'attachment; filename="evaluation_report_{report.id}.docx"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="evaluation_report_{report.id}.docx"'
+    )
 
     return response

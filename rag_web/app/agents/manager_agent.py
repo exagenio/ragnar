@@ -7,10 +7,10 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from app.models import Topic
 from app.models import Section, TopicContent, TopicAnalysisPlan, SubSectionGenerateTime, TopicGenerateTime
-from app.services.vector_store import get_vector_store
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
 import base64
 import struct
-from app.services.visual_narrative_generator import repair_content_chunk
+from rag_web.app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
 import traceback
 from django.utils.timezone import now
 class ManagerAgent:

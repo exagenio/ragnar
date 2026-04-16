@@ -3,7 +3,7 @@
 from langchain_postgres import PGVector
 from django.conf import settings
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_embeddings,
     LLMBackend,
 )

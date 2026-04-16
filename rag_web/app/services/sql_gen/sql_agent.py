@@ -3,7 +3,7 @@ import re
 from typing import Dict, Any
 
 from django.conf import settings
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
@@ -204,7 +204,7 @@ def generate_sql_placeholders_from_plan(
     Generate SQL placeholders from topic analysis plan.
     """
 
-    from app.services.llm_provider import get_llm, LLMBackend, ModelSize
+    from rag_web.app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 

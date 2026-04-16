@@ -1,15 +1,15 @@
 from pathlib import Path
 from django.conf import settings
 
-from app.services.visual_agent import generate_visual_plan
-from app.services.sql_agent import generate_sql_from_visual_plan
-from app.services.sql_executor import execute_sql_safely
-from app.services.visual_renderer import render_visual
+from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import generate_visual_plan
+from rag_web.app.services.sql_gen.sql_agent import generate_sql_from_visual_plan
+from rag_web.app.services.sql_gen.sql_executor import execute_sql_safely
+from rag_web.app.services.topic_gen.visual_gen.visual_renderer import render_visual
 
 from app.models import SelectedTable
-from app.services.column_introspector import get_table_columns
-from app.services.visual_agent import parse_visual_placeholder
-from app.services.vector_store import get_vector_store
+from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
+from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import parse_visual_placeholder
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
 
 SUPPORTED_VISUAL_TYPES = {
     "line_chart",

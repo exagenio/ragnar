@@ -2,29 +2,19 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List
-
 from django.conf import settings
-
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from app.agents.rate_limiter import rate_limiter
 
-# ==========================
-# CONFIG
-# ==========================
-
 PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "section_content_gen_prompt.txt"
 )
 
-
-# ==========================
-# PUBLIC ENTRY POINT
-# ==========================
-
+# Generate section introduction content by synthesizing all subsections' themes.
 def generate_section_content(
     *,
     project_id: int,
@@ -37,23 +27,6 @@ def generate_section_content(
     subsections_themes: Dict[str, List[str]],  # subsection_title -> key_themes[]
     backend: LLMBackend | None = None,
 ) -> Dict:
-    """
-    Generate section introduction content by synthesizing all subsections' themes.
-
-    Args:
-        project_id: The project ID
-        industry: Industry context
-        report_type: Type of report
-        audience: Target audience
-        purpose: Report purpose
-        report_title: Title of the report
-        section_title: Title of the section
-        subsections_themes: Dictionary mapping subsection titles to their key themes
-        backend: Optional LLM backend
-
-    Returns:
-        Dictionary containing section introduction content
-    """
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -81,7 +54,7 @@ def generate_section_content(
     )
 
     # Invoke LLM
-    estimated_tokens = len(prompt) // 4  # rough estimate
+    estimated_tokens = len(prompt) // 4 
 
     rate_limiter.consume(estimated_tokens)
 
@@ -101,11 +74,7 @@ def generate_section_content(
 
     return result
 
-
-# ==========================
-# HELPERS
-# ==========================
-
+# prompt renderer
 def render_prompt(prompt_path: Path, context: dict) -> str:
     """
     Render a prompt template by replacing placeholders with context values.
@@ -122,7 +91,7 @@ def render_prompt(prompt_path: Path, context: dict) -> str:
         prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
     return prompt
 
-
+# safely extract llm result
 def extract_json_or_fail(raw_text: str) -> dict:
     """
     Extract JSON object from LLM response.

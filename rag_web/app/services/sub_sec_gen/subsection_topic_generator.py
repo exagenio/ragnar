@@ -5,13 +5,13 @@ from collections import defaultdict
 
 from django.conf import settings
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
-from app.services.llm_provider import get_embeddings
-from .vector_store import get_vector_store
+from rag_web.app.services.llm_config.llm_provider import get_embeddings
+from ..vector_db_config.vector_store import get_vector_store
 
 # ==========================
 # CONFIG

@@ -9,10 +9,10 @@ from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from langchain_openrouter import ChatOpenRouter
 
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project
-from app.services.vector_store import get_vector_store
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
 from deepeval.models.base_model import DeepEvalBaseLLM
 
-from app.services.evaluation_service import (
+from rag_web.app.services.evaluation.evaluation_service import (
     extract_content_blocks_text,
     build_eval_input,
     retrieve_metadata_for_topic,
@@ -42,7 +42,7 @@ from django.conf import settings
 #     #     return response.content
 
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,

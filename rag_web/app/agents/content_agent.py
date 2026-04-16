@@ -1,23 +1,23 @@
 # content agent
 from app.models import Report, ReportOutline
-from app.services.report_outline_generator import generate_report_outline
+from rag_web.app.services.outline_generation.report_outline_generator import generate_report_outline
 from app.models import Section, SubSection
 from app.models import Topic, SelectedTable
-from app.services.subsection_topic_generator import generate_subsection_topics
-from app.services.column_introspector import get_table_columns
+from rag_web.app.services.sub_sec_gen.subsection_topic_generator import generate_subsection_topics
+from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
 from app.models import TopicAnalysisPlan
-from app.services.topic_analysis_plan_generator import generate_topic_analysis_plan
-from app.services.topic_content_generator import generate_topic_content
+from rag_web.app.services.topic_gen.topic_analysis_plan_generator import generate_topic_analysis_plan
+from rag_web.app.services.topic_gen.topic_content_generator import generate_topic_content
 from app.models import SubSectionContent
-from app.services.sub_section_content_generator import generate_subsection_content
+from rag_web.app.services.sub_sec_gen.sub_section_content_generator import generate_subsection_content
 from app.models import SectionContent
 from app.services.section_content_generator import generate_section_content
 from django.utils.text import slugify
 from app.models import Section, TopicContent
 from app.services.document_generator import generate_report_document
 import json
-from app.services.placeholder_normalizer import normalize_placeholders
-from app.services.topic_content_repair import repair_topic_content
+from rag_web.app.services.topic_gen.visual_gen.placeholder_normalizer import normalize_placeholders
+from rag_web.app.services.topic_gen.topic_content_repair import repair_topic_content
 
 class ContentAgent:
 

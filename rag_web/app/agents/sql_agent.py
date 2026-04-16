@@ -1,12 +1,12 @@
 # sql agent file
-from app.services.sql_agent import generate_sql_for_precomputed_placeholder
-from app.services.sql_executor import execute_sql_safely
-from app.services.sql_result_interpreter import interpret_sql_result
+from rag_web.app.services.sql_gen.sql_agent import generate_sql_for_precomputed_placeholder
+from rag_web.app.services.sql_gen.sql_executor import execute_sql_safely
+from rag_web.app.services.sql_gen.sql_result_interpreter import interpret_sql_result
 from app.models import SelectedTable
-from app.services.column_introspector import get_table_columns
-from app.services.vector_store import get_vector_store
-from app.services.sql_agent import parse_sql_placeholder
-from app.services.sql_agent import generate_sql_placeholders_from_plan
+from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+from rag_web.app.services.sql_gen.sql_agent import parse_sql_placeholder
+from rag_web.app.services.sql_gen.sql_agent import generate_sql_placeholders_from_plan
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -140,8 +140,6 @@ class SQLAgent:
         # -----------------------------------------
         # STEP: LLM INSIGHT GENERATION
         # -----------------------------------------
-
-        from app.services.sql_result_interpreter import interpret_sql_result
 
         batch_size = 2
         final_results = []

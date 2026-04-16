@@ -6,12 +6,12 @@ from typing import Dict, List
 
 from django.conf import settings
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
-from .vector_store import get_vector_store
+from ..vector_db_config.vector_store import get_vector_store
 from sentence_transformers import SentenceTransformer, util
 from app.agents.rate_limiter import rate_limiter
 

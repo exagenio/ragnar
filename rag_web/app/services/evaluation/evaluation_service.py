@@ -14,7 +14,7 @@ from openevals.llm import create_llm_as_judge
 from langchain_openrouter import ChatOpenRouter
 
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
-from app.services.vector_store import get_vector_store
+from rag_web.app.services.vector_db_config.vector_store import get_vector_store
 
 import base64
 import struct

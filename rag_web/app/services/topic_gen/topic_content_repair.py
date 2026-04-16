@@ -5,7 +5,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from app.services.llm_provider import (
+from rag_web.app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
