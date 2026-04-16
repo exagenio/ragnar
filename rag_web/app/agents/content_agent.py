@@ -498,3 +498,8 @@ class ContentAgent:
         content_obj.save()
 
         return content_obj
+
+    def delete_topic_with_dependencies(self, topic):
+        """Delete a failed topic and all dependent records via cascade."""
+
+        topic.delete()

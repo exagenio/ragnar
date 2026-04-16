@@ -4,6 +4,7 @@ from app.agents.content_agent import ContentAgent
 from app.agents.sql_agent import SQLAgent
 from app.agents.visual_Agent import VisualAgent
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from app.models import Topic
 from app.models import Section, TopicContent, TopicAnalysisPlan, SubSectionGenerateTime, TopicGenerateTime
@@ -16,6 +17,13 @@ from django.utils.timezone import now
 from app.utils.data_decoder import decode_sql_result
 from app.utils.block_processing import build_prompt_blocks, build_block_chunks, apply_repaired_blocks
 from app.utils.visual_utils import has_pending_visuals
+
+try:
+    from google.api_core.exceptions import ResourceExhausted
+except Exception:  # pragma: no cover - optional runtime import
+    ResourceExhausted = None
+
+
 class ManagerAgent:
     """Central orchestrator of the system."""
 
@@ -200,6 +208,92 @@ class ManagerAgent:
 
         return True
 
+    def delete_topic_with_dependencies(self, topic):
+        return self.content_agent.delete_topic_with_dependencies(topic)
+
+    def _is_retryable_llm_error(self, exc):
+        if ResourceExhausted and isinstance(exc, ResourceExhausted):
+            return True
+
+        message = str(exc).lower()
+        retry_markers = [
+            "resource exhausted",
+            "429",
+            "rate limit",
+            "quota",
+            "too many requests",
+        ]
+        return any(marker in message for marker in retry_markers)
+
+    def _topic_pipeline_workers_for_project(self, project):
+        if getattr(project, "llm_provider", "") == "vertex_ai":
+            return 1
+        return 2
+
+    def _visual_pipeline_workers_for_project(self, project):
+        if getattr(project, "llm_provider", "") == "vertex_ai":
+            return 1
+        return 2
+
+    def _run_topic_pipeline_with_retry(
+        self,
+        project,
+        report,
+        topic,
+        plan_generated=False,
+        max_attempts=2,
+    ):
+        last_error = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self._execute_topic_pipeline_once(
+                    project,
+                    report,
+                    topic,
+                    plan_generated=plan_generated,
+                )
+                return {
+                    "success": True,
+                    "topic_id": topic.id,
+                    "topic_title": topic.title,
+                }
+            except Exception as exc:
+                last_error = exc
+
+                print(
+                    f"[TOPIC RETRY] Topic {topic.id} attempt {attempt}/{max_attempts} failed: {exc}"
+                )
+
+                if attempt < max_attempts and self._is_retryable_llm_error(exc):
+                    backoff_seconds = 8 * attempt
+                    print(
+                        f"[TOPIC RETRY] Waiting {backoff_seconds}s before retrying Topic {topic.id}"
+                    )
+                    time.sleep(backoff_seconds)
+                    continue
+
+                if attempt < max_attempts:
+                    print(
+                        f"[TOPIC RETRY] Retrying Topic {topic.id} once more after failure."
+                    )
+                    time.sleep(2)
+
+        topic_id = topic.id
+        topic_title = topic.title
+        self.delete_topic_with_dependencies(topic)
+
+        print(
+            f"[TOPIC CLEANUP] Removed failed Topic {topic_id} ({topic_title}) after {max_attempts} attempts."
+        )
+
+        return {
+            "success": False,
+            "topic_id": topic_id,
+            "topic_title": topic_title,
+            "error": str(last_error) if last_error else "Unknown topic pipeline error",
+        }
+
 
 
     # MAIN PIPELINE
@@ -227,7 +321,12 @@ class ManagerAgent:
             print("[AUTO] Topics approved")
 
             # Concurrent Topic Pipelines
-            with ThreadPoolExecutor(max_workers=3) as executor:
+            successful_topics = []
+            failed_topics = []
+
+            with ThreadPoolExecutor(
+                max_workers=self._topic_pipeline_workers_for_project(project)
+            ) as executor:
 
                 futures = []
 
@@ -235,7 +334,7 @@ class ManagerAgent:
 
                     futures.append(
                         executor.submit(
-                            self._run_topic_pipeline,
+                            self._run_topic_pipeline_with_retry,
                             project,
                             report,
                             topic,
@@ -244,11 +343,32 @@ class ManagerAgent:
 
                 for f in futures:
                     try:
-                        f.result()
+                        result = f.result()
+                        if result and result.get("success"):
+                            successful_topics.append(result)
+                        elif result:
+                            failed_topics.append(result)
                     except Exception as e:
                         print(f"[AUTO] Topic pipeline failed: {e}")
 
             print("[AUTO] All topic pipelines completed")
+
+            if failed_topics:
+                failed_titles = ", ".join(
+                    item["topic_title"] for item in failed_topics
+                )
+                print(
+                    f"[AUTO] Failed topics were removed after retry exhaustion: {failed_titles}"
+                )
+
+            if not successful_topics:
+                status = "failed"
+                error_message = (
+                    "All topic pipelines failed. Failed topics were removed; "
+                    "subsection content generation was skipped."
+                )
+                print(f"[AUTO] {error_message}")
+                return
 
             # Generate Subsection Content
             topics = self.validate_subsection_generation(subsection)
@@ -264,6 +384,11 @@ class ManagerAgent:
             )
 
             print("[AUTO] Subsection content generated")
+        except Exception as e:
+            status = "failed"
+            error_message = str(e)
+            print(f"[AUTO ERROR] Subsection {subsection.id}: {e}")
+            traceback.print_exc()
 
         finally:
             end_time = now()
@@ -286,6 +411,19 @@ class ManagerAgent:
 
     # SINGLE TOPIC PIPELINE
     def _run_topic_pipeline(self, project, report, topic, plan_generated=False):
+        try:
+            return self._execute_topic_pipeline_once(
+                project,
+                report,
+                topic,
+                plan_generated=plan_generated,
+            )
+        except Exception as e:
+            print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
+            traceback.print_exc()
+            return None
+
+    def _execute_topic_pipeline_once(self, project, report, topic, plan_generated=False):
         start_time = now()
         status = "success"
         error_message = ""
@@ -312,8 +450,11 @@ class ManagerAgent:
             print(f"[PIPELINE] Completed → Topic {topic.id}")
             return content_obj
         except Exception as e:
+            status = "failed"
+            error_message = str(e)
             print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
             traceback.print_exc()
+            raise
         finally:
             end_time = now()
 
@@ -376,7 +517,9 @@ class ManagerAgent:
 
             tasks = []
 
-            with ThreadPoolExecutor(max_workers=3) as executor:
+            with ThreadPoolExecutor(
+                max_workers=self._visual_pipeline_workers_for_project(project)
+            ) as executor:
 
                 for s_index, section in enumerate(sections):
 
