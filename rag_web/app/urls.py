@@ -1,7 +1,7 @@
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from app.test import metadata_views, project_views, sub_sect_views, topic_views, report_views, evalu_views
+from app.views import metadata_views, project_views, sub_sect_views, topic_views, report_views, evalu_views
 
 urlpatterns = [
     path("", metadata_views.create_project_and_connect_db, name="project_create"),
