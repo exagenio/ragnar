@@ -6,6 +6,7 @@ from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 
 def interpret_sql_result(
     *,
+    project=None,
     placeholders: list,
     backend: LLMBackend | None = None,
 ):
@@ -17,6 +18,7 @@ def interpret_sql_result(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0,
+        project=project,
     )
 
     # Build prompt from placeholders

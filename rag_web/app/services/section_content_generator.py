@@ -9,11 +9,12 @@ from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 from app.agents.rate_limiter import rate_limiter
 
 
-PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "section_content_gen_prompt.txt"
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "section_content_gen_prompt.txt"
 
 
 def generate_section_content(
     *,
+    project=None,
     project_id: int,
     industry: str,
     report_type: str,
@@ -32,6 +33,7 @@ def generate_section_content(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0.2,
+        project=project,
     )
 
     # Format subsection themes as json string

@@ -25,7 +25,14 @@ class ProjectService:
             name=data["project_name"],
             description=data["project_description"],
             is_initialized=False,
+            llm_provider=data["llm_provider"],
+            primary_llm_model=data["resolved_primary_model"],
+            secondary_llm_model=data["resolved_secondary_model"],
         )
+
+        if data.get("resolved_openrouter_api_key"):
+            project.set_openrouter_api_key(data["resolved_openrouter_api_key"])
+            project.save(update_fields=["openrouter_api_key_encrypted"])
 
         # Create database connection linked to project
         DBConnection.objects.create(
@@ -39,5 +46,21 @@ class ProjectService:
             schema=data["schema"],
             is_active=True,
         )
+
+        return project
+
+    def update_project_llm_settings(self, project, data):
+        """Update model provider and model settings for a project."""
+
+        project.llm_provider = data["llm_provider"]
+        project.primary_llm_model = data["resolved_primary_model"]
+        project.secondary_llm_model = data["resolved_secondary_model"]
+
+        if data.get("clear_openrouter_api_key"):
+            project.set_openrouter_api_key("")
+        elif data.get("resolved_openrouter_api_key"):
+            project.set_openrouter_api_key(data["resolved_openrouter_api_key"])
+
+        project.save()
 
         return project

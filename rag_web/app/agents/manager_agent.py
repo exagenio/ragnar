@@ -39,6 +39,9 @@ class ManagerAgent:
 
         return project
 
+    def update_project_llm_settings(self, project, data):
+        return self.project_service.update_project_llm_settings(project, data)
+
     def discover_tables(self, db_connection):
         return self.metadata_agent.discover_tables(db_connection)
 
@@ -554,6 +557,7 @@ class ManagerAgent:
             for chunk in chunks:
                 try:
                     updates = repair_content_chunk(
+                        project=project,
                         blocks_chunk=chunk,
                     )
                     all_updates.extend(updates)

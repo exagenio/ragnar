@@ -156,6 +156,7 @@ class VisualAgent:
         existing_visuals = self._collect_existing_visuals(content_json)
 
         visual_plan = generate_visual_plan(
+            project=project,
             visual_placeholder=visual_block,
             topic_plan=topic.analysis_plan.plan_json,
             metadata_context=metadata_context,
@@ -197,6 +198,7 @@ class VisualAgent:
             )
 
         sql_response = generate_sql_from_visual_plan(
+            project=project,
             visual_plan=visual_plan,
             metadata_context=metadata_context,
             database_schema=schema_context,

@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404
-from app.forms import ReportIntentForm
+from app.forms import ProjectLLMSettingsForm, ReportIntentForm
 from ..models import (Report, Project)
 from app.agents.manager_agent import ManagerAgent
 
@@ -31,6 +31,30 @@ def start_report(request, project_id):
         {
             "project": project,
             "form": form,
+        },
+    )
+
+
+def project_settings(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+
+    if request.method == "POST":
+        form = ProjectLLMSettingsForm(request.POST, project=project)
+
+        if form.is_valid():
+            manager.update_project_llm_settings(project, form.cleaned_data)
+            messages.success(request, "Project model settings updated successfully.")
+            return redirect("project_settings", project_id=project.id)
+    else:
+        form = ProjectLLMSettingsForm(project=project)
+
+    return render(
+        request,
+        "project_settings.html",
+        {
+            "project": project,
+            "form": form,
+            "provider_model_map": ProjectLLMSettingsForm.provider_model_map,
         },
     )
 

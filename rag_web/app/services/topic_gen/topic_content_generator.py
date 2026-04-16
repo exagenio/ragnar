@@ -20,13 +20,12 @@ SIMILARITY_THRESHOLD = 0.8
 
 MAX_ITERATIONS_PER_ELEMENT = 2
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "topic_content_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "topic_content_prompt.txt"
 
 
 def generate_topic_content(
     *,
+    project=None,
     project_id: int,
     industry: str,
     report_type: str,
@@ -47,6 +46,7 @@ def generate_topic_content(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     vector_store = get_vector_store()

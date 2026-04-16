@@ -140,16 +140,13 @@ LOGOUT_REDIRECT_URL = "login"
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+VERTEX_AI_PROJECT = os.getenv("VERTEX_AI_PROJECT", "project-08491770-bd93-473e-a10")
+VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
-
-if not GOOGLE_API_KEY:
-    raise RuntimeError("GOOGLE_API_KEY is not set in environment variables")
-if not OPENROUTER_API_KEY:
-    raise RuntimeError("OPENROUTER_API_KEY is not set in environment variables")
 
 # Default behavior (can be changed per request)
 DEFAULT_LLM_BACKEND = "cloud"   # or "local"

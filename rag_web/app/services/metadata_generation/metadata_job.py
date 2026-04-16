@@ -18,6 +18,7 @@ def run_metadata_generation(project_id):
 
         # Generate metadata using small input sample
         metadata = generate_table_metadata(
+            project=project,
             table_name=table.table_name,
             columns=columns,
             rows=rows,

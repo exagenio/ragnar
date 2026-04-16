@@ -17,9 +17,7 @@ from app.services.llm_config.llm_provider import (
 from app.agents.rate_limiter import rate_limiter
 
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "table_metadata_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "table_metadata_prompt.txt"
 
 
 def make_json_safe(value):
@@ -48,6 +46,7 @@ def extract_json_from_text(text: str):
 
 def generate_table_metadata(
     *,
+    project=None,
     table_name: str,
     columns: list,
     rows: list,
@@ -74,6 +73,7 @@ def generate_table_metadata(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0,
+        project=project,
     )
 
     # Apply rate limiting

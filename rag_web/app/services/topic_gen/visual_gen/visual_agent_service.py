@@ -11,6 +11,7 @@ VISUAL_AGENT_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "visual_agent
 
 def generate_visual_plan(
     *,
+    project=None,
     visual_placeholder: Dict[str, Any],
     topic_plan: Dict[str, Any],
     metadata_context: Dict,
@@ -26,6 +27,7 @@ def generate_visual_plan(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     parsed_visual = parse_visual_placeholder(visual_placeholder)

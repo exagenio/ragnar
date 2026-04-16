@@ -40,7 +40,14 @@ def create_project_and_connect_db(request):
     else:
         form = ProjectDBConnectionForm()
 
-    return render(request, "project_create.html", {"form": form})
+    return render(
+        request,
+        "project_create.html",
+        {
+            "form": form,
+            "provider_model_map": ProjectDBConnectionForm.provider_model_map,
+        },
+    )
 
 
 def project_detail(request, project_id):

@@ -11,13 +11,12 @@ from app.services.llm_config.llm_provider import (
 from app.agents.rate_limiter import rate_limiter
 
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "subsection_content_gen_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "subsection_content_gen_prompt.txt"
 
 
 def generate_subsection_content(
     *,
+    project=None,
     project_id: int,
     industry: str,
     report_type: str,
@@ -37,6 +36,7 @@ def generate_subsection_content(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0.2,
+        project=project,
     )
 
     # Format topics progress as json

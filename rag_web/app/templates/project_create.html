@@ -3,55 +3,139 @@
 {% block title %}Create Project{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
-    <div class="mb-6">
+<div class="mx-auto max-w-4xl space-y-6">
+    <div>
         <h2 class="text-2xl font-semibold text-gray-900">Create Project & Connect Database</h2>
-        <p class="text-sm text-gray-600 mt-1">Set up a new project and configure database connection</p>
+        <p class="mt-1 text-sm text-gray-600">Set up the database connection and choose the LLM provider and models for this project.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            {{ form.as_p }}
+    <form method="post" class="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        {% csrf_token %}
 
-            <div class="pt-4">
-                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                    Create Project
-                </button>
+        {% if form.non_field_errors %}
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ form.non_field_errors }}
             </div>
-        </form>
-    </div>
+        {% endif %}
+
+        <section class="space-y-4">
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">Project</h3>
+                <p class="text-sm text-gray-500">Basic details for this report workspace.</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.project_name %}</div>
+                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.project_description %}</div>
+            </div>
+        </section>
+
+        <section class="space-y-4 border-t border-gray-200 pt-6">
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">Database Connection</h3>
+                <p class="text-sm text-gray-500">Credentials used to inspect schema and generate report content.</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>{% include "partials/form_field.html" with field=form.db_type %}</div>
+                <div>{% include "partials/form_field.html" with field=form.schema %}</div>
+                <div>{% include "partials/form_field.html" with field=form.host %}</div>
+                <div>{% include "partials/form_field.html" with field=form.port %}</div>
+                <div>{% include "partials/form_field.html" with field=form.database_name %}</div>
+                <div>{% include "partials/form_field.html" with field=form.username %}</div>
+                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.password %}</div>
+            </div>
+        </section>
+
+        <section class="space-y-4 border-t border-gray-200 pt-6">
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">LLM Settings</h3>
+                <p class="text-sm text-gray-500">Choose the provider, preset models, or switch either slot to a custom model code.</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.llm_provider %}</div>
+                <div>{% include "partials/form_field.html" with field=form.primary_model_selection %}</div>
+                <div id="primary-model-custom-wrap">{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
+                <div>{% include "partials/form_field.html" with field=form.secondary_model_selection %}</div>
+                <div id="secondary-model-custom-wrap">{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
+                <div class="md:col-span-2">
+                    <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                        {{ form.use_custom_openrouter_api_key }}
+                        <span>{{ form.use_custom_openrouter_api_key.label }}</span>
+                    </label>
+                </div>
+                <div class="md:col-span-2" id="openrouter-key-wrap">{% include "partials/form_field.html" with field=form.openrouter_api_key %}</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                If no custom OpenRouter key is provided, the app uses the server-side environment key.
+            </div>
+        </section>
+
+        <div class="pt-2">
+            <button type="submit" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+                Create Project
+            </button>
+        </div>
+    </form>
 </div>
 
-<style>
-    form p {
-        margin-bottom: 1rem;
-    }
-    form label {
-        display: block;
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: #374151;
-        margin-bottom: 0.5rem;
-    }
-    form input, form select, form textarea {
-        display: block;
-        width: 100%;
-        padding: 0.5rem 0.75rem;
-        font-size: 0.875rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-    }
-    form input:focus, form select:focus, form textarea:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    form .helptext {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin-top: 0.25rem;
-    }
-</style>
+{{ provider_model_map|json_script:"provider-model-map" }}
+
+<script>
+    (() => {
+        const providerField = document.getElementById("id_llm_provider");
+        const primarySelect = document.getElementById("id_primary_model_selection");
+        const secondarySelect = document.getElementById("id_secondary_model_selection");
+        const primaryCustomWrap = document.getElementById("primary-model-custom-wrap");
+        const secondaryCustomWrap = document.getElementById("secondary-model-custom-wrap");
+        const useCustomKey = document.getElementById("id_use_custom_openrouter_api_key");
+        const openRouterKeyWrap = document.getElementById("openrouter-key-wrap");
+        const customChoice = "{{ form.custom_model_choice }}";
+        const providerModelMap = JSON.parse(document.getElementById("provider-model-map").textContent);
+
+        function rebuildOptions(selectEl, provider, slot) {
+            const currentValue = selectEl.value;
+            const providerOptions = (providerModelMap[provider] && providerModelMap[provider][slot]) || [];
+            const values = [...providerOptions, customChoice];
+            selectEl.innerHTML = "";
+
+            values.forEach((value) => {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = value === customChoice ? "Custom model code" : value;
+                if (value === currentValue) {
+                    option.selected = true;
+                }
+                selectEl.appendChild(option);
+            });
+
+            if (![...values].includes(currentValue)) {
+                selectEl.value = customChoice;
+            }
+        }
+
+        function syncModelVisibility() {
+            const provider = providerField.value;
+            rebuildOptions(primarySelect, provider, "primary");
+            rebuildOptions(secondarySelect, provider, "secondary");
+
+            primaryCustomWrap.style.display = primarySelect.value === customChoice ? "block" : "none";
+            secondaryCustomWrap.style.display = secondarySelect.value === customChoice ? "block" : "none";
+
+            const showOpenRouterFields = provider === "openrouter";
+            const showKeyInput = showOpenRouterFields && useCustomKey.checked;
+
+            const customKeyContainer = useCustomKey.closest(".md\\:col-span-2");
+            if (customKeyContainer) {
+                customKeyContainer.style.display = showOpenRouterFields ? "block" : "none";
+            }
+            openRouterKeyWrap.style.display = showKeyInput ? "block" : "none";
+        }
+
+        providerField.addEventListener("change", syncModelVisibility);
+        primarySelect.addEventListener("change", syncModelVisibility);
+        secondarySelect.addEventListener("change", syncModelVisibility);
+        useCustomKey.addEventListener("change", syncModelVisibility);
+
+        syncModelVisibility();
+    })();
+</script>
 {% endblock %}

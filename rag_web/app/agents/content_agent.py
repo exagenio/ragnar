@@ -36,7 +36,11 @@ class ContentAgent:
         """Start report"""
 
         # Generate outline and create report
-        outline = generate_report_outline(data=data, project_id=project.id)
+        outline = generate_report_outline(
+            data=data,
+            project=project,
+            project_id=project.id,
+        )
 
         report = Report.objects.create(
             project=project,
@@ -121,6 +125,7 @@ class ContentAgent:
 
         result = generate_subsection_topics(
             context=context,
+            project=report.project,
             project_id=project_id,
         )
 
@@ -214,7 +219,7 @@ class ContentAgent:
                 "database_schema": schema_context,
             }
 
-            plan = generate_topic_analysis_plan(context)
+            plan = generate_topic_analysis_plan(context, project=project)
 
             plan_obj.plan_json = plan
             plan_obj.save()
@@ -293,6 +298,7 @@ class ContentAgent:
 
         # Generate and normalize content
         result = generate_topic_content(
+            project=project,
             project_id=project.id,
             industry=report.industry,
             report_type=report.report_type,

@@ -138,6 +138,7 @@ def parse_precomputed_sql_placeholder(block: dict) -> dict:
 
 def generate_sql_from_visual_plan(
     *,
+    project=None,
     visual_plan: Dict[str, Any],
     metadata_context: Dict,
     database_schema: Dict,
@@ -151,6 +152,7 @@ def generate_sql_from_visual_plan(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     sql_request = visual_plan.get("sql_request")
@@ -206,6 +208,7 @@ def generate_sql_placeholders_from_plan(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     prompt_template = SQL_PLACEHOLDER_PROMPT_PATH.read_text(encoding="utf-8")
@@ -237,6 +240,7 @@ def generate_sql_placeholders_from_plan(
 
 def generate_sql_for_precomputed_placeholder(
     *,
+    project=None,
     sql_placeholder: Dict[str, Any],
     metadata_context: Dict,
     database_schema: Dict,
@@ -250,6 +254,7 @@ def generate_sql_for_precomputed_placeholder(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     parsed = parse_precomputed_sql_placeholder(sql_placeholder)

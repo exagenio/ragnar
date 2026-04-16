@@ -10,9 +10,7 @@ from app.services.llm_config.llm_provider import (
 from app.agents.rate_limiter import rate_limiter
 
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "topic_analysis_plan_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "topic_analysis_plan_prompt.txt"
 
 SUPPORTED_VISUAL_TYPES = {
     "line_chart",
@@ -40,6 +38,7 @@ def extract_json_from_text(text: str) -> dict:
 def generate_topic_analysis_plan(
     context: dict,
     *,
+    project=None,
     backend: LLMBackend | None = None,
 ) -> dict:
     """Generate topic analysis plan"""
@@ -64,6 +63,7 @@ def generate_topic_analysis_plan(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0,
+        project=project,
     )
 
     # Apply rate limiting

@@ -9,16 +9,16 @@ from langchain_openrouter import ChatOpenRouter
 from openevals.llm import create_llm_as_judge
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
 from app.services.vector_db_config.vector_store import get_vector_store
+from app.services.llm_config.llm_provider import LLMBackend, ModelSize, get_llm
 
-def get_judge_llm():
+def get_judge_llm(project=None):
     """Get judge llm"""
 
-    # Return configured LLM for evaluation
-    return ChatOpenRouter(
-        model="openai/gpt-5.4",
+    return get_llm(
+        backend=LLMBackend(settings.DEFAULT_LLM_BACKEND),
+        model_size=ModelSize.PRIMARY,
         temperature=0,
-        api_key=settings.OPENROUTER_API_KEY,
-        max_retries=2,
+        project=project,
     )
 
 
@@ -266,7 +266,7 @@ def evaluate_project(project_id: int, report_id: int):
         backend=settings.DEFAULT_LLM_BACKEND
     )
 
-    llm = get_judge_llm()
+    llm = get_judge_llm(project)
     evaluators = build_evaluators(llm)
 
     topic_results = []

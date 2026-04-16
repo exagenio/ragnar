@@ -15,6 +15,7 @@ REPAIR_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "topic_content_repa
 
 def repair_topic_content(
     *,
+    project=None,
     industry,
     report_type,
     audience,
@@ -33,6 +34,7 @@ def repair_topic_content(
         backend=backend,
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     # Find repair windows in content

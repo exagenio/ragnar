@@ -139,7 +139,10 @@ class SQLAgent:
             batch = results[i:i+batch_size]
 
             try:
-                interpreted = interpret_sql_result(placeholders=batch)
+                interpreted = interpret_sql_result(
+                    project=project,
+                    placeholders=batch,
+                )
 
                 mapping = {
                     str(r["id"]).strip(): r["insights"]
@@ -187,6 +190,7 @@ class SQLAgent:
 
             # Generate sql
             generated_sql = generate_sql_for_precomputed_placeholder(
+                project=project,
                 sql_placeholder=placeholder,
                 metadata_context=metadata_context,
                 database_schema=schema_context,

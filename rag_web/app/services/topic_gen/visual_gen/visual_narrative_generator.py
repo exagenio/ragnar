@@ -11,6 +11,7 @@ from app.agents.rate_limiter import rate_limiter
 
 def generate_visual_narrative(
     *,
+    project=None,
     content_obj,
     section_index,
     block_index,
@@ -48,6 +49,7 @@ def generate_visual_narrative(
         backend=LLMBackend(settings.DEFAULT_LLM_BACKEND),
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     # Prompt
@@ -365,12 +367,13 @@ def format_block(block):
 
     return block
 
-def repair_content_chunk(*, blocks_chunk):
+def repair_content_chunk(*, project=None, blocks_chunk):
 
     llm = get_llm(
         backend=LLMBackend(settings.DEFAULT_LLM_BACKEND),
         model_size=ModelSize.PRIMARY,
         temperature=0,
+        project=project,
     )
 
     prompt = f"""

@@ -14,11 +14,7 @@ from app.services.evaluation.evaluation_service import (
     retrieve_metadata_for_topic,
 )
 from django.conf import settings
-from app.services.llm_config.llm_provider import (
-    get_llm,
-    LLMBackend,
-    ModelSize,
-)
+from app.services.llm_config.llm_provider import LLMProvider
 from deepeval.models import GeminiModel
 
 def build_test_case(input_text, output_text, context_text):
@@ -206,20 +202,19 @@ def evaluate_project_geval(project_id: int, report_id: int):
         backend=settings.DEFAULT_LLM_BACKEND
     )
 
-    backend = LLMBackend(settings.DEFAULT_LLM_BACKEND)
-
-    model = GeminiModel(
-        model="gemini-2.5-pro",   # or gemini-2.5-pro
-        project="project-08491770-bd93-473e-a10",
-        location="us-central1",
-        temperature=0,
-    )
-
-
-    # model = OpenRouterModel(
-    #     model="openai/gpt-4.1",
-    #     api_key=settings.OPENROUTER_API_KEY,
-    # )
+    if project.llm_provider == LLMProvider.OPENROUTER.value:
+        api_key = project.get_openrouter_api_key() or settings.OPENROUTER_API_KEY
+        model = OpenRouterModel(
+            model=project.primary_llm_model,
+            api_key=api_key,
+        )
+    else:
+        model = GeminiModel(
+            model=project.primary_llm_model,
+            project=settings.VERTEX_AI_PROJECT,
+            location=settings.VERTEX_AI_LOCATION,
+            temperature=0,
+        )
     topic_results = []
 
 

@@ -11,9 +11,7 @@ from app.services.llm_config.llm_provider import (
 from ..vector_db_config.vector_store import get_vector_store
 
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "subsection_topics_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "subsection_topics_prompt.txt"
 
 
 def extract_json(text: str) -> dict:
@@ -30,6 +28,7 @@ def extract_json(text: str) -> dict:
 def generate_subsection_topics(
     *,
     context: dict,
+    project=None,
     project_id: int,
     backend: LLMBackend | None = None,
 ) -> dict:
@@ -65,6 +64,7 @@ def generate_subsection_topics(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0.2,
+        project=project,
     )
 
     # Invoke llm

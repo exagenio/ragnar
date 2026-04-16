@@ -1,14 +1,70 @@
+import base64
+import hashlib
+
+from cryptography.fernet import Fernet, InvalidToken
+from django.conf import settings
 from django.db import models
 
 
 class Project(models.Model):
+    LLM_PROVIDER_CHOICES = [
+        ("vertex_ai", "Vertex AI"),
+        ("openrouter", "OpenRouter"),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     is_initialized = models.BooleanField(default=False)
+    llm_provider = models.CharField(
+        max_length=32,
+        choices=LLM_PROVIDER_CHOICES,
+        default="openrouter",
+    )
+    primary_llm_model = models.CharField(
+        max_length=255,
+        default="openai/gpt-5.4",
+    )
+    secondary_llm_model = models.CharField(
+        max_length=255,
+        default="openai/gpt-5.4-mini",
+    )
+    openrouter_api_key_encrypted = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+    @staticmethod
+    def _get_fernet():
+        key_material = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
+        return Fernet(base64.urlsafe_b64encode(key_material))
+
+    @property
+    def has_custom_openrouter_api_key(self):
+        return bool(self.openrouter_api_key_encrypted)
+
+    def set_openrouter_api_key(self, api_key):
+        if not api_key:
+            self.openrouter_api_key_encrypted = ""
+            return
+
+        cipher = self._get_fernet()
+        self.openrouter_api_key_encrypted = cipher.encrypt(
+            api_key.encode("utf-8")
+        ).decode("utf-8")
+
+    def get_openrouter_api_key(self):
+        if not self.openrouter_api_key_encrypted:
+            return ""
+
+        cipher = self._get_fernet()
+
+        try:
+            return cipher.decrypt(
+                self.openrouter_api_key_encrypted.encode("utf-8")
+            ).decode("utf-8")
+        except InvalidToken as exc:
+            raise ValueError("Unable to decrypt the stored OpenRouter API key.") from exc
 
 
 class DBConnection(models.Model):

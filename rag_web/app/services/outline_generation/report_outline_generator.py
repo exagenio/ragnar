@@ -13,9 +13,7 @@ from app.services.vector_db_config.vector_store import get_vector_store
 from app.services.sub_sec_gen.subsection_topic_generator import build_retrieved_context
 
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "report_outline_prompt.txt"
-)
+PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "report_outline_prompt.txt"
 
 
 def extract_json(text: str) -> dict:
@@ -32,6 +30,7 @@ def extract_json(text: str) -> dict:
 def generate_report_outline(
     data: dict,
     *,
+    project=None,
     project_id: int,
     backend: LLMBackend | None = None,
 ) -> dict:
@@ -88,6 +87,7 @@ def generate_report_outline(
         backend=backend,
         model_size=ModelSize.SMALL,
         temperature=0,
+        project=project,
     )
 
     response = llm.invoke(prompt)
