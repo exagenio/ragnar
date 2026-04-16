@@ -64,6 +64,11 @@ urlpatterns = [
         name="start_report",
     ),
     path(
+        "projects/<int:project_id>/start/report",
+        protected(project_views.start_report),
+        name="project_start_report",
+    ),
+    path(
         "projects/<int:project_id>/settings/",
         protected(project_views.project_settings),
         name="project_settings",

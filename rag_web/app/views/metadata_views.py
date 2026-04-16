@@ -53,12 +53,18 @@ def create_project_and_connect_db(request):
 def project_detail(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     reports = project.reports.all()
+    metadata_items = list(project.metadata.all())
+    metadata_ready = bool(metadata_items) and all(
+        item.status == "approved" for item in metadata_items
+    )
+
     return render(
         request,
         "project_detail.html",
         {
             "project": project,
             "reports": reports,
+            "metadata_ready": metadata_ready,
         },
     )
 
