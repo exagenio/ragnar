@@ -11,7 +11,25 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <div class="flex items-center">
-                    <h1 class="text-xl font-semibold text-gray-900">Ragnar</h1>
+                    <a href="{% if user.is_authenticated %}{% url 'project_create' %}{% else %}{% url 'login' %}{% endif %}" class="text-xl font-semibold text-gray-900">
+                        Ragnar
+                    </a>
+                </div>
+                <div class="flex items-center gap-3 text-sm">
+                    {% if user.is_authenticated %}
+                        <span class="text-gray-600">Signed in as {{ user.username }}</span>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-800">
+                                Logout
+                            </button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="text-gray-700 hover:text-gray-900">Login</a>
+                        <a href="{% url 'register' %}" class="rounded-lg bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-800">
+                            Register
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

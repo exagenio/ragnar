@@ -1,120 +1,134 @@
-from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from app.views import metadata_views, project_views, sub_sect_views, topic_views, report_views, evalu_views
+from django.contrib.auth import views as django_auth_views
+from django.contrib.auth.decorators import login_required
+from django.urls import path
+
+from app.views import (
+    auth_views,
+    evalu_views,
+    metadata_views,
+    project_views,
+    report_views,
+    sub_sect_views,
+    topic_views,
+)
+
+
+def protected(view):
+    return login_required(view, login_url="login")
+
 
 urlpatterns = [
-    path("", metadata_views.create_project_and_connect_db, name="project_create"),
-    path("projects/<int:project_id>/", metadata_views.project_detail, name="project_detail"),
+    path("login/", auth_views.login_view, name="login"),
+    path("register/", auth_views.register, name="register"),
+    path(
+        "logout/",
+        django_auth_views.LogoutView.as_view(),
+        name="logout",
+    ),
+    path("", protected(metadata_views.create_project_and_connect_db), name="project_create"),
+    path(
+        "projects/<int:project_id>/",
+        protected(metadata_views.project_detail),
+        name="project_detail",
+    ),
     path(
         "projects/<int:project_id>/select-tables/",
-        metadata_views.select_tables,
+        protected(metadata_views.select_tables),
         name="select_tables",
     ),
     path(
         "projects/<int:project_id>/introspect-columns/",
-        metadata_views.column_introspection,
+        protected(metadata_views.column_introspection),
         name="column_introspection",
     ),
     path(
         "projects/<int:project_id>/sample-rows/",
-        metadata_views.row_sampling,
+        protected(metadata_views.row_sampling),
         name="row_sampling",
     ),
     path(
         "projects/<int:project_id>/generate-metadata/",
-        metadata_views.metadata_generation,
+        protected(metadata_views.metadata_generation),
         name="metadata_generation",
     ),
     path(
         "projects/<int:project_id>/metadata/<str:table_name>/review/",
-        metadata_views.review_metadata,
+        protected(metadata_views.review_metadata),
         name="review_metadata",
     ),
     path(
         "projects/<int:project_id>/report/start/",
-        project_views.start_report,
+        protected(project_views.start_report),
         name="start_report",
     ),
     path(
         "reports/<int:report_id>/outline/review/",
-        project_views.review_outline,
+        protected(project_views.review_outline),
         name="review_outline",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/topics/",
-        sub_sect_views.subtopic_dashboard,
+        protected(sub_sect_views.subtopic_dashboard),
         name="subtopic_dashboard",
     ),
-    # path(
-    #     "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/",
-    #     views.generate_subsection_topics_view,
-    #     name="generate_subsection_topics",
-    # ),
-    # path(
-    #     "projects/<int:project_id>/report/<int:report_id>/sections/<slug:section>/subsections/<slug:subsection>/topics/view/",
-    #     views.view_subsection_topics,
-    #     name="view_subsection_topics",
-    # ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/topics/<int:topic_id>/plan/",
-        topic_views.generate_topic_analysis_plan_view,
+        protected(topic_views.generate_topic_analysis_plan_view),
         name="topic_analysis_plan",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/topics/overview/",
-        topic_views.topic_overview,
+        protected(topic_views.topic_overview),
         name="topic_overview",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/subsections/<int:subsection_id>/topics/generate/",
-        sub_sect_views.generate_topics,
+        protected(sub_sect_views.generate_topics),
         name="generate_topics",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/subsections/<int:subsection_id>/topics/view/",
-        sub_sect_views.view_topics,
+        protected(sub_sect_views.view_topics),
         name="view_topics",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/subsections/<int:subsection_id>/content/generate/",
-        report_views.generate_subsection_content_view,
+        protected(report_views.generate_subsection_content_view),
         name="generate_subsection_content",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/sections/<int:section_id>/content/generate/",
-        report_views.generate_section_content_view,
+        protected(report_views.generate_section_content_view),
         name="generate_section_content",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/topics/<int:topic_id>/content/",
-        topic_views.generate_topic_content_view,
+        protected(topic_views.generate_topic_content_view),
         name="topic_content",
     ),
     path(
         "projects/<int:project_id>/report/<int:report_id>/generate-document/",
-        report_views.generate_document_view,
+        protected(report_views.generate_document_view),
         name="generate_document",
     ),
     path(
         "projects/<int:project_id>/reports/<int:report_id>/subsections/<int:subsection_id>/auto-generate/",
-        report_views.trigger_auto_generate_subsection,
+        protected(report_views.trigger_auto_generate_subsection),
         name="trigger_auto_generate_subsection",
     ),
     path(
         "projects/<int:project_id>/evaluation/",
-        evalu_views.evaluation_dashboard_view,
+        protected(evalu_views.evaluation_dashboard_view),
         name="evaluation_dashboard_view",
     ),
     path(
-    "projects/<int:project_id>/evaluation/export/",
-    evalu_views.export_evaluation_doc,
-    name="export_evaluation_doc",
-),
+        "projects/<int:project_id>/evaluation/export/",
+        protected(evalu_views.export_evaluation_doc),
+        name="export_evaluation_doc",
+    ),
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(
-        settings.MEDIA_URL,
-        document_root=settings.MEDIA_ROOT
-    )
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -134,6 +134,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "project_create"
+LOGOUT_REDIRECT_URL = "login"
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
