@@ -1,16 +1,18 @@
 import json
-from langchain_core.documents import Document
 from collections import defaultdict
+from langchain_core.documents import Document
 
 
 def metadata_to_documents(metadata_obj):
+    """Convert metadata to documents"""
+
     docs = []
     data = metadata_obj.approved_metadata
 
     project_id = metadata_obj.project.id
     table = metadata_obj.table_name
 
-    # Table description
+    # Add table description document
     docs.append(
         Document(
             page_content=data["table_description"],
@@ -22,10 +24,10 @@ def metadata_to_documents(metadata_obj):
         )
     )
 
-    # Column descriptions
+    # Process column descriptions and metadata
     for col, col_data in data["columns"].items():
 
-        # 🔹 Backward compatibility
+        # Handle backward compatibility for column structure
         if isinstance(col_data, str):
             description = col_data
             semantic_role = "unknown"
@@ -49,12 +51,13 @@ def metadata_to_documents(metadata_obj):
             )
         )
 
+    # Group columns by semantic role and entity types
     semantic_roles = defaultdict(list)
     entity_types = set()
 
     for col_name, col_data in data["columns"].items():
 
-        # 🔹 Backward compatibility
+        # Handle backward compatibility for column structure
         if isinstance(col_data, str):
             role = "unknown"
             entity_type = None
@@ -76,8 +79,7 @@ def metadata_to_documents(metadata_obj):
         if entity_type:
             entity_types.add(entity_type)
 
-
-
+    # Add analytical capability document
     docs.append(
         Document(
             page_content=json.dumps({
@@ -93,8 +95,7 @@ def metadata_to_documents(metadata_obj):
         )
     )
 
-
-    # Confidence notes
+    # Add confidence note documents
     for note in data.get("confidence_notes", []):
         docs.append(
             Document(

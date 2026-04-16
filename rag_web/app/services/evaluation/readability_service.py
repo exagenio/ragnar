@@ -2,9 +2,6 @@ import textstat
 from app.models import TopicContent, TopicReadability, Topic, Report
 
 
-# =========================
-# EXTRACT ONLY TEXT BLOCKS
-# =========================
 def extract_readable_text(content_json):
 
     sections = content_json.get("sections", [])
@@ -17,7 +14,6 @@ def extract_readable_text(content_json):
 
             block_type = block.get("type")
 
-            # ✅ ONLY include natural language blocks
             if block_type == "paragraph":
                 text = block.get("text", "")
                 if text:
@@ -32,9 +28,6 @@ def extract_readable_text(content_json):
     return "\n".join(texts).strip()
 
 
-# =========================
-# COMPUTE FK SCORE
-# =========================
 def compute_fk_grade(text: str) -> float:
 
     if not text or not text.strip():
@@ -47,9 +40,6 @@ def compute_fk_grade(text: str) -> float:
         return 0.0
 
 
-# =========================
-# TOPIC LEVEL
-# =========================
 def evaluate_topic_readability(topic, report):
 
     content_obj = TopicContent.objects.filter(topic=topic).first()
@@ -60,7 +50,6 @@ def evaluate_topic_readability(topic, report):
 
     content_json = content_obj.content_json or {}
 
-    # 🔥 SIMPLIFIED EXTRACTION
     text = extract_readable_text(content_json)
 
     if not text:
@@ -82,9 +71,6 @@ def evaluate_topic_readability(topic, report):
     return fk_score
 
 
-# =========================
-# PROJECT LEVEL
-# =========================
 def evaluate_project_readability(project_id, report_id):
 
     report = Report.objects.get(id=report_id)

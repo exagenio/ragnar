@@ -1,50 +1,24 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import HttpResponse
-import psycopg2
 from django.shortcuts import render, get_object_or_404
-from django.utils.text import slugify
 from django.urls import reverse
-
-
-from .models import (
+from app.models import (
     Project,
     Report,
-    Section,
-    SubSection,
-    Topic,
     TopicReadability,
+    ReportEvaluation,
+    TopicEvaluation
 )
-from .forms import ProjectDBConnectionForm
-
-from .forms import ReportIntentForm, TableSelectionForm
-from .models import (
-    Report,
-    TopicAnalysisPlan,
-    Section,
-    SubSection,
-)
-from pathlib import Path
-from django.conf import settings
 from app.agents.manager_agent import ManagerAgent
-from django.http import JsonResponse
 from app.services.evaluation.evaluation_service import evaluate_project
 from app.services.evaluation.readability_service import evaluate_project_readability
-from app.utils.text import normalize_title
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
-
-from .models import Project, Report, Topic
-
-manager = ManagerAgent()
-
-from app.models import Project, Report, ReportEvaluation, TopicEvaluation
-from app.services.evaluation.evaluation_service import evaluate_project
-
-
-from app.services.evaluation.geval_evaluation_service import evaluate_project_geval  # NEW
+from app.services.evaluation.geval_evaluation_service import evaluate_project_geval
 from app.services.evaluation.evaluation_doc_generator import generate_evaluation_document
 
+manager = ManagerAgent()
 
 def evaluation_dashboard_view(request, project_id):
     project = get_object_or_404(Project, id=project_id)
@@ -54,7 +28,7 @@ def evaluation_dashboard_view(request, project_id):
     report_eval = None
     topic_evals = None
 
-    # ✅ GET eval_type (default = openeval)
+    # GET eval_type
     eval_type = request.GET.get("eval_type", "openeval")
 
     try:
@@ -63,9 +37,7 @@ def evaluation_dashboard_view(request, project_id):
         if report_id:
             selected_report = get_object_or_404(Report, id=report_id, project=project)
 
-        # =============================
-        # RUN EVALUATION (POST)
-        # =============================
+        # RUN EVALUATION
         if request.method == "POST":
 
             report_id = request.POST.get("report_id")
@@ -76,9 +48,7 @@ def evaluation_dashboard_view(request, project_id):
                 messages.error(request, "Please select a report.")
                 return redirect("evaluation_dashboard_view", project_id=project.id)
 
-            # -------------------------
             # READABILITY
-            # -------------------------
             if action == "readability":
                 evaluate_project_readability(project.id, report_id)
 
@@ -88,9 +58,7 @@ def evaluation_dashboard_view(request, project_id):
                     f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
                 )
 
-            # -------------------------
             # SWITCH ENGINE
-            # -------------------------
             if eval_type_post == "geval":
                 evaluate_project_geval(project.id, report_id)
                 messages.success(request, "GEval evaluation completed.")
@@ -102,9 +70,7 @@ def evaluation_dashboard_view(request, project_id):
                 f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
             )
 
-        # =============================
-        # LOAD RESULTS (GET)
-        # =============================
+        # LOAD RESULTS
         readability_scores = None
         geval_project_summary = None
 
@@ -122,10 +88,7 @@ def evaluation_dashboard_view(request, project_id):
                 report=selected_report
             ).select_related("topic")
 
-            # =============================
-            # 🔥 GEVAL CALCULATION (CUSTOM)
-            # =============================
-
+            # GEVAL CALCULATION
             project_overall_scores = []
 
             agg_correctness = []
@@ -145,13 +108,6 @@ def evaluation_dashboard_view(request, project_id):
                 hallucination = float(scores.get("hallucination", 0))
                 conciseness = float(scores.get("conciseness", 0))
 
-                # ✅ REQUIRED FORMULA
-                # overall = (
-                #     correctness * 0.33 +
-                #     relevance * 0.33 +
-                #     hallucination * 0.33
-                # )
-
                 overall = (
                     correctness * 0.25
                     + relevance * 0.25
@@ -169,9 +125,7 @@ def evaluation_dashboard_view(request, project_id):
                 agg_hallucination.append(hallucination)
                 agg_conciseness.append(conciseness)
 
-            # =============================
             # PROJECT-LEVEL SUMMARY
-            # =============================
             def safe_avg(arr):
                 return round(sum(arr) / len(arr), 2) if arr else 0
 

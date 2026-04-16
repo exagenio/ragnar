@@ -1,27 +1,28 @@
-# sql agent file
-from rag_web.app.services.sql_gen.sql_agent import generate_sql_for_precomputed_placeholder
-from rag_web.app.services.sql_gen.sql_executor import execute_sql_safely
-from rag_web.app.services.sql_gen.sql_result_interpreter import interpret_sql_result
+from concurrent.futures import ThreadPoolExecutor
 from app.models import SelectedTable
-from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
-from rag_web.app.services.vector_db_config.vector_store import get_vector_store
-from rag_web.app.services.sql_gen.sql_agent import parse_sql_placeholder
-from rag_web.app.services.sql_gen.sql_agent import generate_sql_placeholders_from_plan
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from app.services.metadata_generation.column_introspector import get_table_columns
+from app.services.vector_db_config.vector_store import get_vector_store
+
+from app.services.sql_gen.sql_agent import (
+    generate_sql_for_precomputed_placeholder,
+    parse_sql_placeholder,
+    generate_sql_placeholders_from_plan,
+)
+from app.services.sql_gen.sql_executor import execute_sql_safely
+from app.services.sql_gen.sql_result_interpreter import interpret_sql_result
 
 
 class SQLAgent:
 
-    # -----------------------------------------
-    # BUILD DATABASE SCHEMA CONTEXT
-    # -----------------------------------------
     def build_schema_context(self, project):
+        """Build schema context"""
 
         tables = SelectedTable.objects.filter(project=project)
 
         schema_context = []
 
+        # Build schema structure from selected tables
         for t in tables:
             columns = get_table_columns(project.db_connection, t.table_name)
 
@@ -38,9 +39,6 @@ class SQLAgent:
         return schema_context
 
 
-    # -----------------------------------------
-    # REMOVE PLACEHOLDER SAFELY
-    # -----------------------------------------
     def _remove_sql_placeholder(
         self,
         sections,
@@ -51,6 +49,7 @@ class SQLAgent:
         attempted_sql=None,
         error=None,
     ):
+        """Remove sql placeholder"""
 
         try:
             block = sections[section_index]["content_blocks"][block_index]
@@ -79,18 +78,11 @@ class SQLAgent:
         project,
         metadata_context: list,
     ):
-        """
-        Wrapper around service-layer placeholder generation.
-        """
+        """Generate sql placeholders"""
 
-        # -------------------------
-        # Build schema (agent responsibility)
-        # -------------------------
+        # Build schema and call service
         schema_context = self.build_schema_context(project)
 
-        # -------------------------
-        # Call service function
-        # -------------------------
         result = generate_sql_placeholders_from_plan(
             topic_plan=topic_plan,
             project=project,
@@ -108,6 +100,8 @@ class SQLAgent:
         topic_content_obj,
         topic,
     ):
+        """Compute precomputed sql placeholders"""
+
         content_json = topic_content_obj.content_json or {}
 
         placeholders = content_json.get("precomputed_sql_placeholders", [])
@@ -118,7 +112,6 @@ class SQLAgent:
 
         results = []
 
-        # max concurrent task at once
         max_workers = 2  
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -137,10 +130,7 @@ class SQLAgent:
         results = [future.result() for future in futures]
 
 
-        # -----------------------------------------
-        # STEP: LLM INSIGHT GENERATION
-        # -----------------------------------------
-
+        # LLM insight generation for batched results
         batch_size = 2
         final_results = []
 
@@ -169,9 +159,7 @@ class SQLAgent:
             final_results.extend(batch)
 
 
-        # -------------------------
-        # SAVE BACK
-        # -------------------------
+        # Save computed results back
         content_json["precomputed_sql_placeholders"] = final_results
 
         topic_content_obj.content_json = content_json
@@ -187,15 +175,17 @@ class SQLAgent:
         schema_context,
         placeholder,
     ):
+        """Process single placeholder"""
+
         try:
-            # STEP 1: metadata
+            # Retrieve metadata context
             metadata_context = self.retrieve_metadata_context(
                 project_id=project.id,
                 sql_placeholder=placeholder,
                 topic_title=topic.title,
             )
 
-            # STEP 2: SQL generation
+            # Generate sql
             generated_sql = generate_sql_for_precomputed_placeholder(
                 sql_placeholder=placeholder,
                 metadata_context=metadata_context,
@@ -209,14 +199,14 @@ class SQLAgent:
                 }
                 return placeholder
 
-            # STEP 3: execute
+            # Execute sql
             execution = execute_sql_safely(
                 generated_sql["sql"],
                 project_id=project.id,
                 expected_result_type=generated_sql.get("result_type", "scalar"),
             )
 
-            # STEP 4: attach
+            # Attach result
             placeholder.setdefault("content", {})["query"] = {
                 "status": "ok",
                 "result": execution["result"],
@@ -232,9 +222,7 @@ class SQLAgent:
 
         return placeholder
 
-    # -----------------------------------------
-    # METADATA RETRIEVAL FROM VECTOR DB
-    # -----------------------------------------
+
     def retrieve_metadata_context(
         self,
         *,
@@ -243,13 +231,11 @@ class SQLAgent:
         topic_title: str,
         k: int = 8,
     ):
-        """
-        Retrieve relevant metadata for SQL generation
-        using semantic search.
-        """
+        """Retrieve metadata context"""
 
         vector_store = get_vector_store()
 
+        # Build query and retrieve metadata
         query = self._build_metadata_query(
             sql_placeholder=sql_placeholder,
             topic_title=topic_title,
@@ -271,9 +257,7 @@ class SQLAgent:
 
 
     def _build_metadata_query(self, sql_placeholder: dict, topic_title: str):
-        """
-        Build semantic query to retrieve relevant metadata.
-        """
+        """Build metadata query"""
 
         try:
             parsed = parse_sql_placeholder(sql_placeholder)
@@ -306,13 +290,11 @@ class SQLAgent:
         attempted_sql=None,
         error=None,
     ):
+        """Handle sql failure"""
 
         if error:
             retry_meta["errors"].append(str(error))
 
-        # -----------------------------
-        # MAX RETRIES → REMOVE
-        # -----------------------------
         if retry_meta["attempts"] >= retry_meta["max_attempts"]:
 
             print("[SQL] Max retries reached → removing placeholder")
@@ -334,9 +316,6 @@ class SQLAgent:
                 "placeholder_removed": True
             }
 
-        # -----------------------------
-        # RETRY LATER
-        # -----------------------------
         else:
 
             print("[SQL] Retry scheduled → keeping placeholder")

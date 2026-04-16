@@ -1,33 +1,30 @@
+import json
+import base64
+import struct
+from io import BytesIO
+from tempfile import NamedTemporaryFile
+
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from io import BytesIO
-import os
-import json
-import plotly.io as pio
-from tempfile import NamedTemporaryFile
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-import base64
-import struct
+import plotly.io as pio
+
 
 def generate_report_document(report, sections):
-    """Generate a Word document from the report with hierarchical content."""
+    """Generate report document"""
     doc = Document()
 
-    # TITLE PAGE
     _add_title_page(doc, report)
     doc.add_page_break()
 
-    # TABLE OF CONTENTS
     _add_table_of_contents(doc, sections)
     doc.add_page_break()
 
-    # MAIN CONTENT - HIERARCHICAL STRUCTURE
     for section_num, section in enumerate(sections, start=1):
         _add_section(doc, section, report, section_num)
 
-    # Save to buffer
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
@@ -36,279 +33,182 @@ def generate_report_document(report, sections):
 
 
 def _add_title_page(doc, report):
-    """Add report title page - title only"""
-
-    # Main title
+    """Add title page"""
     title = doc.add_heading(report.title, level=0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title.runs[0]
-    title_run.font.size = Pt(32)
-    title_run.font.bold = True
-    title_run.font.color.rgb = RGBColor(0, 51, 102)
+
+    run = title.runs[0]
+    run.font.size = Pt(32)
+    run.font.bold = True
+    run.font.color.rgb = RGBColor(0, 51, 102)
+
 
 def _add_table_of_contents(doc, sections):
-    """Add table of contents with sections, subsections, and topics."""
-    # Table of Contents heading
-    toc_heading = doc.add_heading("Table of Contents", level=1)
-    toc_heading_run = toc_heading.runs[0]
-    toc_heading_run.font.color.rgb = RGBColor(0, 51, 102)
+    """Add table of contents"""
+
+    heading = doc.add_heading("Table of Contents", level=1)
+    heading.runs[0].font.color.rgb = RGBColor(0, 51, 102)
 
     doc.add_paragraph()
 
-    # Iterate through sections
     for section_num, section in enumerate(sections, start=1):
-        # Section (Level 1)
         section_para = doc.add_paragraph()
-        section_run = section_para.add_run(f"• {section.title}")
-        section_run.font.size = Pt(12)
-        section_run.font.bold = True
-        section_run.font.color.rgb = RGBColor(0, 51, 102)
-        section_para.paragraph_format.space_after = Pt(6)
+        run = section_para.add_run(f"• {section.title}")
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(0, 51, 102)
 
-        # Subsections (Level 2)
-        subsections = section.sub_sections.all()
-        for subsection_num, subsection in enumerate(subsections, start=1):
-            subsection_para = doc.add_paragraph()
-            subsection_para.paragraph_format.left_indent = Inches(0.3)
-            subsection_run = subsection_para.add_run(f"◦ {subsection.title}")
-            subsection_run.font.size = Pt(11)
-            subsection_run.font.color.rgb = RGBColor(51, 102, 153)
-            subsection_para.paragraph_format.space_after = Pt(4)
+        for subsection_num, subsection in enumerate(section.sub_sections.all(), start=1):
+            sub_para = doc.add_paragraph()
+            sub_para.paragraph_format.left_indent = Inches(0.3)
+            run = sub_para.add_run(f"◦ {subsection.title}")
+            run.font.size = Pt(11)
+            run.font.color.rgb = RGBColor(51, 102, 153)
 
-            # Topics (Level 3) with numbering
-            topics = subsection.topics.filter(is_approved=True)
-            for topic_num, topic in enumerate(topics, start=1):
-                topic_number = f"{section_num}.{subsection_num}.{topic_num}"
+            for topic_num, topic in enumerate(subsection.topics.filter(is_approved=True), start=1):
                 topic_para = doc.add_paragraph()
                 topic_para.paragraph_format.left_indent = Inches(0.6)
-                topic_run = topic_para.add_run(f"{topic_number} {topic.title}")
-                topic_run.font.size = Pt(10)
-                topic_run.font.color.rgb = RGBColor(102, 153, 204)
-                topic_para.paragraph_format.space_after = Pt(2)
+                topic_number = f"{section_num}.{subsection_num}.{topic_num}"
+                run = topic_para.add_run(f"{topic_number} {topic.title}")
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor(102, 153, 204)
 
-        # Add spacing after each section
         doc.add_paragraph()
 
 
 def _add_section(doc, section, report, section_num):
-    """Add a complete section with all its subsections and topics."""
+    """Add section"""
 
-    # Section heading (Level 1)
-    section_title = f"{section_num}. {section.title}"
-    section_heading = doc.add_heading(section_title, level=1)
-    section_heading_run = section_heading.runs[0]
-    style_heading(section_heading_run, level=1)
-    section_heading_run.font.color.rgb = RGBColor(0, 51, 102)
-    section_heading.paragraph_format.space_before = Pt(18)
-    section_heading.paragraph_format.space_after = Pt(6)
+    heading = doc.add_heading(f"{section_num}. {section.title}", level=1)
+    run = heading.runs[0]
 
-    # Add section content if available
+    style_heading(run, 1)
+    run.font.color.rgb = RGBColor(0, 51, 102)
+
     if hasattr(section, 'content') and section.content.status == 'generated':
         _add_section_content(doc, section.content.content_json)
 
-    # Add all subsections
-    subsections = section.sub_sections.all()
-    for subsection_num, subsection in enumerate(subsections, start=1):
+    for subsection_num, subsection in enumerate(section.sub_sections.all(), start=1):
         _add_subsection(doc, subsection, report, section_num, subsection_num)
 
-    # Page break after each section
     doc.add_page_break()
 
 
 def _add_section_content(doc, content_json):
-    """Add section-level content (introduction and strategic insights)."""
+    """Add section content"""
 
-    # Section introduction
     if 'section_introduction' in content_json:
-        intro = content_json['section_introduction']
-        if 'paragraphs' in intro:
-            for paragraph_text in intro['paragraphs']:
-                para = doc.add_paragraph(paragraph_text)
-                para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                para.paragraph_format.space_after = Pt(12)
-
-    # Strategic insights
-    # if 'strategic_insights' in content_json and content_json['strategic_insights']:
-    #     doc.add_heading("Strategic Insights", level=2)
-    #     for insight in content_json['strategic_insights']:
-    #         para = doc.add_paragraph(insight, style='List Bullet')
-    #         para.paragraph_format.left_indent = Inches(0.5)
+        for text in content_json['section_introduction'].get('paragraphs', []):
+            para = doc.add_paragraph(text)
+            para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
 def _add_subsection(doc, subsection, report, section_num, subsection_num):
-    """Add a complete subsection with all its topics."""
+    """Add subsection"""
 
-    # SubSection heading (Level 2)
-    subsection_title = f"{section_num}.{subsection_num} {subsection.title}"
-    subsection_heading = doc.add_heading(subsection_title, level=2)
-    subsection_heading_run = subsection_heading.runs[0]
-    style_heading(subsection_heading_run, level=2)
-    subsection_heading_run.font.color.rgb = RGBColor(51, 102, 153)
-    subsection_heading.paragraph_format.space_before = Pt(18)
-    subsection_heading.paragraph_format.space_after = Pt(12)
+    heading = doc.add_heading(f"{section_num}.{subsection_num} {subsection.title}", level=2)
+    run = heading.runs[0]
 
-    # Add subsection content if available
+    style_heading(run, 2)
+    run.font.color.rgb = RGBColor(51, 102, 153)
+
     if hasattr(subsection, 'content') and subsection.content.status == 'generated':
         _add_subsection_content(doc, subsection.content.content_json)
 
-    # Add all topics with numbering
-    topics = subsection.topics.filter(is_approved=True)
-    for topic_num, topic in enumerate(topics, start=1):
+    for topic_num, topic in enumerate(subsection.topics.filter(is_approved=True), start=1):
         _add_topic(doc, topic, section_num, subsection_num, topic_num)
 
 
 def _add_subsection_content(doc, content_json):
-    """Add subsection-level content"""
+    """Add subsection content"""
 
-    # Subsection introduction
     if 'subsection_introduction' in content_json:
-        intro = content_json['subsection_introduction']
-        if 'paragraphs' in intro:
-            for paragraph_text in intro['paragraphs']:
-                para = doc.add_paragraph(paragraph_text)
-                para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                para.paragraph_format.space_after = Pt(12)
-
-    # Key themes
-    # if 'key_themes' in content_json and content_json['key_themes']:
-    #     doc.add_heading("Key Themes", level=3)
-    #     for theme in content_json['key_themes']:
-    #         para = doc.add_paragraph(theme, style='List Bullet')
-    #         para.paragraph_format.left_indent = Inches(0.5)
+        for text in content_json['subsection_introduction'].get('paragraphs', []):
+            para = doc.add_paragraph(text)
+            para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
 def _add_topic(doc, topic, section_num, subsection_num, topic_num):
-    """Add a complete topic with all its content."""
+    """Add topic"""
 
-    # Topic heading (Level 3) with numbering
-    topic_number = f"{section_num}.{subsection_num}.{topic_num}"
-    topic_heading = doc.add_heading(f"{topic_number} {topic.title}", level=3)
-    topic_heading_run = topic_heading.runs[0]
-    style_heading(topic_heading_run, level=3)
-    topic_heading_run.font.color.rgb = RGBColor(102, 153, 204)
+    heading = doc.add_heading(f"{section_num}.{subsection_num}.{topic_num} {topic.title}", level=3)
+    run = heading.runs[0]
 
-    # Add topic content if available
+    style_heading(run, 3)
+    run.font.color.rgb = RGBColor(102, 153, 204)
+
     if hasattr(topic, 'content') and topic.content.status == 'generated':
         _add_topic_content(doc, topic.content.content_json)
 
 
 def _add_topic_content(doc, content_json):
-    """Add topic-level detailed content."""
+    """Add topic content"""
 
-    # Content sections
-    if 'sections' in content_json:
-        for content_section in content_json['sections']:
-
-            # Section heading (Level 4)
-            # if 'heading' in content_section and content_section['heading']:
-            #     doc.add_heading(content_section['heading'], level=4)
-
-            # Content blocks
-            if 'content_blocks' in content_section:
-                for block in content_section['content_blocks']:
-                    _add_content_block(doc, block)
+    for section in content_json.get('sections', []):
+        for block in section.get('content_blocks', []):
+            _add_content_block(doc, block)
 
 
 def _add_content_block(doc, block):
-    """Add individual content blocks"""
+    """Add content block"""
 
-    block_type = block.get('type', '')
+    # Handle different content block types
+    block_type = block.get('type')
 
     if block_type == 'paragraph':
-        content = block.get('content', '')
-        para = doc.add_paragraph(content)
+        para = doc.add_paragraph(block.get('content', ''))
         para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        para.paragraph_format.space_after = Pt(12)
 
     elif block_type == 'bullet_list':
-        items = block.get('content', [])
-        for item in items:
-            para = doc.add_paragraph(item, style='List Bullet')
-            para.paragraph_format.left_indent = Inches(0.5)
+        for item in block.get('content', []):
+            doc.add_paragraph(item, style='List Bullet')
 
     elif block_type == 'visual_placeholder':
         _add_visual(doc, block)
 
 
 def _add_visual(doc, block):
-    """add visual"""
-    generated_visual = block.get("generated_visual", {})
+    """Add visual"""
 
-    if generated_visual.get("status") != "ok":
+    # Render plotly figures or tables
+    visual = block.get("generated_visual", {})
+
+    if visual.get("status") != "ok":
         return
 
-    fig_json = generated_visual.get("figure_json")
-    visual_spec = generated_visual.get("visual_spec", {})
+    fig_json = visual.get("figure_json")
 
     if not fig_json:
         return
 
-    fig = pio.from_json(fig_json)
-
-    # DOCX TABLE
-    if visual_spec.get("type") == "table":
-        _render_table(doc, generated_visual)
+    if visual.get("visual_spec", {}).get("type") == "table":
+        _render_table(doc, visual)
         return
 
-    # PLOTLY IMAGE
     try:
+        fig = pio.from_json(fig_json)
         tmp = NamedTemporaryFile(delete=False, suffix=".png")
-        fig.write_image(tmp.name)  # requires kaleido
+        fig.write_image(tmp.name)
 
         doc.add_picture(tmp.name, width=Inches(6))
-        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    except Exception as e:
-        print("Plotly render error:", e)
+    except Exception:
+        pass
 
 
-def _set_cell_border(cell):
-    """render table cell"""
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
+def _render_table(doc, visual):
+    """Render table"""
 
-    borders = OxmlElement('w:tcBorders')
-
-    for border_name in ['top', 'left', 'bottom', 'right']:
-        border = OxmlElement(f'w:{border_name}')
-        border.set(qn('w:val'), 'single')
-        border.set(qn('w:sz'), '4')
-        border.set(qn('w:space'), '0')
-        border.set(qn('w:color'), '000000')
-        borders.append(border)
-
-    tcPr.append(borders)
-
-
-def _set_cell_shading(cell, fill):
-    """set table cell shading"""
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-
-    shd = OxmlElement('w:shd')
-    shd.set(qn('w:fill'), fill)
-    tcPr.append(shd)
-
-
-def _render_table(doc, generated_visual):
-    """render table"""
-    fig_json = generated_visual.get("figure_json")
-
-    if not fig_json:
-        return
-
+    # Build table from plotly json
     try:
-        fig = json.loads(fig_json)
+        fig = json.loads(visual.get("figure_json"))
     except Exception:
         return
 
-    if not fig.get("data"):
+    data = fig.get("data", [])
+    if not data:
         return
 
-    table_data = fig["data"][0]
-
-    if table_data.get("type") != "table":
-        return
+    table_data = data[0]
 
     headers = table_data.get("header", {}).get("values", [])
     cells = table_data.get("cells", {}).get("values", [])
@@ -316,85 +216,46 @@ def _render_table(doc, generated_visual):
     if not headers or not cells:
         return
 
-    num_rows = len(cells[0])
-    num_cols = len(headers)
+    table = doc.add_table(rows=len(cells[0]) + 1, cols=len(headers))
 
-    table = doc.add_table(rows=num_rows + 1, cols=num_cols)
-    table.style = "Table Grid"  # basic grid
+    for i, header in enumerate(headers):
+        table.rows[0].cells[i].text = str(header)
 
-    # HEADER ROW
-    for col_idx, header in enumerate(headers):
-        cell = table.rows[0].cells[col_idx]
-        cell.text = str(header)
+    for row_idx in range(len(cells[0])):
+        for col_idx in range(len(headers)):
+            table.rows[row_idx + 1].cells[col_idx].text = str(cells[col_idx][row_idx])
 
-        # text styles
-        for paragraph in cell.paragraphs:
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in paragraph.runs:
-                run.font.bold = True
-                run.font.size = Pt(10)
-
-        # Header background
-        _set_cell_shading(cell, "D9E1F2")
-
-        # Borders
-        _set_cell_border(cell)
-
-    # DATA ROWS
-    for row_idx in range(num_rows):
-        for col_idx in range(num_cols):
-            value = cells[col_idx][row_idx]
-            cell = table.rows[row_idx + 1].cells[col_idx]
-
-            # Format numbers
-            if isinstance(value, float):
-                cell.text = f"{value:.2f}"
-            else:
-                cell.text = str(value)
-
-            # Alignment
-            for paragraph in cell.paragraphs:
-                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                for run in paragraph.runs:
-                    run.font.size = Pt(10)
-
-            # Alternating row shading (zebra)
-            if row_idx % 2 == 0:
-                _set_cell_shading(cell, "F2F2F2")
-
-            # Borders
-            _set_cell_border(cell)
-    
-    space_para = doc.add_paragraph()
-    space_para.paragraph_format.space_after = Pt(12)
 
 def decode_bdata(bdata, dtype):
-    """decode visual binary data"""
+    """Decode binary data"""
+
     binary = base64.b64decode(bdata)
 
     if dtype == "f8":
         return list(struct.unpack(f"{len(binary)//8}d", binary))
-    elif dtype == "f4":
+    if dtype == "f4":
         return list(struct.unpack(f"{len(binary)//4}f", binary))
-    elif dtype == "i4":
+    if dtype == "i4":
         return list(struct.unpack(f"{len(binary)//4}i", binary))
-    elif dtype == "i2":
+    if dtype == "i2":
         return list(struct.unpack(f"{len(binary)//2}h", binary))
-    elif dtype == "i1":
+    if dtype == "i1":
         return list(struct.unpack(f"{len(binary)}b", binary))
 
     return []
 
+
 def style_heading(run, level):
-    """add styles to heading"""
+    """Style heading"""
+
     if level == 1:
-        run.font.size = Pt(18)   # Section
+        run.font.size = Pt(18)
         run.font.bold = True
 
     elif level == 2:
-        run.font.size = Pt(14)   # Subsection
+        run.font.size = Pt(14)
         run.font.bold = True
 
     elif level == 3:
-        run.font.size = Pt(12)   # Topic
+        run.font.size = Pt(12)
         run.font.bold = True

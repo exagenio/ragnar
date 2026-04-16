@@ -3,11 +3,7 @@ from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
-
-# === Local (Ollama) ===
 from langchain_ollama import ChatOllama, OllamaEmbeddings
-
-# === Cloud (Gemini) ===
 from langchain_google_genai import (
     ChatGoogleGenerativeAI,
     GoogleGenerativeAIEmbeddings,
@@ -19,10 +15,7 @@ from langchain_google_vertexai import ChatVertexAI
 from langchain_google_vertexai import VertexAIEmbeddings
 
 
-# ==========================
 # ENUMS
-# ==========================
-
 class LLMBackend(str, Enum):
     LOCAL = "local"
     CLOUD = "cloud"
@@ -33,10 +26,8 @@ class ModelSize(str, Enum):
     SMALL = "small"       # Cheaper / faster
 
 
-# ==========================
-# MODEL REGISTRY
-# ==========================
 
+# MODEL REGISTRY
 CLOUD_MODELS = {
     ModelSize.PRIMARY: "openai/gpt-5.4",
     ModelSize.SMALL: "openai/gpt-5.4-mini",
@@ -49,9 +40,7 @@ CLOUD_MODELS = {
 LOCAL_MODEL = "llama3.1:8b"
 
 
-# ==========================
 # LLM FACTORY
-# ==========================
 
 def get_llm(
     *,
@@ -92,10 +81,6 @@ def get_llm(
 
     raise ValueError(f"Unsupported LLM backend: {backend}")
 
-
-# ==========================
-# EMBEDDINGS FACTORY
-# ==========================
 
 def get_embeddings(
     *,

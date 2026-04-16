@@ -1,28 +1,22 @@
-# topic content generator
 import json
 import re
 from pathlib import Path
 from typing import Dict, List
-
 from django.conf import settings
-
-from rag_web.app.services.llm_config.llm_provider import (
+from sentence_transformers import SentenceTransformer, util
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from ..vector_db_config.vector_store import get_vector_store
-from sentence_transformers import SentenceTransformer, util
 from app.agents.rate_limiter import rate_limiter
 
-# Load once (global)
+
+# Load semantic model once
 semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
 SIMILARITY_THRESHOLD = 0.8
 
-
-# ==========================
-# CONFIG
-# ==========================
 
 MAX_ITERATIONS_PER_ELEMENT = 2
 
@@ -30,10 +24,6 @@ PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "topic_content_prompt.txt"
 )
 
-
-# ==========================
-# PUBLIC ENTRY POINT
-# ==========================
 
 def generate_topic_content(
     *,
@@ -47,9 +37,10 @@ def generate_topic_content(
     topic_title: str,
     topic_plan: Dict,
     existing_content: Dict | None = None,
-    precomputed_sql_placeholders: List[Dict] | None = None, 
+    precomputed_sql_placeholders: List[Dict] | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict:
+    """Generate topic content"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
     llm = get_llm(
@@ -60,10 +51,7 @@ def generate_topic_content(
 
     vector_store = get_vector_store()
 
-    # ==========================
-    # STATE (TOKEN SAFE)
-    # ==========================
-
+    # Initialize content state
     default_state = {
         "sections": [],
         "element_progress": {},
@@ -78,7 +66,7 @@ def generate_topic_content(
             **existing_content,
         }
 
-        # Ensure nested structures exist (critical)
+        # Ensure nested structures exist
         content_state["sections"] = existing_content.get("sections", [])
         content_state["element_progress"] = existing_content.get("element_progress", {})
         content_state["completed_elements"] = existing_content.get("completed_elements", [])
@@ -88,16 +76,12 @@ def generate_topic_content(
 
     required_elements = topic_plan.get("required_elements", [])
 
-    # ==========================
-    # MAIN LOOP (ELEMENT BY ELEMENT)
-    # ==========================
-
+    # Iterate through required elements
     for element in required_elements:
         if element in content_state["completed_elements"]:
             continue
 
         covered_points = []
-
 
         for elem, points in content_state["element_progress"].items():
             for p in points:
@@ -106,6 +90,7 @@ def generate_topic_content(
         iteration_count = 0
         retry_used = False
 
+        # Handle iterative content generation logic
         while iteration_count < MAX_ITERATIONS_PER_ELEMENT:
 
             metadata_context = retrieve_metadata_context(
@@ -135,7 +120,7 @@ def generate_topic_content(
                 precomputed_sql_placeholders=precomputed_sql_placeholders,
             )
 
-            # ---- TRY MERGE CONTENT
+            # Merge generated blocks
             all_blocks = []
 
             for section in iteration_output.get("sections", []):
@@ -143,25 +128,17 @@ def generate_topic_content(
 
             any_added = _merge_blocks(content_state["sections"], all_blocks)
 
-            # -------------------------------------
-            # CASE 1: DUPLICATE → RETRY LOGIC
-            # -------------------------------------
+            # Handle duplicate case
             if not any_added:
                 print("[SKIP] Duplicate found, moving forward")
                 retry_used = False
                 iteration_count += 1
                 continue
 
-            
-
-            # -------------------------------------
-            # CASE 2: SUCCESS → UPDATE STATE
-            # -------------------------------------
-
+            # Update state after successful merge
             retry_used = False
             iteration_count += 1
 
-            # ---- Merge limitations
             existing_limits = content_state.get("limitations", [])
             new_limits = iteration_output.get("limitations", [])
 
@@ -169,13 +146,11 @@ def generate_topic_content(
                 dict.fromkeys(existing_limits + new_limits)
             )
 
-            # ---- Update semantic memory ONLY IF SUCCESS
             new_points = iteration_output.get("newly_covered_points", [])
             covered_points = list(dict.fromkeys(covered_points + new_points))
 
             content_state["element_progress"][element] = covered_points
 
-            # ---- Completion check ONLY IF SUCCESS
             if iteration_output.get("is_element_complete") is True:
                 content_state["completed_elements"].append(element)
                 break
@@ -183,10 +158,6 @@ def generate_topic_content(
     content_state["status"] = "generated"
     return content_state
 
-
-# ==========================
-# SINGLE ITERATION
-# ==========================
 
 def generate_single_iteration(
     *,
@@ -204,7 +175,9 @@ def generate_single_iteration(
     covered_points: List[str],
     precomputed_sql_placeholders: List[Dict] | None = None,
 ) -> Dict:
+    """Generate single iteration"""
 
+    # Build prompt from template
     prompt = render_prompt(
         PROMPT_PATH,
         {
@@ -223,15 +196,16 @@ def generate_single_iteration(
         },
     )
 
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    # Apply rate limiting
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
+    # Invoke llm
     response = llm.invoke(prompt)
     content = response.content
 
+    # Extract response text
     if isinstance(content, list):
-        # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_text = content[0]["text"].strip()
         else:
@@ -242,11 +216,9 @@ def generate_single_iteration(
     return extract_json_or_fail(raw_text)
 
 
-# ==========================
-# HELPERS
-# ==========================
-
 def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: int = 8):
+    """Retrieve metadata context"""
+
     docs = vector_store.similarity_search(
         query,
         k=k,
@@ -256,51 +228,42 @@ def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: i
 
 
 def _build_metadata_query(section, subsection, topic, element):
+    """Build metadata query"""
+
     return f"{section} {subsection} {topic} {element}"
 
-def _merge_blocks(sections: List[Dict], new_blocks: List[Dict]) -> bool:
-    """
-    Atomic merge:
-    - Validate ALL blocks first
-    - If ANY duplicate → reject entire batch
-    - If ALL unique → append ALL
-    Returns True if merged, False if rejected
-    """
 
+def _merge_blocks(sections: List[Dict], new_blocks: List[Dict]) -> bool:
+    """Merge blocks atomically"""
+
+    # Handle atomic merge logic
     if not sections:
         sections.append({"heading": "Analysis", "content_blocks": []})
 
     existing_blocks = sections[0]["content_blocks"]
 
-    # -------------------------
-    # TEMP BUFFER (CRITICAL)
-    # -------------------------
     temp_blocks = []
 
     for block in new_blocks:
 
-        # Compare against BOTH:
-        # 1. existing content
-        # 2. already validated new blocks
         comparison_pool = existing_blocks + temp_blocks
 
         is_duplicate = filter_similar_blocks(comparison_pool, block)
 
         if is_duplicate:
             print(f"[REJECTED BATCH - DUPLICATE FOUND] {block.get('type')}")
-            return False  # ❌ Reject entire batch
+            return False
 
         temp_blocks.append(block)
 
-    # -------------------------
-    # COMMIT (ALL AT ONCE)
-    # -------------------------
     existing_blocks.extend(temp_blocks)
 
     return True
 
 
 def render_prompt(prompt_path: Path, context: dict) -> str:
+    """Render prompt"""
+
     prompt = prompt_path.read_text(encoding="utf-8")
     for key, value in context.items():
         prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
@@ -308,17 +271,14 @@ def render_prompt(prompt_path: Path, context: dict) -> str:
 
 
 def extract_json_or_fail(raw_text: str):
+    """Extract json from text"""
 
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
     raw_text = raw_text.strip()
 
-    import re
-
-    # -----------------------------
-    # TRY ARRAY FIRST
-    # -----------------------------
+    # Extract json array first
     array_match = re.search(r"\[[\s\S]*\]", raw_text)
 
     if array_match:
@@ -327,9 +287,7 @@ def extract_json_or_fail(raw_text: str):
         except Exception:
             pass
 
-    # -----------------------------
-    # FALLBACK OBJECT
-    # -----------------------------
+    # Extract json object fallback
     obj_match = re.search(r"\{[\s\S]*\}", raw_text)
 
     if obj_match:
@@ -338,30 +296,25 @@ def extract_json_or_fail(raw_text: str):
         except Exception:
             pass
 
-    # -----------------------------
-    # DEBUG
-    # -----------------------------
     raise ValueError(f"Invalid JSON from LLM:\n{raw_text[:1000]}")
 
-def _extract_visual_purpose(content) -> str:
-    """
-    Supports both:
-    - string placeholder
-    - structured dict
-    """
 
-    # NEW FORMAT (dict)
+def _extract_visual_purpose(content) -> str:
+    """Extract visual purpose"""
+
     if isinstance(content, dict):
         return content.get("purpose", "") or ""
 
-    # OLD FORMAT (string)
     if isinstance(content, str):
         match = re.search(r'purpose:\s*"(.*?)"', content, re.DOTALL)
         return match.group(1).strip() if match else ""
 
     return ""
 
+
 def _is_similar(text1: str, text2: str) -> bool:
+    """Check similarity between texts"""
+
     if not text1 or not text2:
         return False
 
@@ -372,17 +325,13 @@ def _is_similar(text1: str, text2: str) -> bool:
     score_value = float(score.max())
     return score_value >= SIMILARITY_THRESHOLD
 
+
 def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
-    """
-    Returns True → if block is similar (should be REMOVED)
-    Returns False → if block is unique (should be ADDED)
-    """
+    """Filter similar blocks"""
 
     new_type = new_block.get("type")
 
-    # -------------------------
-    # CASE 1: PARAGRAPH / BULLET
-    # -------------------------
+    # Handle text blocks
     if new_type in ["paragraph", "bullet_list"]:
 
         new_text = new_block.get("content", "")
@@ -394,13 +343,11 @@ def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
             existing_text = block.get("content", "")
             existing_text = _normalize_bullet_content(existing_text)
             if _is_similar(new_text, existing_text):
-                print("[simiar text new]",new_text)
-                print("[simiar text exist]",existing_text)
+                print("[simiar text new]", new_text)
+                print("[simiar text exist]", existing_text)
                 return True
 
-    # -------------------------
-    # CASE 2: VISUAL PLACEHOLDER
-    # -------------------------
+    # Handle visual placeholders
     elif new_type == "visual_placeholder":
         content = new_block.get("content")
         new_purpose = _extract_visual_purpose(content)
@@ -416,10 +363,10 @@ def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
 
     return False
 
+
 def _normalize_bullet_content(content):
-    """
-    Convert bullet list (list of strings) into a single string.
-    """
+    """Normalize bullet content"""
+
     if isinstance(content, list):
         return " ".join(content)
     return content

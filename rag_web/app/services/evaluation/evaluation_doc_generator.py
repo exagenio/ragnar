@@ -1,16 +1,15 @@
+from io import BytesIO
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from io import BytesIO
 
 
 def generate_evaluation_document(report, topic_evals):
+    """Generate evaluation document"""
 
     doc = Document()
 
-    # =========================
-    # TITLE
-    # =========================
+    # Create title section
     title = doc.add_heading("Evaluation Report", 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -18,9 +17,7 @@ def generate_evaluation_document(report, topic_evals):
     doc.add_paragraph(f"Report Title: {report.title}")
     doc.add_paragraph()
 
-    # =========================
-    # PROJECT LEVEL CALCULATION
-    # =========================
+    # Initialize aggregation containers
     overall_with_conc = []
     overall_without_conc = []
 
@@ -29,9 +26,10 @@ def generate_evaluation_document(report, topic_evals):
     agg_hallucination = []
     agg_conciseness = []
 
-    # 🔥 keep per-topic computed rows for the table
+    # Store topic-level computed rows
     topic_rows = []
 
+    # Process each topic evaluation and compute metrics
     for eval_obj in topic_evals:
         scores = eval_obj.geval_scores or {}
 
@@ -51,7 +49,6 @@ def generate_evaluation_document(report, topic_evals):
         agg_hallucination.append(h)
         agg_conciseness.append(con)
 
-        # 🔥 store for table
         topic_rows.append({
             "id": eval_obj.topic.id,
             "title": eval_obj.topic.title,
@@ -64,11 +61,10 @@ def generate_evaluation_document(report, topic_evals):
         })
 
     def avg(arr):
+        """Calculate average"""
         return round(sum(arr) / len(arr), 2) if arr else 0
 
-    # =========================
-    # SUMMARY
-    # =========================
+    # Build summary section
     doc.add_heading("Overall Evaluation Summary", level=1)
 
     doc.add_paragraph(f"Overall Score (with conciseness): {avg(overall_with_conc)}")
@@ -79,9 +75,7 @@ def generate_evaluation_document(report, topic_evals):
     doc.add_paragraph(f"Hallucination: {avg(agg_hallucination)}")
     doc.add_paragraph(f"Conciseness: {avg(agg_conciseness)}")
 
-    # =========================
-    # 🔥 TABLE SECTION (NEW)
-    # =========================
+    # Build table section
     doc.add_page_break()
     doc.add_heading("Topic Evaluation Summary Table", level=1)
 
@@ -99,7 +93,7 @@ def generate_evaluation_document(report, topic_evals):
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
 
-    # Header row
+    # Populate header row
     for i, h in enumerate(headers):
         cell = table.rows[0].cells[i]
         cell.text = h
@@ -109,7 +103,7 @@ def generate_evaluation_document(report, topic_evals):
                 run.font.bold = True
                 run.font.size = Pt(10)
 
-    # Data rows
+    # Populate data rows
     for row in topic_rows:
         cells = table.add_row().cells
 
@@ -139,9 +133,7 @@ def generate_evaluation_document(report, topic_evals):
 
     doc.add_page_break()
 
-    # =========================
-    # TOPIC DETAILS
-    # =========================
+    # Build topic-level details section
     doc.add_heading("Topic-Level Evaluation", level=1)
 
     for eval_obj in topic_evals:
@@ -165,6 +157,7 @@ def generate_evaluation_document(report, topic_evals):
 
         doc.add_paragraph()
 
+    # Save document to buffer
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)

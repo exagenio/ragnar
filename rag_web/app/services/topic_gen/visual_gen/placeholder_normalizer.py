@@ -1,8 +1,5 @@
 def normalize_placeholders(content_json: dict) -> dict:
-    """
-    Normalize malformed SQL / VISUAL placeholders produced by the LLM.
-    Converts dict placeholders into proper {{SQL_CALCULATION}} / {{VISUAL}} format.
-    """
+    """Normalize placeholder formats"""
 
     sections = content_json.get("sections", [])
 
@@ -13,55 +10,41 @@ def normalize_placeholders(content_json: dict) -> dict:
 
             block_type = block.get("type")
 
+            # Process only visual placeholders
             if block_type != "visual_placeholder":
                 continue
 
             raw = block.get("content")
 
-            # --------------------------------
-            # CASE 1 — Already correct string
-            # --------------------------------
+            # Handle string content
             if isinstance(raw, str):
 
                 raw = raw.strip()
 
-                if block_type == "sql_placeholder" and raw.startswith("{{SQL_CALCULATION"):
+                # Skip if already formatted
+                if raw.startswith("{{VISUAL"):
                     continue
 
-                if block_type == "visual_placeholder" and raw.startswith("{{VISUAL"):
-                    continue
-
-                # If string but missing wrapper
+                # Wrap json-like string
                 if raw.startswith("{"):
-
                     cleaned = raw.strip("{} \n")
-
-                    if block_type == "sql_placeholder":
-                        block["content"] = (
-                            "{{SQL_CALCULATION:\n"
-                            f"{cleaned}\n"
-                            "}}"
-                        )
-
-                    else:
-                        block["content"] = (
-                            "{{VISUAL:\n"
-                            f"{cleaned}\n"
-                            "}}"
-                        )
-
-            # --------------------------------
-            # CASE 2 — Content is a dict (LLM parsed JSON)
-            # --------------------------------
-            elif isinstance(raw, dict):
-                if block_type == "visual_placeholder":
 
                     block["content"] = (
                         "{{VISUAL:\n"
-                        f"  id: {raw.get('id')};\n"
-                        f"  type: {raw.get('type')};\n"
-                        f"  purpose: \"{raw.get('purpose')}\";\n"
+                        f"{cleaned}\n"
                         "}}"
                     )
+
+            # Handle dictionary content
+            elif isinstance(raw, dict):
+
+                # Convert dictionary into visual placeholder
+                block["content"] = (
+                    "{{VISUAL:\n"
+                    f"  id: {raw.get('id')};\n"
+                    f"  type: {raw.get('type')};\n"
+                    f"  purpose: \"{raw.get('purpose')}\";\n"
+                    "}}"
+                )
 
     return content_json

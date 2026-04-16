@@ -1,31 +1,41 @@
-# content agent
-from app.models import Report, ReportOutline
-from rag_web.app.services.outline_generation.report_outline_generator import generate_report_outline
-from app.models import Section, SubSection
-from app.models import Topic, SelectedTable
-from rag_web.app.services.sub_sec_gen.subsection_topic_generator import generate_subsection_topics
-from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
-from app.models import TopicAnalysisPlan
-from rag_web.app.services.topic_gen.topic_analysis_plan_generator import generate_topic_analysis_plan
-from rag_web.app.services.topic_gen.topic_content_generator import generate_topic_content
-from app.models import SubSectionContent
-from rag_web.app.services.sub_sec_gen.sub_section_content_generator import generate_subsection_content
-from app.models import SectionContent
-from app.services.section_content_generator import generate_section_content
-from django.utils.text import slugify
-from app.models import Section, TopicContent
-from app.services.document_generator import generate_report_document
+# Standard library imports
 import json
-from rag_web.app.services.topic_gen.visual_gen.placeholder_normalizer import normalize_placeholders
-from rag_web.app.services.topic_gen.topic_content_repair import repair_topic_content
+
+# Third-party imports
+from django.utils.text import slugify
+
+# Local imports
+from app.models import (
+    Report,
+    ReportOutline,
+    Section,
+    SubSection,
+    Topic,
+    SelectedTable,
+    TopicAnalysisPlan,
+    SubSectionContent,
+    SectionContent,
+    TopicContent,
+)
+from app.services.document_generator import generate_report_document
+
+from app.services.outline_generation.report_outline_generator import generate_report_outline
+from app.services.sub_sec_gen.subsection_topic_generator import generate_subsection_topics
+from app.services.metadata_generation.column_introspector import get_table_columns
+from app.services.topic_gen.topic_analysis_plan_generator import generate_topic_analysis_plan
+from app.services.topic_gen.topic_content_generator import generate_topic_content
+from app.services.sub_sec_gen.sub_section_content_generator import generate_subsection_content
+from app.services.section_content_generator import generate_section_content
+from app.services.topic_gen.visual_gen.placeholder_normalizer import normalize_placeholders
+from app.services.topic_gen.topic_content_repair import repair_topic_content
+
 
 class ContentAgent:
 
     def start_report(self, project, data):
-        """
-        Creates a new report and generates its outline.
-        """
-        
+        """Start report"""
+
+        # Generate outline and create report
         outline = generate_report_outline(data=data, project_id=project.id)
 
         report = Report.objects.create(
@@ -47,6 +57,7 @@ class ContentAgent:
         return report
     
     def update_outline(self, outline_obj, updated_outline):
+        """Update outline"""
 
         outline_obj.outline_json = updated_outline
         outline_obj.save()
@@ -55,6 +66,7 @@ class ContentAgent:
 
 
     def approve_outline(self, report):
+        """Approve outline"""
 
         outline_obj = report.outline
         outline_obj.approved = True
@@ -66,6 +78,7 @@ class ContentAgent:
 
         outline_data = outline_obj.outline_json
 
+        # Create sections and subsections from outline
         for section_data in outline_data.get("sections", []):
             section_title = section_data.get("section_title", "").strip()
 
@@ -94,7 +107,9 @@ class ContentAgent:
         return report
     
     def generate_topics(self, report, subsection, section, project_id):
+        """Generate topics"""
 
+        # Build context and generate topics
         context = {
             "industry": report.industry,
             "report_type": report.report_type,
@@ -108,6 +123,7 @@ class ContentAgent:
             context=context,
             project_id=project_id,
         )
+
         print("topics")
         print(result)
 
@@ -119,7 +135,9 @@ class ContentAgent:
             )
 
     def save_topics(self, report, subsection, submitted_titles):
+        """Save topics"""
 
+        # Sync topics with submitted list
         existing_topics = {t.title: t for t in subsection.topics.all()}
 
         for title, topic_obj in existing_topics.items():
@@ -135,6 +153,7 @@ class ContentAgent:
             )
 
     def approve_topics(self, subsection, section):
+        """Approve topics"""
 
         Topic.objects.filter(subsection=subsection).update(is_approved=True)
 
@@ -145,11 +164,13 @@ class ContentAgent:
         section.save()
 
     def build_schema_context(self, project):
+        """Build schema context"""
 
         tables = SelectedTable.objects.filter(project=project)
 
         schema_context = []
 
+        # Build schema structure from selected tables
         for t in tables:
             columns = get_table_columns(project.db_connection, t.table_name)
 
@@ -166,6 +187,7 @@ class ContentAgent:
         return schema_context
     
     def generate_topic_analysis_plan(self, project, report, topic):
+        """Generate topic analysis plan"""
 
         subsection = topic.subsection
         section = subsection.section
@@ -178,6 +200,7 @@ class ContentAgent:
             defaults={"plan_json": {}},
         )
 
+        # Generate plan if not exists
         if not plan_obj.plan_json:
 
             context = {
@@ -199,6 +222,8 @@ class ContentAgent:
         return plan_obj
     
     def update_topic_analysis_plan(self, plan_obj, topic, form_data, approve=False):
+        """Update topic analysis plan"""
+
 
         plan = plan_obj.plan_json.copy()
 
@@ -237,6 +262,7 @@ class ContentAgent:
         return plan
 
     def get_topic_content(self, topic):
+        """Get topic content"""
 
         if not topic.is_approved:
             raise ValueError("Topic must be approved before content generation.")
@@ -256,6 +282,7 @@ class ContentAgent:
         return content_obj
     
     def generate_topic_content(self, project, report, topic, content_obj):
+        """Generate topic content"""
 
         content_obj.status = "in_progress"
         content_obj.save()
@@ -264,6 +291,7 @@ class ContentAgent:
             "precomputed_sql_placeholders", []
         )
 
+        # Generate and normalize content
         result = generate_topic_content(
             project_id=project.id,
             industry=report.industry,
@@ -288,6 +316,7 @@ class ContentAgent:
         return content_obj
     
     def get_subsection_content(self, subsection):
+        """Get subsection content"""
 
         content_obj, _ = SubSectionContent.objects.get_or_create(
             subsection=subsection,
@@ -296,201 +325,5 @@ class ContentAgent:
                 "status": "draft",
             },
         )
-
-        return content_obj
-
-
-    def validate_subsection_generation(self, subsection):
-
-        topics = subsection.topics.filter(is_approved=True)
-
-        if not topics.exists():
-            raise ValueError("No approved topics found for this subsection.")
-
-        all_topics_have_content = all(
-            hasattr(topic, "content") and topic.content.status == "generated"
-            for topic in topics
-        )
-
-        if not all_topics_have_content:
-            raise ValueError(
-                "All topics must have generated content before creating subsection content."
-            )
-
-        return topics
-
-
-    def collect_topics_progress(self, topics):
-
-        topics_progress = {}
-
-        for topic in topics:
-            if hasattr(topic, "content") and topic.content.content_json:
-
-                element_progress = topic.content.content_json.get(
-                    "element_progress",
-                    {},
-                )
-
-                topics_progress[topic.title] = element_progress
-
-        return topics_progress
-
-
-    def generate_subsection_content(
-        self,
-        project,
-        report,
-        subsection,
-        topics,
-        content_obj,
-    ):
-
-        content_obj.status = "in_progress"
-        content_obj.save()
-
-        topics_progress = self.collect_topics_progress(topics)
-
-        result = generate_subsection_content(
-            project_id=project.id,
-            industry=report.industry,
-            report_type=report.report_type,
-            audience=report.audience,
-            purpose=report.purpose,
-            report_title=report.title,
-            section_title=subsection.section.title,
-            subsection_title=subsection.title,
-            topics_progress=topics_progress,
-        )
-
-        content_obj.content_json = result
-        content_obj.status = "generated"
-        content_obj.save()
-
-        return content_obj
-    
-    def validate_section_generation(self, section):
-
-        subsections = section.sub_sections.all()
-
-        if not subsections.exists():
-            raise ValueError("No subsections found for this section.")
-
-        all_have_content = all(
-            hasattr(subsection, "content") and subsection.content.status == "generated"
-            for subsection in subsections
-        )
-
-        if not all_have_content:
-            raise ValueError(
-                "All subsections must have generated content before creating section content."
-            )
-
-        return subsections
-
-
-    def get_section_content(self, section):
-
-        content_obj, _ = SectionContent.objects.get_or_create(
-            section=section,
-            defaults={
-                "content_json": {},
-                "status": "draft",
-            },
-        )
-
-        return content_obj
-
-
-    def collect_subsections_themes(self, subsections):
-
-        subsections_themes = {}
-
-        for subsection in subsections:
-            if hasattr(subsection, "content") and subsection.content.content_json:
-
-                key_themes = subsection.content.content_json.get(
-                    "key_themes",
-                    [],
-                )
-
-                subsections_themes[subsection.title] = key_themes
-
-        return subsections_themes
-
-
-    def generate_section_content(
-        self,
-        project,
-        report,
-        section,
-        subsections,
-        content_obj,
-    ):
-
-        content_obj.status = "in_progress"
-        content_obj.save()
-
-        subsections_themes = self.collect_subsections_themes(subsections)
-
-        result = generate_section_content(
-            project_id=project.id,
-            industry=report.industry,
-            report_type=report.report_type,
-            audience=report.audience,
-            purpose=report.purpose,
-            report_title=report.title,
-            section_title=section.title,
-            subsections_themes=subsections_themes,
-        )
-
-        content_obj.content_json = result
-        content_obj.status = "generated"
-        content_obj.save()
-
-        return content_obj
-
-    
-    def generate_report_document(self, report):
-
-        sections = (
-            Section.objects.filter(report=report)
-            .prefetch_related(
-                "sub_sections__topics__content",
-                "sub_sections__content",
-                "content",
-            )
-            .order_by("created_at")
-        )
-
-        document_buffer = generate_report_document(report, sections)
-
-        filename = f"{slugify(report.title)}_report.docx"
-
-        return document_buffer, filename
-    
-    def repair_topic_content(
-    self,
-    project,
-    report,
-    topic,
-    content_obj,
-    ):
-        content_json = content_obj.content_json
-
-        repaired = repair_topic_content(
-            industry=report.industry,
-            report_type=report.report_type,
-            audience=report.audience,
-            purpose=report.purpose,
-            section_title=topic.subsection.section.title,
-            subsection_title=topic.subsection.title,
-            topic_title=topic.title,
-            topic_plan=topic.analysis_plan.plan_json,
-            content_json=content_json,
-        )
-
-        content_obj.content_json = repaired
-        content_obj.save()
 
         return content_obj

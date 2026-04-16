@@ -7,19 +7,17 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from app.models import Topic
 from app.models import Section, TopicContent, TopicAnalysisPlan, SubSectionGenerateTime, TopicGenerateTime
-from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+from app.services.vector_db_config.vector_store import get_vector_store
 import base64
 import struct
-from rag_web.app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
+from app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
 import traceback
 from django.utils.timezone import now
+from app.utils.data_decoder import decode_sql_result
+from app.utils.block_processing import build_prompt_blocks, build_block_chunks, apply_repaired_blocks
+from app.utils.visual_utils import has_pending_visuals
 class ManagerAgent:
-    """
-    Central orchestrator of the system.
-
-    Django Views communicate ONLY with this agent.
-    The ManagerAgent coordinates all other agents.
-    """
+    """Central orchestrator of the system."""
 
     def __init__(self):
         self.project_service = ProjectService()
@@ -40,11 +38,6 @@ class ManagerAgent:
         project = self.project_service.create_project_with_db(data)
 
         return project
-
-
-    # ----------------------------
-    # Metadata operations
-    # ----------------------------
 
     def discover_tables(self, db_connection):
         return self.metadata_agent.discover_tables(db_connection)
@@ -205,10 +198,8 @@ class ManagerAgent:
         return True
 
 
-    # ---------------------------------------
-    # MAIN PIPELINE
-    # ---------------------------------------
 
+    # MAIN PIPELINE
     def _run_subsection_pipeline(self, project, report, subsection):
         start_time = now()
         status = "success"
@@ -219,25 +210,20 @@ class ManagerAgent:
 
             print(f"[AUTO] Starting subsection pipeline → Subsection {subsection.id}")
 
-            # -----------------------------
             # Generate Topics
-            # -----------------------------
             self.generate_topics(report, subsection, section, project.id)
 
             topics = list(subsection.topics.all())
 
             print(f"[AUTO] Generated {len(topics)} topics")
 
-            # -----------------------------
+
             # Approve Topics
-            # -----------------------------
             self.approve_topics(subsection, section)
 
             print("[AUTO] Topics approved")
 
-            # -----------------------------
             # Concurrent Topic Pipelines
-            # -----------------------------
             with ThreadPoolExecutor(max_workers=3) as executor:
 
                 futures = []
@@ -261,9 +247,7 @@ class ManagerAgent:
 
             print("[AUTO] All topic pipelines completed")
 
-            # -----------------------------
             # Generate Subsection Content
-            # -----------------------------
             topics = self.validate_subsection_generation(subsection)
 
             subsection_content = self.get_subsection_content(subsection)
@@ -296,10 +280,8 @@ class ManagerAgent:
 
             print(f"[AUTO] Subsection pipeline finished → Subsection {subsection.id}")
 
-    # ---------------------------------------
-    # SINGLE TOPIC PIPELINE
-    # ---------------------------------------
 
+    # SINGLE TOPIC PIPELINE
     def _run_topic_pipeline(self, project, report, topic, plan_generated=False):
         start_time = now()
         status = "success"
@@ -307,22 +289,15 @@ class ManagerAgent:
         try:
             print(f"[PIPELINE] Start → Topic {topic.id}")
 
-            # -----------------------------
             # 1. PLAN + SQL PLACEHOLDERS
-            # -----------------------------
             content_obj = self._stage_analysis_and_sql(project, report, topic, plan_generated)
 
-            # -----------------------------
             # 2. CONTENT GENERATION
-            # -----------------------------
-
             content_obj = self._stage_generate_content(
                 project, report, topic, content_obj
             )
 
-            # -----------------------------
-            # 3. VISUAL PIPELINE (NEW)
-            # -----------------------------
+            # 3. VISUAL PIPELINE
             content_obj = self._stage_generate_visuals(
                 project, report, topic, content_obj
             )
@@ -430,10 +405,8 @@ class ManagerAgent:
                     except Exception as e:
                         print(f"[VISUAL ERROR] {e}")
 
-            # -----------------------------
             # CHECK REMAINING
-            # -----------------------------
-            if not self._has_pending_visuals(content_obj):
+            if not has_pending_visuals(content_obj):
                 print(f"[STAGE 3] All visuals done → Topic {topic.id}")
                 break
 
@@ -449,9 +422,7 @@ class ManagerAgent:
         block_index,
     ):
 
-        # -------------------------
-        # 1. GENERATE VISUAL
-        # -------------------------
+        # GENERATE VISUAL
         self.compute_visual_block(
             project,
             report,
@@ -475,9 +446,6 @@ class ManagerAgent:
 
         before = narrative.get("before_block")
         after = narrative.get("after_block")
-
-        # replace placeholder with:
-        # before → visual → after
 
         new_blocks = []
 
@@ -514,9 +482,7 @@ class ManagerAgent:
             },
         )
 
-        # -----------------------------
-        # 1. METADATA CONTEXT
-        # -----------------------------
+        # METADATA CONTEXT
         vector_store = get_vector_store()
 
         metadata_context = vector_store.similarity_search(
@@ -530,9 +496,7 @@ class ManagerAgent:
             for d in metadata_context
         ]
 
-        # -----------------------------
-        # 2. GENERATE PLACEHOLDERS
-        # -----------------------------
+        # GENERATE PLACEHOLDERS
         sql_agent = SQLAgent()
 
         placeholders_result = sql_agent.generate_sql_placeholders_from_plan(
@@ -543,9 +507,7 @@ class ManagerAgent:
 
         placeholders = placeholders_result.get("placeholders", [])
 
-        # -----------------------------
-        # 3. FORMAT
-        # -----------------------------
+        # FORMAT
         def to_sql_block(p, topic_id, index):
             return {
                 "type": "sql_placeholder",
@@ -562,9 +524,7 @@ class ManagerAgent:
             for i, p in enumerate(placeholders)
         ]
 
-        # -----------------------------
-        # 4. SAVE
-        # -----------------------------
+        # SAVE
         content_json = content_obj.content_json or {}
         content_json["precomputed_sql_placeholders"] = sql_blocks
 
@@ -583,11 +543,11 @@ class ManagerAgent:
 
             blocks = section.get("content_blocks", [])
 
-            # 1. Extract
-            formatted_blocks = self.build_prompt_blocks(blocks, self._decode_sql_result)
+            # Extract
+            formatted_blocks = build_prompt_blocks(blocks, decode_sql_result)
 
-            # 2. Chunk
-            chunks = self.build_block_chunks(formatted_blocks, chunk_size=6)
+            # Chunk
+            chunks = build_block_chunks(formatted_blocks, chunk_size=6)
 
             all_updates = []
 
@@ -601,8 +561,8 @@ class ManagerAgent:
                     print(f"[REPAIR ERROR] Topic {topic.id}")
                     print(f"Error: {str(e)}")
                     traceback.print_exc()
-            # 3. Apply
-            section["content_blocks"] = self.apply_repaired_blocks(
+
+            section["content_blocks"] = apply_repaired_blocks(
                 blocks,
                 all_updates
             )
@@ -612,116 +572,12 @@ class ManagerAgent:
         print(f"[STAGE 4] Completed → Topic {topic.id}")
 
         return content_obj
-
-
-    def decode_bdata(self, bdata, dtype):
-        binary = base64.b64decode(bdata)
-
-        if dtype == "f8":
-            return list(struct.unpack(f"{len(binary)//8}d", binary))
-        elif dtype == "f4":
-            return list(struct.unpack(f"{len(binary)//4}f", binary))
-        elif dtype == "i4":
-            return list(struct.unpack(f"{len(binary)//4}i", binary))
-        elif dtype == "i2":
-            return list(struct.unpack(f"{len(binary)//2}h", binary))
-        elif dtype == "i1":
-            return list(struct.unpack(f"{len(binary)}b", binary))
-
-        return []
-    
-    def _decode_sql_result(self, sql_result):
-
-        if not sql_result:
-            return sql_result
-
-        # table format
-        if isinstance(sql_result, dict) and "rows" in sql_result:
-            return sql_result
-
-        # chart format
-        if isinstance(sql_result, dict):
-
-            decoded = {}
-
-            for key, val in sql_result.items():
-
-                if isinstance(val, dict) and "bdata" in val:
-                    decoded[key] = self.decode_bdata(val["bdata"], val.get("dtype"))
-                else:
-                    decoded[key] = val
-
-            return decoded
-
-        return sql_result
-    
-
-    def build_prompt_blocks(self, blocks, decode_fn):
-
-        formatted = []
-
-        for i, block in enumerate(blocks):
-
-            if block["type"] == "visual_placeholder":
-                block = self.normalize_visual_block(block)
-
-                content = block.get("content", {})
-
-                decoded = decode_fn(
-                    block.get("generated_visual", {}).get("data")
-                )
-
-                formatted.append({
-                    "block_index": i,
-                    "type": "visual",
-                    "visual_id": content.get("id"),
-                    "visual_type": content.get("type"),
-                    "purpose": content.get("purpose"),
-                    "data": decoded
-                })
-
-            elif block["type"] in ["paragraph", "bullet_list"]:
-
-                formatted.append({
-                    "block_index": i,
-                    "type": block["type"],
-                    "content": block["content"]
-                })
-
-        return formatted
-    
-    def build_block_chunks(self,blocks, chunk_size=8):
-        """
-        Chunk based on number of repairable blocks
-        """
-        chunks = []
-
-        for i in range(0, len(blocks), chunk_size):
-            chunks.append(blocks[i:i+chunk_size])
-
-        return chunks
-    
-    def apply_repaired_blocks(self,original_blocks, repaired_blocks):
-
-        for updated in repaired_blocks:
-
-            idx = updated["block_index"]
-
-            if idx >= len(original_blocks):
-                continue
-
-            if original_blocks[idx]["type"] not in ["paragraph", "bullet_list"]:
-                continue
-
-            original_blocks[idx]["content"] = updated["content"]
-
-        return original_blocks
     
     def normalize_visual_block(self, block):
         raw = block.get("content")
 
         if isinstance(raw, dict):
-            return block  # already correct
+            return block
 
         if isinstance(raw, str) and "{{VISUAL" in raw:
 

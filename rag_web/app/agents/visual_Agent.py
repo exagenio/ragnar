@@ -1,15 +1,18 @@
-from pathlib import Path
-from django.conf import settings
-
-from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import generate_visual_plan
-from rag_web.app.services.sql_gen.sql_agent import generate_sql_from_visual_plan
-from rag_web.app.services.sql_gen.sql_executor import execute_sql_safely
-from rag_web.app.services.topic_gen.visual_gen.visual_renderer import render_visual
 
 from app.models import SelectedTable
-from rag_web.app.services.metadata_generation.column_introspector import get_table_columns
-from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import parse_visual_placeholder
-from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+
+from app.services.metadata_generation.column_introspector import get_table_columns
+from app.services.vector_db_config.vector_store import get_vector_store
+
+from app.services.topic_gen.visual_gen.visual_agent_service import (
+    generate_visual_plan,
+    parse_visual_placeholder,
+)
+from app.services.topic_gen.visual_gen.visual_renderer import render_visual
+
+from app.services.sql_gen.sql_agent import generate_sql_from_visual_plan
+from app.services.sql_gen.sql_executor import execute_sql_safely
+
 
 SUPPORTED_VISUAL_TYPES = {
     "line_chart",
@@ -23,11 +26,13 @@ SUPPORTED_VISUAL_TYPES = {
 class VisualAgent:
 
     def build_schema_context(self, project):
+        """Build schema context"""
 
         tables = SelectedTable.objects.filter(project=project)
 
         schema_context = []
 
+        # Build schema structure from selected tables
         for t in tables:
             columns = get_table_columns(project.db_connection, t.table_name)
 
@@ -41,9 +46,6 @@ class VisualAgent:
 
         return schema_context
     
-    # -----------------------------------------
-    # REMOVE PLACEHOLDER SAFELY
-    # -----------------------------------------
     def _remove_visual_placeholder(
         self,
         sections,
@@ -55,6 +57,7 @@ class VisualAgent:
         attempted_sql=None,
         error=None,
     ):
+        """Remove visual placeholder"""
 
         try:
             block = sections[section_index]["content_blocks"][block_index]
@@ -85,15 +88,15 @@ class VisualAgent:
         section_index,
         block_index,
     ):
+        """Compute visual block"""
 
         content_json = content_obj.content_json
         sections = content_json.get("sections", [])
 
         try:
             visual_block = sections[section_index]["content_blocks"][block_index]
-            # -----------------------------
-            # RETRY METADATA
-            # -----------------------------
+
+            # Initialize retry metadata
             retry_meta = visual_block.setdefault("retry_meta", {
                 "attempts": 0,
                 "max_attempts": 3
@@ -109,10 +112,6 @@ class VisualAgent:
             raise ValueError("Selected block is not a visual placeholder.")
 
         schema_context = self.build_schema_context(project)
-
-        # -----------------------------------------
-        # VALIDATE CHART TYPE
-        # -----------------------------------------
 
         try:
             parsed = parse_visual_placeholder(visual_block)
@@ -202,8 +201,8 @@ class VisualAgent:
             metadata_context=metadata_context,
             database_schema=schema_context,
         )
-        try:
 
+        try:
             sql_result = execute_sql_safely(
                 sql_response["sql"],
                 project_id=project.id,
@@ -224,6 +223,7 @@ class VisualAgent:
                 error=e if 'e' in locals() else None,
             )
 
+        # Validate sql result
         if (
             not sql_result
             or sql_result.get("status") != "ok"
@@ -265,12 +265,11 @@ class VisualAgent:
         }
     
     def _collect_existing_visuals(self, content_json: dict) -> list:
-        """
-        Scan content_json for already-successfully-generated visuals.
-        Returns a list of {visual_spec, sql_query} dicts to pass as
-        deduplication context to the visual agent.
-        """
+        """Collect existing visuals"""
+
         existing = []
+
+        # Collect already generated visuals
         for section in content_json.get("sections", []):
             for block in section.get("content_blocks", []):
                 gen_visual = block.get("generated_visual")
@@ -282,19 +281,18 @@ class VisualAgent:
         return existing
 
     def retrieve_metadata_context(
-    self,
-    *,
-    project_id: int,
-    visual_placeholder: dict,
-    topic_title: str,
-    k: int = 8,
+        self,
+        *,
+        project_id: int,
+        visual_placeholder: dict,
+        topic_title: str,
+        k: int = 8,
     ):
-        """
-        Retrieve relevant metadata from vector DB for visual generation.
-        """
+        """Retrieve metadata context"""
 
         vector_store = get_vector_store()
 
+        # Build query and retrieve metadata
         query = self._build_metadata_query(
             visual_placeholder=visual_placeholder,
             topic_title=topic_title,
@@ -316,9 +314,7 @@ class VisualAgent:
     
 
     def _build_metadata_query(self, visual_placeholder: dict, topic_title: str):
-        """
-        Build a semantic search query for retrieving metadata.
-        """
+        """Build metadata query"""
 
         try:
             parsed = parse_visual_placeholder(visual_placeholder)
@@ -349,9 +345,7 @@ class VisualAgent:
         attempted_sql=None,
         error=None,
     ):
-        """
-        Retry-aware failure handler.
-        """
+        """Handle visual failure"""
 
         retry_meta.setdefault("errors", [])
         if error:

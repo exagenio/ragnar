@@ -1,14 +1,9 @@
 from typing import Dict, Any
 from pathlib import Path
-
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-
-# ==========================
-# PUBLIC ENTRY POINT
-# ==========================
 
 def render_visual(
     *,
@@ -38,10 +33,10 @@ def render_visual(
 
     df = pd.DataFrame(sql_result["rows"], columns=sql_result["columns"])
 
-    # --- Extract axis info (support both old and new formats) ---
+    # Extract axis info
     x_axis = visual_spec.get("x_axis_column") or visual_spec.get("x_axis")
 
-    # Handle y_axis_columns (new format) or y_axis (old format)
+    # Handle y_axis_columns
     y_axis_columns = visual_spec.get("y_axis_columns")
     if not y_axis_columns:
         # Backward compatibility: if old format exists, convert to list
@@ -70,10 +65,6 @@ def render_visual(
         "chart_type": chart_type,
     }
 
-
-# ==========================
-# INTERNALS
-# ==========================
 
 def _build_figure(
     *,
@@ -160,9 +151,7 @@ def _build_figure(
 
         fig = go.Figure()
 
-        # --------------------
         # Bar (LEFT AXIS)
-        # --------------------
         fig.add_trace(
             go.Bar(
                 x=df[x],
@@ -172,9 +161,7 @@ def _build_figure(
             )
         )
 
-        # --------------------
         # Line (RIGHT AXIS)
-        # --------------------
         fig.add_trace(
             go.Scatter(
                 x=df[x],
@@ -221,7 +208,7 @@ def _build_figure(
 
 
 def _require_columns(df: pd.DataFrame, columns: list):
-    columns = [c for c in columns if c]  # ignore None
+    columns = [c for c in columns if c]
     missing = [c for c in columns if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns for visualization: {missing}")

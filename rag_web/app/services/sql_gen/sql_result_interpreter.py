@@ -1,6 +1,7 @@
 import json
+import re
 from django.conf import settings
-from rag_web.app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
+from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 
 
 def interpret_sql_result(
@@ -8,10 +9,7 @@ def interpret_sql_result(
     placeholders: list,
     backend: LLMBackend | None = None,
 ):
-    """
-    Convert SQL results into analytical insights using LLM.
-    Processes 1–2 placeholders at a time.
-    """
+    """Interpret sql result"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -21,12 +19,15 @@ def interpret_sql_result(
         temperature=0,
     )
 
+    # Build prompt from placeholders
     prompt = _build_prompt(placeholders)
 
+    # Invoke llm and extract response
     response = llm.invoke(prompt)
     content = response.content
     print(response)
 
+    # Handle structured and plain responses
     if isinstance(content, list):
         raw = content[0].get("text", "").strip()
     else:
@@ -34,8 +35,11 @@ def interpret_sql_result(
 
     return _extract_json(raw)
 
-def _build_prompt(placeholders):
 
+def _build_prompt(placeholders):
+    """Build prompt"""
+
+    # Process placeholders and normalize results
     cleaned = []
 
     for p in placeholders:
@@ -56,7 +60,7 @@ def _build_prompt(placeholders):
                 "value": result
             }
 
-        # 🔥 OPTIONAL: LIMIT LARGE TABLES
+        # limit large tables
         if isinstance(result, dict) and "rows" in result:
             content["query"]["result"]["rows"] = result["rows"][:30]
 
@@ -65,7 +69,7 @@ def _build_prompt(placeholders):
             "content": content
         })
 
-    # ✅ RETURN AFTER LOOP
+    # Return prompt string
     return f"""
 You are a senior data analyst.
 
@@ -184,9 +188,9 @@ Return ONLY JSON.
 """
 
 
-import re
-
 def _extract_json(text):
+    """Extract json"""
+
     match = re.search(r"\{[\s\S]*\}", text)
     if not match:
         raise ValueError("Invalid JSON from interpreter")

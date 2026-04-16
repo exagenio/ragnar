@@ -1,16 +1,12 @@
-# app/services/sql_executor.py
-
 import re
-import psycopg
 from typing import Any, Literal, Dict
+from decimal import Decimal
+from datetime import datetime, date, time
+from uuid import UUID
+import psycopg
 from django.conf import settings
 from app.models import DBConnection
 
-
-
-# ==========================
-# CONFIG
-# ==========================
 
 ALLOWED_KEYWORDS = {
     "select",
@@ -49,19 +45,13 @@ MAX_ROWS_PER_BATCH = 5000
 QUERY_TIMEOUT_MS = 10000
 
 
-# ==========================
-# PUBLIC API
-# ==========================
-
 def execute_sql_safely(
     sql: str,
     *,
     project_id: int,
     expected_result_type: Literal["scalar", "table"] = "scalar",
 ) -> Dict[str, Any]:
-    """
-    Validate and execute a READ-ONLY SQL query safely.
-    """
+    """Execute sql safely"""
 
     _validate_sql(sql)
     try:
@@ -75,7 +65,7 @@ def execute_sql_safely(
     except DBConnection.DoesNotExist:
         raise ValueError("No active database connection found for this project")
 
-
+    # Execute query and handle result types
     with psycopg.connect(
         dbname=db_connection.database_name,
         user=db_connection.username,
@@ -100,6 +90,7 @@ def execute_sql_safely(
             rows = []
             batch_size = MAX_ROWS_PER_BATCH
 
+            # Fetch data in batches
             while True:
                 batch = cursor.fetchmany(batch_size)
 
@@ -120,11 +111,10 @@ def execute_sql_safely(
             }
 
 
-# ==========================
-# VALIDATION
-# ==========================
-
 def _validate_sql(sql: str) -> None:
+    """Validate sql"""
+
+    # Validate sql structure and safety rules
     if not sql or not isinstance(sql, str):
         raise ValueError("SQL must be a non-empty string")
     
@@ -149,7 +139,7 @@ def _validate_sql(sql: str) -> None:
         if re.search(rf"\b{keyword}\b", normalized):
             raise ValueError(f"Forbidden SQL keyword detected: {keyword}")
 
-    # Token-level allowlist (basic hardening)
+    # Token-level allowlist
     tokens = re.findall(r"[a-z_]+", normalized)
     for token in tokens:
         if token not in ALLOWED_KEYWORDS and not _is_identifier(token):
@@ -157,49 +147,44 @@ def _validate_sql(sql: str) -> None:
 
 
 def _is_identifier(token: str) -> bool:
-    """
-    Allow table names, column names, aliases (snake_case).
-    """
+    """Check identifier"""
+
     return bool(re.match(r"^[a-z_][a-z0-9_]*$", token))
 
-from decimal import Decimal
-from datetime import datetime, date, time
-from uuid import UUID
 
 def json_safe(value):
-    """
-    Recursively convert DB / Python objects into JSON-serializable values.
-    """
+    """Convert value to json safe"""
 
-    # ---- Primitives (already safe)
+    # Convert different data types to json serializable format
+
+    # Primitives
     if value is None:
         return None
     if isinstance(value, (str, int, float, bool)):
         return value
 
-    # ---- Numeric precision
+    # Numeric
     if isinstance(value, Decimal):
-        return float(value)  # OR str(value) if you want exact precision
+        return float(value)
 
-    # ---- Date & time
+    # Date and time
     if isinstance(value, (datetime, date, time)):
         return value.isoformat()
 
-    # ---- UUID
+    # UUID
     if isinstance(value, UUID):
         return str(value)
 
-    # ---- Binary
+    # Binary
     if isinstance(value, (bytes, memoryview)):
         return value.hex()
 
-    # ---- Collections
+    # Collections
     if isinstance(value, (list, tuple, set)):
         return [json_safe(v) for v in value]
 
     if isinstance(value, dict):
         return {str(k): json_safe(v) for k, v in value.items()}
 
-    # ---- Fallback (never break saving)
+    # Fallback
     return str(value)
-

@@ -1,12 +1,12 @@
 import json
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from django.conf import settings
-from rag_web.app.services.topic_gen.visual_gen.visual_agent_service import parse_visual_placeholder
-from rag_web.app.services.topic_gen.topic_content_generator import extract_json_or_fail
+from app.services.topic_gen.visual_gen.visual_agent_service import parse_visual_placeholder
+from app.services.topic_gen.topic_content_generator import extract_json_or_fail
 from app.agents.rate_limiter import rate_limiter
 
 def generate_visual_narrative(
@@ -27,9 +27,7 @@ def generate_visual_narrative(
 
     import json
 
-    # ----------------------------------------
-    # STEP 1: SAFE PARSE VISUAL
-    # ----------------------------------------
+    # safe parse visual
     try:
         parsed = parse_visual_placeholder(visual_placeholder)
         visual_id = parsed.get("id")
@@ -39,257 +37,251 @@ def generate_visual_narrative(
         visual_id = "unknown_visual"
         visual_type = visual_spec.get("type")
         visual_purpose = visual_spec.get("notes")
-    # ----------------------------------------
-    # STEP 2: EXTRACT CONTEXT BLOCKS (DYNAMIC)
-    # ----------------------------------------
+
+    # Extract context blocks
     sections = content_obj.content_json.get("sections", [])
     blocks = sections[section_index].get("content_blocks", [])
     context = build_context_window(blocks, block_index)
-    # ----------------------------------------
-    # STEP 3: INIT LLM
-    # ----------------------------------------
+
+    # init LLM
     llm = get_llm(
         backend=LLMBackend(settings.DEFAULT_LLM_BACKEND),
         model_size=ModelSize.PRIMARY,
         temperature=0,
     )
 
-    # ----------------------------------------
-    # STEP 4: PROMPT
-    # ----------------------------------------
+    # Prompt
     prompt = f"""
-You are a senior business analyst.
+    You are a senior business analyst.
 
-Your task is to MODIFY existing content blocks to integrate a visual (chart/table) into the narrative.
+    Your task is to MODIFY existing content blocks to integrate a visual (chart/table) into the narrative.
 
-DO NOT create new blocks.
+    DO NOT create new blocks.
 
-========================
-VISUAL INFORMATION
-========================
+    ========================
+    VISUAL INFORMATION
+    ========================
 
-Visual Type: {visual_type}
-Purpose: {visual_purpose}
-X Axis: {visual_spec.get("x_axis_column")}
-Y Axis: {visual_spec.get("y_axis_columns")}
+    Visual Type: {visual_type}
+    Purpose: {visual_purpose}
+    X Axis: {visual_spec.get("x_axis_column")}
+    Y Axis: {visual_spec.get("y_axis_columns")}
 
-========================
-DATA (SQL RESULT)
-========================
-{json.dumps(sql_result, indent=2)}
+    ========================
+    DATA (SQL RESULT)
+    ========================
+    {json.dumps(sql_result, indent=2)}
 
-========================
-CONTEXT BLOCKS
-========================
+    ========================
+    CONTEXT BLOCKS
+    ========================
 
-Context Before (2 steps earlier):
-{json.dumps(context["context_before_2"], indent=2)}
+    Context Before (2 steps earlier):
+    {json.dumps(context["context_before_2"], indent=2)}
 
-Context Before (immediately before - MODIFY THIS):
-{json.dumps(context["context_before_1"], indent=2)}
+    Context Before (immediately before - MODIFY THIS):
+    {json.dumps(context["context_before_1"], indent=2)}
 
-Context After (immediately after - MODIFY THIS):
-{json.dumps(context["context_after_1"], indent=2)}
+    Context After (immediately after - MODIFY THIS):
+    {json.dumps(context["context_after_1"], indent=2)}
 
-Context After (2 steps ahead):
-{json.dumps(context["context_after_2"], indent=2)}
+    Context After (2 steps ahead):
+    {json.dumps(context["context_after_2"], indent=2)}
 
-========================
-MISSING BLOCK HANDLING (CRITICAL)
-========================
+    ========================
+    MISSING BLOCK HANDLING (CRITICAL)
+    ========================
 
-Some context blocks may not exist.
+    Some context blocks may not exist.
 
-If a block says:
-"This block is not present in the current context."
+    If a block says:
+    "This block is not present in the current context."
 
-Then:
+    Then:
 
-• DO NOT modify that block  
-• DO NOT assume its content  
-• DO NOT try to reconstruct it  
+    • DO NOT modify that block  
+    • DO NOT assume its content  
+    • DO NOT try to reconstruct it  
 
------------------------------
-SPECIAL CASE — NO BEFORE BLOCK
------------------------------
+    -----------------------------
+    SPECIAL CASE — NO BEFORE BLOCK
+    -----------------------------
 
-If the BEFORE block is missing:
+    If the BEFORE block is missing:
 
-→ DO NOT attempt to modify it  
+    → DO NOT attempt to modify it  
 
-→ Instead:
+    → Instead:
 
-• Add BOTH:
-  - visual introduction
-  - visual analysis
+    • Add BOTH:
+    - visual introduction
+    - visual analysis
 
-into the AFTER block
+    into the AFTER block
 
-→ Ensure the AFTER block:
-• introduces the visual  
-• explains the insights  
-• maintains flow  
+    → Ensure the AFTER block:
+    • introduces the visual  
+    • explains the insights  
+    • maintains flow  
 
------------------------------
-VISUAL BLOCK FILTERING
------------------------------
+    -----------------------------
+    VISUAL BLOCK FILTERING
+    -----------------------------
 
-If surrounding blocks were visual or SQL placeholders:
+    If surrounding blocks were visual or SQL placeholders:
 
-→ They are intentionally removed from context  
-→ Treat them as NOT PRESENT  
+    → They are intentionally removed from context  
+    → Treat them as NOT PRESENT  
 
 
-========================
-INSTRUCTIONS
-========================
+    ========================
+    INSTRUCTIONS
+    ========================
 
-Modify ONLY:
+    Modify ONLY:
 
-• Context Before (immediately before)
-• Context After (immediately after)
+    • Context Before (immediately before)
+    • Context After (immediately after)
 
-Do NOT create new blocks.
+    Do NOT create new blocks.
 
-Integrate the visual naturally into the narrative:
+    Integrate the visual naturally into the narrative:
 
-Ensure:
-   - smooth flow across all blocks
-   - no repetition
-   - business-focused explanation
+    Ensure:
+    - smooth flow across all blocks
+    - no repetition
+    - business-focused explanation
 
-Keep content concise and relevant
+    Keep content concise and relevant
 
-========================
-ADAPTIVE BLOCK REWRITE RULE (CRITICAL)
-========================
+    ========================
+    ADAPTIVE BLOCK REWRITE RULE (CRITICAL)
+    ========================
 
-You MUST first analyze whether each block is already related to the visual.
+    You MUST first analyze whether each block is already related to the visual.
 
---------------------------------
-STEP 1 — DETERMINE RELEVANCE
---------------------------------
+    --------------------------------
+    STEP 1 — DETERMINE RELEVANCE
+    --------------------------------
 
-For BOTH blocks:
+    For BOTH blocks:
 
-• Context Before (immediately before)
-• Context After (immediately after)
+    • Context Before (immediately before)
+    • Context After (immediately after)
 
-Decide:
+    Decide:
 
-Is this block already discussing the SAME data, metric, or insight as the visual?
+    Is this block already discussing the SAME data, metric, or insight as the visual?
 
---------------------------------
-STEP 2 — APPLY CORRECT STRATEGY
---------------------------------
+    --------------------------------
+    STEP 2 — APPLY CORRECT STRATEGY
+    --------------------------------
 
-CASE A — BLOCK IS NOT RELATED TO THE VISUAL
+    CASE A — BLOCK IS NOT RELATED TO THE VISUAL
 
-• DO NOT remove existing content
-• DO NOT rewrite the entire block
+    • DO NOT remove existing content
+    • DO NOT rewrite the entire block
 
-Instead:
+    Instead:
 
-For BEFORE block:
-- Keep existing content
-- Add a new paragraph at the END to introduce the visual
+    For BEFORE block:
+    - Keep existing content
+    - Add a new paragraph at the END to introduce the visual
 
-For AFTER block:
-- Add a new paragraph at the BEGINNING with visual insights
-- Then continue with existing content
+    For AFTER block:
+    - Add a new paragraph at the BEGINNING with visual insights
+    - Then continue with existing content
 
---------------------------------
-CASE B — BLOCK IS ALREADY RELATED TO THE VISUAL
+    --------------------------------
+    CASE B — BLOCK IS ALREADY RELATED TO THE VISUAL
 
-• This means:
-  - same metric
-  - same numbers
-  - same entities
-  - same comparison or trend
+    • This means:
+    - same metric
+    - same numbers
+    - same entities
+    - same comparison or trend
 
-In this case:
+    In this case:
 
-• DO NOT duplicate content
-• DO NOT append new paragraphs
+    • DO NOT duplicate content
+    • DO NOT append new paragraphs
 
-Instead:
+    Instead:
 
-• Rewrite the ENTIRE block by:
-  - integrating the visual insights
-  - correcting inconsistencies
-  - improving clarity and flow
-  - removing repeated or redundant statements
+    • Rewrite the ENTIRE block by:
+    - integrating the visual insights
+    - correcting inconsistencies
+    - improving clarity and flow
+    - removing repeated or redundant statements
 
---------------------------------
-STEP 3 — REMOVE DUPLICATION (MANDATORY)
---------------------------------
+    --------------------------------
+    STEP 3 — REMOVE DUPLICATION (MANDATORY)
+    --------------------------------
 
-You MUST:
+    You MUST:
 
-• Remove repeated insights
-• Remove repeated numbers
-• Remove paraphrased duplicates
-• Ensure each idea appears ONLY ONCE
+    • Remove repeated insights
+    • Remove repeated numbers
+    • Remove paraphrased duplicates
+    • Ensure each idea appears ONLY ONCE
 
---------------------------------
-STEP 4 — FLOW CONSISTENCY
---------------------------------
+    --------------------------------
+    STEP 4 — FLOW CONSISTENCY
+    --------------------------------
 
-Ensure:
+    Ensure:
 
-• smooth transition across blocks
-• no abrupt topic shifts
-• consistent narrative tone
+    • smooth transition across blocks
+    • no abrupt topic shifts
+    • consistent narrative tone
 
---------------------------------
-STRICT RULES
---------------------------------
+    --------------------------------
+    STRICT RULES
+    --------------------------------
 
-• NEVER delete meaningful existing content unless it is redundant
-• NEVER repeat the same insight in multiple blocks
-• NEVER create conflicting interpretations
+    • NEVER delete meaningful existing content unless it is redundant
+    • NEVER repeat the same insight in multiple blocks
+    • NEVER create conflicting interpretations
 
-• If merging:
-  → produce ONE clean, non-repetitive block
+    • If merging:
+    → produce ONE clean, non-repetitive block
 
-• If extending:
-  → preserve + add (without duplication)
+    • If extending:
+    → preserve + add (without duplication)
 
-REPETITION CONTROL RULE:
+    REPETITION CONTROL RULE:
 
-Before finalizing output:
+    Before finalizing output:
 
-• Check if the same metric or insight appears in both blocks
-→ Keep it in ONLY ONE place
+    • Check if the same metric or insight appears in both blocks
+    → Keep it in ONLY ONE place
 
-• Prefer:
-  - BEFORE block → introduction
-  - AFTER block → analysis
+    • Prefer:
+    - BEFORE block → introduction
+    - AFTER block → analysis
 
-Remove duplicates accordingly.
+    Remove duplicates accordingly.
 
-========================
-OUTPUT FORMAT (STRICT JSON)
-========================
+    ========================
+    OUTPUT FORMAT (STRICT JSON)
+    ========================
 
-{{
-  "updated_block_-1": {{
-    "type": "...",
-    "content": "..."
-  }},
-  "updated_block_+1": {{
-    "type": "...",
-    "content": "..."
-  }}
-}}
+    {{
+    "updated_block_-1": {{
+        "type": "...",
+        "content": "..."
+    }},
+    "updated_block_+1": {{
+        "type": "...",
+        "content": "..."
+    }}
+    }}
 
-Return ONLY JSON
-"""
+    Return ONLY JSON
+    """
 
-    # ----------------------------------------
-    # STEP 5: INVOKE
-    # ----------------------------------------
-    estimated_tokens = len(prompt) // 4  # rough estimate
+    # Invoke
+    estimated_tokens = len(prompt) // 4
 
     rate_limiter.consume(estimated_tokens)
 
@@ -304,9 +296,7 @@ Return ONLY JSON
     else:
         raw_text = content.strip()
 
-    # ----------------------------------------
-    # STEP 6: PARSE
-    # ----------------------------------------
+    # Parse
     try:
         result = extract_json_or_fail(raw_text)
     except Exception:
@@ -322,18 +312,14 @@ def build_context_window(blocks, block_index):
             return blocks[idx]
         return None
 
-    # ----------------------------------------
-    # STEP 1: BASE INDICES
-    # ----------------------------------------
+    # BASE INDICES
     before_1 = block_index - 1
     after_1 = block_index + 1
 
     before_2 = block_index - 2
     after_2 = block_index + 2
 
-    # ----------------------------------------
-    # STEP 2: HANDLE EDGE CASE (NO BEFORE)
-    # ----------------------------------------
+    # HANDLE EDGE CASE (NO BEFORE)
     if before_1 < 0:
         # shift forward
         before_1 = None
@@ -348,14 +334,12 @@ def build_context_window(blocks, block_index):
             "context_before_1": format_block(None),
             "context_after_1": format_block(safe(after_1)),
             "context_after_2": format_block(safe(after_2)),
-            "extra_after": format_block(safe(after_3)),  # NEW
+            "extra_after": format_block(safe(after_3)),
         }
 
         return context
 
-    # ----------------------------------------
-    # STEP 3: NORMAL CASE
-    # ----------------------------------------
+    # NORMAL CASE
     context = {
         "context_before_2": format_block(safe(before_2)),
         "context_before_1": format_block(safe(before_1)),

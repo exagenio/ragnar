@@ -1,34 +1,31 @@
+# Standard library imports
 import json
 import re
 from pathlib import Path
 from decimal import Decimal
 from datetime import date, datetime
 
+# Third-party imports
 from django.conf import settings
 
-from rag_web.app.services.llm_config.llm_provider import (
+# Local imports
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from app.agents.rate_limiter import rate_limiter
-# ==========================
-# CONFIG
-# ==========================
+
 
 PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "table_metadata_prompt.txt"
 )
 
-# ==========================
-# HELPERS
-# ==========================
-
 
 def make_json_safe(value):
-    """
-    Convert non-JSON-serializable values into safe representations.
-    """
+    """Make json safe"""
+
+    # Convert special types to json serializable values
     if isinstance(value, Decimal):
         return float(value)
     if isinstance(value, (datetime, date)):
@@ -37,10 +34,9 @@ def make_json_safe(value):
 
 
 def extract_json_from_text(text: str):
-    """
-    Extract the first JSON object from LLM output.
-    Handles markdown fences and extra text.
-    """
+    """Extract json from text"""
+
+    # Clean markdown and extract json
     text = re.sub(r"```json|```", "", text, flags=re.IGNORECASE).strip()
 
     match = re.search(r"\{[\s\S]*\}", text)
@@ -50,11 +46,6 @@ def extract_json_from_text(text: str):
     return json.loads(match.group())
 
 
-# ==========================
-# MAIN ENTRY
-# ==========================
-
-
 def generate_table_metadata(
     *,
     table_name: str,
@@ -62,41 +53,40 @@ def generate_table_metadata(
     rows: list,
     backend: LLMBackend | None = None,
 ):
-    """
-    Generate structured metadata for a database table
-    using the unified LLM provider.
-    """
+    """Generate table metadata"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
-    # 🔹 Load prompt
+    # Load prompt template
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
 
+    # Convert rows to json safe format
     safe_rows = [{k: make_json_safe(v) for k, v in row.items()} for row in rows]
 
+    # Build prompt with replacements
     prompt = prompt_template
     prompt = prompt.replace("{{table_name}}", table_name)
     prompt = prompt.replace("{{columns}}", json.dumps(columns, indent=2))
     prompt = prompt.replace("{{rows}}", json.dumps(safe_rows, indent=2))
 
-    # 🔹 Get LLM from provider
+    # Initialize llm
     llm = get_llm(
         backend=backend,
-        model_size=ModelSize.SMALL,  # metadata quality matters
+        model_size=ModelSize.SMALL,
         temperature=0,
     )
 
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    # Apply rate limiting
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
+    # Invoke llm and extract response
     response = llm.invoke(prompt)
 
-    # Chat models return AIMessage
     content = response.content
 
+    # Handle structured and plain responses
     if isinstance(content, list):
-        # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_output = content[0]["text"].strip()
         else:

@@ -3,11 +3,9 @@ from psycopg2.extras import RealDictCursor
 
 
 def sample_table_rows(db_connection, table_name, limit=10):
-    """
-    Fetches a small sample of rows from a table.
-    Returns a list of dicts (column -> value).
-    """
+    """Sample table rows"""
 
+    # Connect to database and fetch sample rows
     conn = psycopg2.connect(
         host=db_connection.host,
         port=db_connection.port,

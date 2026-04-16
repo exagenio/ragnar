@@ -1,14 +1,14 @@
 import json
 import re
 from typing import Dict, Any
-
 from django.conf import settings
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from app.agents.rate_limiter import rate_limiter
+
 
 SQL_METRIC_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_metric_prompt.txt"
 SQL_VISUAL_PROMPT_PATH = settings.BASE_DIR / "app/prompts/sql_visual_prompt.txt"
@@ -16,11 +16,12 @@ SQL_PLACEHOLDER_PROMPT_PATH = (
     settings.BASE_DIR / "app/prompts/sql_placeholder_generation_prompt.txt"
 )
 
+
 # ==========================
 # PROMPT RENDERING
 # ==========================
 
-#visual asset
+
 def _render_sql_agent_prompt(
     *,
     calculation_id: str,
@@ -32,10 +33,9 @@ def _render_sql_agent_prompt(
     visual_context: Dict | None,
     visual_plan: Dict | None = None,
 ) -> str:
-    """
-    Render SQL agent prompt using plain-text replacement.
-    """
+    """Render sql agent prompt"""
 
+    # Build prompt with conditional template and replacements
     if query_intent == "visual":
         prompt_template = SQL_VISUAL_PROMPT_PATH.read_text(encoding="utf-8")
     else:
@@ -87,14 +87,12 @@ def _render_sql_agent_prompt(
 
 
 def _extract_json_or_fail(raw_text: str) -> Dict:
-    """
-    Strict JSON extraction.
-    SQL agent MUST return JSON only.
-    """
+    """Extract json from text"""
 
     if not raw_text:
         raise ValueError("SQL agent returned empty response")
 
+    # Extract json object from response
     match = re.search(r"\{[\s\S]*\}", raw_text)
     if not match:
         raise ValueError(
@@ -105,15 +103,14 @@ def _extract_json_or_fail(raw_text: str) -> Dict:
 
 
 def parse_sql_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Extract id, calculation, description from a SQL_CALCULATION placeholder block.
-    """
+    """Parse sql placeholder"""
 
     raw = block.get("content", "")
 
     if not raw.startswith("{{SQL_CALCULATION"):
         raise ValueError("Invalid SQL_CALCULATION placeholder")
 
+    # Extract fields from placeholder using regex
     def extract(field: str) -> str:
         match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.IGNORECASE | re.DOTALL)
         if not match:
@@ -128,6 +125,8 @@ def parse_sql_placeholder(block: Dict[str, Any]) -> Dict[str, str]:
 
 
 def parse_precomputed_sql_placeholder(block: dict) -> dict:
+    """Parse precomputed sql placeholder"""
+
     content = block.get("content", {})
 
     return {
@@ -136,7 +135,7 @@ def parse_precomputed_sql_placeholder(block: dict) -> dict:
         "description": content.get("description"),
     }
 
-#visual asset
+
 def generate_sql_from_visual_plan(
     *,
     visual_plan: Dict[str, Any],
@@ -144,10 +143,7 @@ def generate_sql_from_visual_plan(
     database_schema: Dict,
     backend: LLMBackend | None = None,
 ) -> Dict:
-    """
-    Convert a visual_plan.sql_request into an executable SQL query
-    using the SAME SQL agent prompt.
-    """
+    """Generate sql from visual plan"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -172,15 +168,15 @@ def generate_sql_from_visual_plan(
         visual_plan=visual_plan,
     )
 
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    # Apply rate limiting and invoke llm
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
     content = response.content
 
+    # Handle structured and plain responses
     if isinstance(content, list):
-        # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_text = content[0]["text"].strip()
         else:
@@ -191,7 +187,6 @@ def generate_sql_from_visual_plan(
     return _extract_json_or_fail(raw_text)
 
 
-
 def generate_sql_placeholders_from_plan(
     *,
     topic_plan: dict,
@@ -200,11 +195,10 @@ def generate_sql_placeholders_from_plan(
     schema_context,
     backend=None,
 ):
-    """
-    Generate SQL placeholders from topic analysis plan.
-    """
+    """Generate sql placeholders from plan"""
 
-    from rag_web.app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
+    # Build prompt and call llm
+    from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -214,24 +208,15 @@ def generate_sql_placeholders_from_plan(
         temperature=0,
     )
 
-    # -------------------------
-    # LOAD PROMPT
-    # -------------------------
     prompt_template = SQL_PLACEHOLDER_PROMPT_PATH.read_text(encoding="utf-8")
 
     prompt = (
         prompt_template.replace("{{topic_plan_json}}", json.dumps(topic_plan, indent=2))
         .replace("{{database_schema_json}}", json.dumps(schema_context, indent=2))
-        .replace(
-            "{{metadata_context_json}}", json.dumps(metadata_context, indent=2)
-        )  # ✅ NEW
+        .replace("{{metadata_context_json}}", json.dumps(metadata_context, indent=2))
     )
 
-    # -------------------------
-    # LLM CALL
-    # -------------------------
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
@@ -257,9 +242,7 @@ def generate_sql_for_precomputed_placeholder(
     database_schema: Dict,
     backend: LLMBackend | None = None,
 ) -> Dict:
-    """
-    Generate SQL for precomputed SQL placeholders (JSON-based).
-    """
+    """Generate sql for precomputed placeholder"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -279,9 +262,8 @@ def generate_sql_for_precomputed_placeholder(
         database_schema=database_schema,
     )
 
-
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    # Apply rate limiting and invoke llm
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
     response = llm.invoke(prompt)
@@ -300,6 +282,7 @@ def _render_precompute_sql_prompt(
     metadata_context: Dict,
     database_schema: Dict,
 ) -> str:
+    """Render precompute sql prompt"""
 
     prompt_template = SQL_METRIC_PROMPT_PATH.read_text(encoding="utf-8")
 
@@ -319,6 +302,8 @@ def _render_precompute_sql_prompt(
 
 
 def _extract_llm_text(response) -> str:
+    """Extract text from llm response"""
+
     content = response.content
 
     if isinstance(content, list):

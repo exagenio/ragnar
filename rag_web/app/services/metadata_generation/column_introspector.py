@@ -2,9 +2,9 @@ import psycopg2
 
 
 def get_table_columns(db_connection, table_name):
-    """
-    Returns column metadata for a given table.
-    """
+    """Get table columns"""
+
+    # Connect to database and fetch column metadata
     conn = psycopg2.connect(
         host=db_connection.host,
         port=db_connection.port,

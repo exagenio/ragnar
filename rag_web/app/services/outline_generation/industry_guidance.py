@@ -38,6 +38,7 @@ When designing the report structure:
 
 
 def get_industry_guidance(industry: str) -> str:
+    "return industry guidance from key"
     if not industry:
         return INDUSTRY_GUIDANCE_MAP["generic"]
 

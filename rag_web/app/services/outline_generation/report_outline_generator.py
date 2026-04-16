@@ -2,45 +2,31 @@ import json
 import re
 from pathlib import Path
 from collections import defaultdict
-
 from django.conf import settings
-
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
 from .industry_guidance import get_industry_guidance
-from rag_web.app.services.vector_db_config.vector_store import get_vector_store
-from rag_web.app.services.sub_sec_gen.subsection_topic_generator import build_retrieved_context
-# ==========================
-# CONFIG
-# ==========================
+from app.services.vector_db_config.vector_store import get_vector_store
+from app.services.sub_sec_gen.subsection_topic_generator import build_retrieved_context
+
 
 PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "report_outline_prompt.txt"
 )
 
 
-# ==========================
-# JSON EXTRACTION
-# ==========================
-
-
 def extract_json(text: str) -> dict:
-    """
-    Extract the first valid JSON object from text.
-    """
+    """Extract json from text"""
+
+    # Extract json object from text
     match = re.search(r"\{[\s\S]*\}", text)
     if not match:
         raise ValueError("No JSON object found in LLM response")
 
     return json.loads(match.group())
-
-
-# ==========================
-# MAIN ENTRY
-# ==========================
 
 
 def generate_report_outline(
@@ -49,16 +35,16 @@ def generate_report_outline(
     project_id: int,
     backend: LLMBackend | None = None,
 ) -> dict:
+    """Generate report outline"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
 
+    # Get industry guidance
     industry_guidance = get_industry_guidance(data["industry"])
 
-    # -------------------------
-    # 🔹 VECTOR RETRIEVAL (NEW)
-    # -------------------------
+    # Retrieve schema context using vector search
     vector_store = get_vector_store(backend=backend)
 
     docs = vector_store.similarity_search(
@@ -79,9 +65,7 @@ def generate_report_outline(
 
     retrieved_context = build_retrieved_context(docs)
 
-    # -------------------------
-    # 🔹 PROMPT BUILD
-    # -------------------------
+    # Build prompt with placeholders
     prompt = prompt_template.format_map(
         defaultdict(
             str,
@@ -99,9 +83,7 @@ def generate_report_outline(
 
     prompt = prompt.replace("{{retrieved_context}}", retrieved_context)
 
-    # -------------------------
-    # 🔹 LLM
-    # -------------------------
+    # Initialize llm and generate response
     llm = get_llm(
         backend=backend,
         model_size=ModelSize.SMALL,
@@ -112,6 +94,7 @@ def generate_report_outline(
 
     content = response.content
 
+    # Handle structured and plain responses
     if isinstance(content, list):
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_output = content[0]["text"].strip()

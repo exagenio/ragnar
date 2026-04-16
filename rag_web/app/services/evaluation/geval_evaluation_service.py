@@ -2,76 +2,40 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from deepeval.models import OpenRouterModel
 from django.conf import settings
-
 from deepeval.metrics import GEval
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams
-
 from langchain_openrouter import ChatOpenRouter
-
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project
-from rag_web.app.services.vector_db_config.vector_store import get_vector_store
+from app.services.vector_db_config.vector_store import get_vector_store
 from deepeval.models.base_model import DeepEvalBaseLLM
-
-from rag_web.app.services.evaluation.evaluation_service import (
+from app.services.evaluation.evaluation_service import (
     extract_content_blocks_text,
     build_eval_input,
     retrieve_metadata_for_topic,
 )
-
 from django.conf import settings
-
-# =====================================
-# LLM (OPENROUTER - SAME AS OLD SYSTEM)
-# =====================================
-
-# class OpenRouterDeepEvalLLM:
-#     """
-#     Adapter to make ChatOpenRouter compatible with DeepEval
-#     """
-
-#     # def __init__(self):
-#     #     self.llm = ChatOpenRouter(
-#     #         model="openai/gpt-5.4",
-#     #         temperature=0,
-#     #         api_key=settings.OPENROUTER_API_KEY,
-#     #         max_retries=2,
-#     #     )
-
-#     # def generate(self, prompt: str) -> str:
-#     #     response = self.llm.invoke(prompt)
-#     #     return response.content
-
-
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
 )
-
 from deepeval.models import GeminiModel
-# =====================================
-# BUILD TEST CASE (FIXED WITH CONTEXT)
-# =====================================
 
 def build_test_case(input_text, output_text, context_text):
     return LLMTestCase(
         input=input_text,
         actual_output=output_text,
-        context=context_text,   # ✅ IMPORTANT FIX
+        context=context_text,
     )
 
-
-# =====================================
-# GEVAL METRICS (WITH LLM)
-# =====================================
 
 def get_geval_metrics(model):
     return [
         GEval(
             name="correctness",
             criteria="""
-Evaluate whether the analytical report content is factually correct,
-complete, and logically consistent with the intended business analysis.
+            Evaluate whether the analytical report content is factually correct,
+            complete, and logically consistent with the intended business analysis.
             """,
             evaluation_params=[
                 LLMTestCaseParams.INPUT,
@@ -83,8 +47,8 @@ complete, and logically consistent with the intended business analysis.
         GEval(
             name="hallucination",
             criteria="""
-Check whether the output contains any claims not supported by the
-provided SQL COMPUTED ANALYTICAL INSIGHTS or metadata context. Penalize unsupported claims.
+            Check whether the output contains any claims not supported by the
+            provided SQL COMPUTED ANALYTICAL INSIGHTS or metadata context. Penalize unsupported claims.
             """,
             evaluation_params=[
                 LLMTestCaseParams.ACTUAL_OUTPUT,
@@ -95,8 +59,8 @@ provided SQL COMPUTED ANALYTICAL INSIGHTS or metadata context. Penalize unsuppor
         GEval(
             name="relevance",
             criteria="""
-Evaluate whether the output directly addresses the business intent,
-required elements, and analytical questions.
+            Evaluate whether the output directly addresses the business intent,
+            required elements, and analytical questions.
             """,
             evaluation_params=[
                 LLMTestCaseParams.INPUT,
@@ -107,18 +71,14 @@ required elements, and analytical questions.
         GEval(
             name="coherence",
             criteria="""
-Evaluate whether the report follows a logical analytical structure:
-DATA → INTERPRETATION → IMPLICATION and maintains clarity.
+            Evaluate whether the report follows a logical analytical structure:
+            DATA → INTERPRETATION → IMPLICATION and maintains clarity.
             """,
             evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
             model=model,
         ),
     ]
 
-
-# =====================================
-# RUN METRICS
-# =====================================
 
 def run_geval_metrics(test_case, metrics):
 
@@ -149,10 +109,6 @@ def run_geval_metrics(test_case, metrics):
     return results
 
 
-# =====================================
-# TOPIC LEVEL EVALUATION
-# =====================================
-
 def evaluate_topic_geval(project, topic, report, vector_store, model):
 
     content_obj = TopicContent.objects.filter(topic=topic).first()
@@ -161,13 +117,13 @@ def evaluate_topic_geval(project, topic, report, vector_store, model):
 
     content_json = content_obj.content_json or {}
 
-    # ===== CONTENT =====
+    # Content
     content_text = extract_content_blocks_text(content_json)
 
-    # ===== INPUT =====
+    # Input
     input_text = build_eval_input(topic, report)
 
-    # ===== CONTEXT =====
+    # Context
     sql_results = content_json.get("precomputed_sql_placeholders", [])
 
     metadata_context = retrieve_metadata_for_topic(
@@ -194,17 +150,17 @@ METADATA:
             f"METADATA:\n{metadata_context}"
         )
 
-    # ===== TEST CASE =====
+    # Test case
     test_case = build_test_case(
         input_text,
         content_text,
         context_list,
     )
 
-    # ===== METRICS =====
+    # Metrics
     metrics = get_geval_metrics(model)
 
-    # ===== RUN =====
+    # run metrics
     results = run_geval_metrics(test_case, metrics)
 
     if not results:
@@ -216,8 +172,6 @@ METADATA:
         "correctness": raw_scores.get("correctness", 0),
         "hallucination": raw_scores.get("hallucination", 0),
         "relevance": raw_scores.get("relevance", 0),
-
-        # UI compatibility
         "conciseness": raw_scores.get("coherence", 0),
     }
     overall_score = (
@@ -234,55 +188,6 @@ METADATA:
         "summary": " | ".join(issues),
         "overall_score": overall_score,
     }
-
-
-# =====================================
-# PROJECT LEVEL
-# =====================================
-
-# def evaluate_project_geval(project_id: int, report_id: int):
-
-#     project = Project.objects.get(id=project_id)
-#     report = Report.objects.get(id=report_id)
-
-#     topics = Topic.objects.filter(subsection__section__report=report)
-
-#     vector_store = get_vector_store(
-#         backend=settings.DEFAULT_LLM_BACKEND
-#     )
-
-#     # ✅ USE SAME OPENROUTER MODEL
-#     model = OpenRouterDeepEvalLLM()
-
-#     topic_results = []
-
-#     for topic in topics:
-
-#         result = evaluate_topic_geval(
-#             project,
-#             topic,
-#             report,
-#             vector_store,
-#             model,
-#         )
-
-#         if not result:
-#             continue
-
-#         TopicEvaluation.objects.update_or_create(
-#             topic=topic,
-#             report=report,
-#             defaults={
-#                 "geval_scores": result["scores"],
-#                 "geval_issues": result["issues"],
-#                 "geval_summary": result["summary"],
-#                 "geval_overall_score": result["overall_score"],
-#             },
-#         )
-
-#         topic_results.append(result)
-
-#     return compute_geval_report_score(topic_results)
 
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -317,9 +222,8 @@ def evaluate_project_geval(project_id: int, report_id: int):
     # )
     topic_results = []
 
-    # ==========================
-    # 🔥 CONCURRENT EXECUTION (MAX 3)
-    # ==========================
+
+    # Concurrent execution
     def process_topic(topic):
 
         try:
@@ -334,9 +238,7 @@ def evaluate_project_geval(project_id: int, report_id: int):
             if not result:
                 return None
 
-            # ==========================
-            # 🔥 SAVE RESULT
-            # ==========================
+            # Save result
             TopicEvaluation.objects.update_or_create(
                 topic=topic,
                 report=report,
@@ -348,9 +250,7 @@ def evaluate_project_geval(project_id: int, report_id: int):
                 },
             )
 
-            # ==========================
-            # 🔥 LOG OUTPUT (PER TOPIC)
-            # ==========================
+            # Log output
             print(f"\n[GEVAL DONE] Topic: {topic.id} - {topic.title}")
             print("Scores:", result["scores"])
             print("Overall:", result["overall_score"])
@@ -363,9 +263,7 @@ def evaluate_project_geval(project_id: int, report_id: int):
             print(f"[GEVAL ERROR] Topic {topic.id}: {e}")
             return None
 
-    # ==========================
-    # THREAD POOL (MAX 3)
-    # ==========================
+    # Thread pool
     with ThreadPoolExecutor(max_workers=3) as executor:
 
         futures = [executor.submit(process_topic, topic) for topic in topics]
@@ -375,14 +273,9 @@ def evaluate_project_geval(project_id: int, report_id: int):
             if res:
                 topic_results.append(res)
 
-    # ==========================
     # FINAL AGGREGATION
-    # ==========================
     return compute_geval_report_score(topic_results)
 
-# =====================================
-# REPORT AGGREGATION
-# =====================================
 
 def compute_geval_report_score(topic_results):
 

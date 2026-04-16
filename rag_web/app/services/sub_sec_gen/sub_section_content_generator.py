@@ -2,10 +2,8 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List
-
 from django.conf import settings
-
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
@@ -13,18 +11,10 @@ from rag_web.app.services.llm_config.llm_provider import (
 from app.agents.rate_limiter import rate_limiter
 
 
-# ==========================
-# CONFIG
-# ==========================
-
 PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "subsection_content_gen_prompt.txt"
 )
 
-
-# ==========================
-# PUBLIC ENTRY POINT
-# ==========================
 
 def generate_subsection_content(
     *,
@@ -36,27 +26,10 @@ def generate_subsection_content(
     report_title: str,
     section_title: str,
     subsection_title: str,
-    topics_progress: Dict[str, Dict],  # topic_title -> element_progress
+    topics_progress: Dict[str, Dict],
     backend: LLMBackend | None = None,
 ) -> Dict:
-    """
-    Generate subsection introduction content by synthesizing all topics' progress.
-
-    Args:
-        project_id: The project ID
-        industry: Industry context
-        report_type: Type of report
-        audience: Target audience
-        purpose: Report purpose
-        report_title: Title of the report
-        section_title: Title of the section
-        subsection_title: Title of the subsection
-        topics_progress: Dictionary mapping topic titles to their element_progress data
-        backend: Optional LLM backend
-
-    Returns:
-        Dictionary containing subsection introduction content
-    """
+    """Generate subsection content"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -66,10 +39,10 @@ def generate_subsection_content(
         temperature=0.2,
     )
 
-    # Format topics progress for the prompt
+    # Format topics progress as json
     topics_progress_formatted = json.dumps(topics_progress, indent=2)
 
-    # Render the prompt
+    # Build prompt from template
     prompt = render_prompt(
         PROMPT_PATH,
         {
@@ -84,15 +57,16 @@ def generate_subsection_content(
         },
     )
 
-    # Invoke LLM
-    estimated_tokens = len(prompt) // 4  # rough estimate
-
+    # Apply rate limiting
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
+    # Invoke llm and extract text
     response = llm.invoke(prompt)
     content = response.content
+
+    # Handle structured and plain responses
     if isinstance(content, list):
-        # LangChain structured output
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_text = content[0]["text"].strip()
         else:
@@ -100,27 +74,15 @@ def generate_subsection_content(
     else:
         raw_text = content.strip()
 
-    # Extract and return JSON
+    # Extract json result
     result = extract_json_or_fail(raw_text)
 
     return result
 
 
-# ==========================
-# HELPERS
-# ==========================
-
 def render_prompt(prompt_path: Path, context: dict) -> str:
-    """
-    Render a prompt template by replacing placeholders with context values.
+    """Render prompt"""
 
-    Args:
-        prompt_path: Path to the prompt template file
-        context: Dictionary of placeholder values
-
-    Returns:
-        Rendered prompt string
-    """
     prompt = prompt_path.read_text(encoding="utf-8")
     for key, value in context.items():
         prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
@@ -128,21 +90,12 @@ def render_prompt(prompt_path: Path, context: dict) -> str:
 
 
 def extract_json_or_fail(raw_text: str) -> dict:
-    """
-    Extract JSON object from LLM response.
+    """Extract json from text"""
 
-    Args:
-        raw_text: Raw text response from LLM
-
-    Returns:
-        Parsed JSON dictionary
-
-    Raises:
-        ValueError: If no valid JSON found in response
-    """
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
+    # Extract json object from text
     match = re.search(r"\{[\s\S]*\}", raw_text)
     if not match:
         raise ValueError(f"LLM did not return JSON:\n{raw_text[:500]}")

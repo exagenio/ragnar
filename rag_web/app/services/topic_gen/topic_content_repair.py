@@ -1,11 +1,8 @@
 import json
 import re
-from typing import Dict, Any
 from pathlib import Path
-
 from django.conf import settings
-
-from rag_web.app.services.llm_config.llm_provider import (
+from app.services.llm_config.llm_provider import (
     get_llm,
     LLMBackend,
     ModelSize,
@@ -14,6 +11,7 @@ from app.agents.rate_limiter import rate_limiter
 
 
 REPAIR_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "topic_content_repair_prompt.txt"
+
 
 def repair_topic_content(
     *,
@@ -27,6 +25,7 @@ def repair_topic_content(
     topic_plan,
     content_json,
 ):
+    """Repair topic content"""
 
     backend = LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -36,6 +35,7 @@ def repair_topic_content(
         temperature=0,
     )
 
+    # Find repair windows in content
     repair_windows = find_repair_windows(content_json)
 
     if not repair_windows:
@@ -43,6 +43,7 @@ def repair_topic_content(
 
     sections = content_json["sections"]
 
+    # Iterate through repair windows and update blocks
     for window in repair_windows:
 
         s_idx = window["section_index"]
@@ -51,6 +52,7 @@ def repair_topic_content(
 
         original_blocks = window["window_blocks"]
 
+        # Build prompt for repair
         prompt = render_prompt(
             REPAIR_PROMPT_PATH,
             {
@@ -71,10 +73,11 @@ def repair_topic_content(
             },
         )
 
-        estimated_tokens = len(prompt) // 4  # rough estimate
-
+        # Apply rate limiting
+        estimated_tokens = len(prompt) // 4
         rate_limiter.consume(estimated_tokens)
 
+        # Invoke llm
         response = llm.invoke(prompt)
 
         repaired = extract_json_or_fail(response.content)
@@ -82,18 +85,23 @@ def repair_topic_content(
         repaired_blocks = repaired.get("content_blocks")
 
         if repaired_blocks:
-
             sections[s_idx]["content_blocks"][start:end] = repaired_blocks
 
     return content_json
 
+
 def render_prompt(prompt_path: Path, context: dict) -> str:
+    """Render prompt"""
+
     prompt = prompt_path.read_text(encoding="utf-8")
     for key, value in context.items():
         prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
     return prompt
 
+
 def extract_json_or_fail(raw_text: str) -> dict:
+    """Extract json from text"""
+
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
@@ -105,10 +113,13 @@ def extract_json_or_fail(raw_text: str) -> dict:
 
 
 def find_repair_windows(content_json: dict):
+    """Find repair windows"""
+
     windows = []
 
     sections = content_json.get("sections", [])
 
+    # Scan sections and blocks to detect removed placeholders
     for s_idx, section in enumerate(sections):
 
         blocks = section.get("content_blocks", [])

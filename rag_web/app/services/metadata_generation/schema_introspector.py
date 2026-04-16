@@ -2,6 +2,9 @@ import psycopg2
 
 
 def get_tables(db_connection):
+    """Get tables"""
+
+    # Connect to database and fetch table names
     conn = psycopg2.connect(
         host=db_connection.host,
         port=db_connection.port,

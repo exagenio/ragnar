@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 
 load_dotenv()
 
+#DB Credentials
 user = os.getenv("VECTOR_DB_USER")
 password = quote_plus(os.getenv("VECTOR_DB_PASSWORD"))  # encode special chars
 host = os.getenv("VECTOR_DB_HOST")

@@ -2,19 +2,16 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List
+
 from django.conf import settings
-from rag_web.app.services.llm_config.llm_provider import (
-    get_llm,
-    LLMBackend,
-    ModelSize,
-)
+
+from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 from app.agents.rate_limiter import rate_limiter
 
-PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "prompts" / "section_content_gen_prompt.txt"
-)
 
-# Generate section introduction content by synthesizing all subsections' themes.
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "section_content_gen_prompt.txt"
+
+
 def generate_section_content(
     *,
     project_id: int,
@@ -24,9 +21,10 @@ def generate_section_content(
     purpose: str,
     report_title: str,
     section_title: str,
-    subsections_themes: Dict[str, List[str]],  # subsection_title -> key_themes[]
+    subsections_themes: Dict[str, List[str]],
     backend: LLMBackend | None = None,
 ) -> Dict:
+    """Generate section content"""
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -36,10 +34,10 @@ def generate_section_content(
         temperature=0.2,
     )
 
-    # Format subsections themes for the prompt
+    # Format subsection themes as json string
     subsections_themes_formatted = json.dumps(subsections_themes, indent=2)
 
-    # Render the prompt
+    # Build prompt using template
     prompt = render_prompt(
         PROMPT_PATH,
         {
@@ -53,63 +51,54 @@ def generate_section_content(
         },
     )
 
-    # Invoke LLM
-    estimated_tokens = len(prompt) // 4 
-
+    # Estimate tokens and apply rate limiting
+    estimated_tokens = len(prompt) // 4
     rate_limiter.consume(estimated_tokens)
 
+    # Invoke llm and normalize response
     response = llm.invoke(prompt)
-    content = response.content
-    if isinstance(content, list):
-        # LangChain structured output
-        if isinstance(content[0], dict) and "text" in content[0]:
-            raw_text = content[0]["text"].strip()
-        else:
-            raw_text = str(content[0]).strip()
-    else:
-        raw_text = content.strip()
+    raw_text = _extract_text_from_response(response.content)
 
-    # Extract and return JSON
-    result = extract_json_or_fail(raw_text)
+    # Extract json result
+    return extract_json_or_fail(raw_text)
 
-    return result
 
-# prompt renderer
 def render_prompt(prompt_path: Path, context: dict) -> str:
-    """
-    Render a prompt template by replacing placeholders with context values.
+    """Render prompt"""
 
-    Args:
-        prompt_path: Path to the prompt template file
-        context: Dictionary of placeholder values
-
-    Returns:
-        Rendered prompt string
-    """
     prompt = prompt_path.read_text(encoding="utf-8")
+
+    # Replace placeholders with values
     for key, value in context.items():
         prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
+
     return prompt
 
-# safely extract llm result
+
 def extract_json_or_fail(raw_text: str) -> dict:
-    """
-    Extract JSON object from LLM response.
+    """Extract json from text"""
 
-    Args:
-        raw_text: Raw text response from LLM
-
-    Returns:
-        Parsed JSON dictionary
-
-    Raises:
-        ValueError: If no valid JSON found in response
-    """
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
+    # Find json object inside text
     match = re.search(r"\{[\s\S]*\}", raw_text)
     if not match:
         raise ValueError(f"LLM did not return JSON:\n{raw_text[:500]}")
 
     return json.loads(match.group())
+
+
+def _extract_text_from_response(content):
+    """Extract text from llm response"""
+
+    # Handle structured and unstructured responses
+    if isinstance(content, list):
+        first_item = content[0]
+
+        if isinstance(first_item, dict) and "text" in first_item:
+            return first_item["text"].strip()
+
+        return str(first_item).strip()
+
+    return content.strip()
