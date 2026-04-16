@@ -333,3 +333,168 @@ class ContentAgent:
         )
 
         return content_obj
+
+    def validate_subsection_generation(self, subsection):
+        """Validate subsection content generation prerequisites."""
+
+        topics = list(
+            subsection.topics.filter(is_approved=True).order_by("created_at")
+        )
+
+        if not topics:
+            raise ValueError(
+                "Approved topics are required before generating subsection content."
+            )
+
+        incomplete_topics = [
+            topic.title
+            for topic in topics
+            if not hasattr(topic, "content") or topic.content.status != "generated"
+        ]
+
+        if incomplete_topics:
+            raise ValueError(
+                "All approved topic content must be generated first. Missing: "
+                + ", ".join(incomplete_topics)
+            )
+
+        return topics
+
+    def generate_subsection_content(
+        self,
+        project,
+        report,
+        subsection,
+        topics,
+        content_obj,
+    ):
+        """Generate subsection-level synthesized content."""
+
+        content_obj.status = "in_progress"
+        content_obj.save()
+
+        topics_progress = {
+            topic.title: topic.content.content_json
+            for topic in topics
+            if hasattr(topic, "content")
+        }
+
+        result = generate_subsection_content(
+            project=project,
+            project_id=project.id,
+            industry=report.industry,
+            report_type=report.report_type,
+            audience=report.audience,
+            purpose=report.purpose,
+            report_title=report.title,
+            section_title=subsection.section.title,
+            subsection_title=subsection.title,
+            topics_progress=topics_progress,
+        )
+
+        content_obj.content_json = result
+        content_obj.status = "generated"
+        content_obj.save()
+
+        return content_obj
+
+    def validate_section_generation(self, section):
+        """Validate section content generation prerequisites."""
+
+        subsections = list(section.sub_sections.order_by("created_at"))
+
+        if not subsections:
+            raise ValueError(
+                "Subsections are required before generating section content."
+            )
+
+        incomplete_subsections = [
+            subsection.title
+            for subsection in subsections
+            if not hasattr(subsection, "content")
+            or subsection.content.status != "generated"
+        ]
+
+        if incomplete_subsections:
+            raise ValueError(
+                "All subsection content must be generated first. Missing: "
+                + ", ".join(incomplete_subsections)
+            )
+
+        return subsections
+
+    def get_section_content(self, section):
+        """Get section content."""
+
+        content_obj, _ = SectionContent.objects.get_or_create(
+            section=section,
+            defaults={
+                "content_json": {},
+                "status": "draft",
+            },
+        )
+
+        return content_obj
+
+    def generate_section_content(
+        self,
+        project,
+        report,
+        section,
+        subsections,
+        content_obj,
+    ):
+        """Generate section-level synthesized content."""
+
+        content_obj.status = "in_progress"
+        content_obj.save()
+
+        subsections_themes = {
+            subsection.title: (
+                subsection.content.content_json.get("key_themes", [])
+                or subsection.content.content_json.get(
+                    "subsection_introduction", {}
+                ).get("paragraphs", [])
+            )
+            for subsection in subsections
+            if hasattr(subsection, "content")
+        }
+
+        result = generate_section_content(
+            project=project,
+            project_id=project.id,
+            industry=report.industry,
+            report_type=report.report_type,
+            audience=report.audience,
+            purpose=report.purpose,
+            report_title=report.title,
+            section_title=section.title,
+            subsections_themes=subsections_themes,
+        )
+
+        content_obj.content_json = result
+        content_obj.status = "generated"
+        content_obj.save()
+
+        return content_obj
+
+    def repair_topic_content(self, project, report, topic, content_obj):
+        """Repair topic content after visual placeholder failures."""
+
+        repaired_content = repair_topic_content(
+            project=project,
+            industry=report.industry,
+            report_type=report.report_type,
+            audience=report.audience,
+            purpose=report.purpose,
+            section_title=topic.subsection.section.title,
+            subsection_title=topic.subsection.title,
+            topic_title=topic.title,
+            topic_plan=topic.analysis_plan.plan_json,
+            content_json=content_obj.content_json or {},
+        )
+
+        content_obj.content_json = repaired_content
+        content_obj.save()
+
+        return content_obj
