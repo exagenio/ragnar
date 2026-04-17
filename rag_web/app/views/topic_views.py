@@ -49,11 +49,16 @@ def generate_topic_analysis_plan_view(
             messages.error(request, "Invalid JSON in data requirements.")
             return redirect(request.path)
 
-        return redirect(
-            "subtopic_dashboard",
-            project_id=project.id,
-            report_id=report.id,
-        )
+        if action == "approve":
+            messages.success(request, "Topic analysis plan approved.")
+            return redirect(
+                "subtopic_dashboard",
+                project_id=project.id,
+                report_id=report.id,
+            )
+
+        messages.success(request, "Topic analysis plan saved.")
+        return redirect(request.path)
 
     plan_obj = manager.generate_topic_analysis_plan(
         project,
