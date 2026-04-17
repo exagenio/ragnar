@@ -373,11 +373,7 @@ class ContentAgent:
         content_obj.status = "in_progress"
         content_obj.save()
 
-        topics_progress = {
-            topic.title: topic.content.content_json
-            for topic in topics
-            if hasattr(topic, "content")
-        }
+        topics_progress = self.collect_topics_progress(topics)
 
         result = generate_subsection_content(
             project=project,
@@ -397,6 +393,25 @@ class ContentAgent:
         content_obj.save()
 
         return content_obj
+
+    def collect_topics_progress(self, topics):
+        """Collect the minimal topic progress needed for subsection synthesis."""
+
+        topics_progress = {}
+
+        for topic in topics:
+            if not hasattr(topic, "content") or not topic.content.content_json:
+                continue
+
+            element_progress = topic.content.content_json.get(
+                "element_progress",
+                {},
+            )
+
+            if element_progress:
+                topics_progress[topic.title] = element_progress
+
+        return topics_progress
 
     def validate_section_generation(self, section):
         """Validate section content generation prerequisites."""
@@ -449,16 +464,7 @@ class ContentAgent:
         content_obj.status = "in_progress"
         content_obj.save()
 
-        subsections_themes = {
-            subsection.title: (
-                subsection.content.content_json.get("key_themes", [])
-                or subsection.content.content_json.get(
-                    "subsection_introduction", {}
-                ).get("paragraphs", [])
-            )
-            for subsection in subsections
-            if hasattr(subsection, "content")
-        }
+        subsections_themes = self.collect_subsections_themes(subsections)
 
         result = generate_section_content(
             project=project,
@@ -477,6 +483,22 @@ class ContentAgent:
         content_obj.save()
 
         return content_obj
+
+    def collect_subsections_themes(self, subsections):
+        """Collect subsection themes for section synthesis."""
+
+        subsections_themes = {}
+
+        for subsection in subsections:
+            if not hasattr(subsection, "content") or not subsection.content.content_json:
+                continue
+
+            key_themes = subsection.content.content_json.get("key_themes", [])
+
+            if key_themes:
+                subsections_themes[subsection.title] = key_themes
+
+        return subsections_themes
 
     def repair_topic_content(self, project, report, topic, content_obj):
         """Repair topic content after visual placeholder failures."""
@@ -503,3 +525,21 @@ class ContentAgent:
         """Delete a failed topic and all dependent records via cascade."""
 
         topic.delete()
+
+    def generate_report_document(self, report):
+
+        sections = (
+            Section.objects.filter(report=report)
+            .prefetch_related(
+                "sub_sections__topics__content",
+                "sub_sections__content",
+                "content",
+            )
+            .order_by("created_at")
+        )
+
+        document_buffer = generate_report_document(report, sections)
+
+        filename = f"{slugify(report.title)}_report.docx"
+
+        return document_buffer, filename

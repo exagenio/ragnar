@@ -95,9 +95,31 @@ def extract_json_or_fail(raw_text: str) -> dict:
     if not raw_text:
         raise ValueError("LLM returned empty response")
 
-    # Extract json object from text
-    match = re.search(r"\{[\s\S]*\}", raw_text)
-    if not match:
+    candidates = []
+
+    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw_text)
+    if fenced_match:
+        candidates.append(fenced_match.group(1).strip())
+
+    object_match = re.search(r"\{[\s\S]*\}", raw_text)
+    if object_match:
+        candidates.append(object_match.group().strip())
+
+    if raw_text.strip().startswith("{"):
+        candidates.append(raw_text.strip())
+
+    parse_errors = []
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            parse_errors.append(str(exc))
+
+    if not candidates:
         raise ValueError(f"LLM did not return JSON:\n{raw_text[:500]}")
 
-    return json.loads(match.group())
+    raise ValueError(
+        "LLM returned malformed JSON for subsection content generation. "
+        f"Parse errors: {' | '.join(parse_errors[:2])}"
+    )
