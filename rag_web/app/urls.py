@@ -11,6 +11,7 @@ from app.views import (
     project_views,
     report_views,
     sub_sect_views,
+    task_views,
     topic_views,
 )
 
@@ -137,6 +138,21 @@ urlpatterns = [
         "projects/<int:project_id>/evaluation/export/",
         protected(evalu_views.export_evaluation_doc),
         name="export_evaluation_doc",
+    ),
+    path(
+        "tasks/",
+        protected(task_views.background_task_list),
+        name="background_task_list",
+    ),
+    path(
+        "tasks/<int:task_id>/",
+        protected(task_views.background_task_detail),
+        name="background_task_detail",
+    ),
+    path(
+        "tasks/<int:task_id>/logs/",
+        protected(task_views.background_task_logs_api),
+        name="background_task_logs_api",
     ),
 ]
 

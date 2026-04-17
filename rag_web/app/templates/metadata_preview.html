@@ -14,6 +14,12 @@
 
     <div class="notice notice--brand">
         <p>This metadata is AI-generated and must be reviewed before approval.</p>
+        {% if message %}<p>{{ message }}</p>{% endif %}
+        {% if task %}
+        <div class="page-actions">
+            <a href="{% url 'background_task_detail' task.id %}" class="button button--secondary">Open Live Task Log</a>
+        </div>
+        {% endif %}
     </div>
 
     <div class="stack stack--tight">

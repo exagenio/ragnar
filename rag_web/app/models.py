@@ -386,3 +386,93 @@ class TopicReadability(models.Model):
     flesch_kincaid_grade = models.FloatField()
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BackgroundTask(models.Model):
+    TASK_TYPE_CHOICES = [
+        ("metadata_generation", "Metadata Generation"),
+        ("subsection_pipeline", "Subsection Pipeline"),
+        ("topic_pipeline", "Topic Pipeline"),
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    task_type = models.CharField(max_length=64, choices=TASK_TYPE_CHOICES)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_tasks",
+    )
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_tasks",
+    )
+    subsection = models.ForeignKey(
+        SubSection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_tasks",
+    )
+    topic = models.ForeignKey(
+        Topic,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_tasks",
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    last_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} ({self.status})"
+
+
+class BackgroundTaskLog(models.Model):
+    LEVEL_CHOICES = [
+        ("info", "Info"),
+        ("success", "Success"),
+        ("warning", "Warning"),
+        ("error", "Error"),
+    ]
+
+    task = models.ForeignKey(
+        BackgroundTask,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default="info")
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.task.title}: {self.message[:60]}"

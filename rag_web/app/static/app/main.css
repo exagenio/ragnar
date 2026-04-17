@@ -316,6 +316,7 @@ button {
     border-color: var(--color-brand-soft-strong);
     background: var(--color-brand-soft);
     color: var(--color-brand);
+    margin-bottom: 16px;
 }
 
 .notice--success {
@@ -762,6 +763,46 @@ textarea:focus {
     background: var(--color-surface-strong);
     color: var(--color-background);
     box-shadow: var(--shadow-soft);
+}
+
+.log-viewer {
+    max-height: 28rem;
+    overflow-y: auto;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #07111f;
+    color: #f8fafc;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.88rem;
+}
+
+.log-line {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.log-line:last-child {
+    border-bottom: 0;
+}
+
+.log-line__time {
+    color: rgba(255, 255, 255, 0.58);
+}
+
+.log-line--success .log-line__message {
+    color: #bdf3cc;
+}
+
+.log-line--warning .log-line__message {
+    color: #d1edf9;
+}
+
+.log-line--error .log-line__message {
+    color: #ffb4bc;
 }
 
 .chart-frame {

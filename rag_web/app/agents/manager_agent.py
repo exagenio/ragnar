@@ -1,21 +1,35 @@
-from app.services.project_service import ProjectService
-from app.agents.metadata_agent import MetadataAgent
-from app.agents.content_agent import ContentAgent
-from app.agents.sql_agent import SQLAgent
-from app.agents.visual_Agent import VisualAgent
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
-from app.models import Topic
-from app.models import Section, TopicContent, TopicAnalysisPlan, SubSectionGenerateTime, TopicGenerateTime
-from app.services.vector_db_config.vector_store import get_vector_store
-import base64
-import struct
-from app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
 import traceback
+
 from django.utils.timezone import now
+
+from app.agents.content_agent import ContentAgent
+from app.agents.metadata_agent import MetadataAgent
+from app.agents.sql_agent import SQLAgent
+from app.agents.visual_Agent import VisualAgent
+from app.models import (
+    SubSectionGenerateTime,
+    TopicContent,
+    TopicGenerateTime,
+)
+from app.services.project_service import ProjectService
+from app.services.task_tracker import (
+    complete_background_task,
+    create_background_task,
+    fail_background_task,
+    log_background_task,
+    start_background_task,
+)
+from app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
+from app.services.vector_db_config.vector_store import get_vector_store
+from app.utils.block_processing import (
+    apply_repaired_blocks,
+    build_block_chunks,
+    build_prompt_blocks,
+)
 from app.utils.data_decoder import decode_sql_result
-from app.utils.block_processing import build_prompt_blocks, build_block_chunks, apply_repaired_blocks
 from app.utils.visual_utils import has_pending_visuals
 
 try:
@@ -35,16 +49,8 @@ class ManagerAgent:
         self.visual_agent = VisualAgent()
 
     def create_project_with_database(self, data):
-        """
-        Orchestrates project creation workflow.
-        """
-
-        # 1. Validate DB connection
         self.project_service.test_db_connection(data)
-
-        # 2. Create project and DB connection
         project = self.project_service.create_project_with_db(data)
-
         return project
 
     def update_project_llm_settings(self, project, data):
@@ -55,22 +61,22 @@ class ManagerAgent:
 
     def save_selected_tables(self, project, tables):
         return self.metadata_agent.save_selected_tables(project, tables)
-    
+
     def get_schema_info(self, project):
         return self.metadata_agent.get_schema_info(project)
-    
+
     def sample_table_rows(self, project, limit=10):
         return self.metadata_agent.sample_rows(project, limit)
-    
+
     def start_metadata_generation(self, project):
         return self.metadata_agent.start_metadata_generation(project)
-    
+
     def approve_table_metadata(
-    self,
-    metadata_obj,
-    table_description,
-    columns,
-    confidence_notes,
+        self,
+        metadata_obj,
+        table_description,
+        columns,
+        confidence_notes,
     ):
         return self.metadata_agent.approve_metadata(
             metadata_obj,
@@ -78,38 +84,32 @@ class ManagerAgent:
             columns,
             confidence_notes,
         )
-    
+
     def start_report(self, project, data):
         return self.content_agent.start_report(project, data)
-    
+
     def update_outline(self, outline_obj, updated_outline):
         return self.content_agent.update_outline(outline_obj, updated_outline)
-    
+
     def approve_outline(self, report):
         return self.content_agent.approve_outline(report)
-    
+
     def generate_topics(self, report, subsection, section, project_id):
         return self.content_agent.generate_topics(
-            report, subsection, section, project_id
+            report,
+            subsection,
+            section,
+            project_id,
         )
-
 
     def save_topics(self, report, subsection, submitted_titles):
-        return self.content_agent.save_topics(
-            report, subsection, submitted_titles
-        )
-
+        return self.content_agent.save_topics(report, subsection, submitted_titles)
 
     def approve_topics(self, subsection, section):
         return self.content_agent.approve_topics(subsection, section)
-    
-    def generate_topic_analysis_plan(self, project, report, topic):
-        return self.content_agent.generate_topic_analysis_plan(
-            project,
-            report,
-            topic,
-        )
 
+    def generate_topic_analysis_plan(self, project, report, topic):
+        return self.content_agent.generate_topic_analysis_plan(project, report, topic)
 
     def update_topic_analysis_plan(self, plan_obj, topic, form_data, approve=False):
         plan = self.content_agent.update_topic_analysis_plan(
@@ -118,13 +118,17 @@ class ManagerAgent:
             form_data,
             approve,
         )
-        if approve :
-             self.generate_precomputed_sql_placeholders(topic, plan)
+        if approve:
+            self.generate_precomputed_sql_placeholders(topic, plan)
         plan_obj.save()
 
-    
     def generate_topic_content(self, project, report, topic, content_obj):
-        return self._run_topic_pipeline(project=project, report=report, topic=topic, plan_generated=True)
+        return self._run_topic_pipeline(
+            project=project,
+            report=report,
+            topic=topic,
+            plan_generated=True,
+        )
 
     def compute_visual_block(self, project, report, topic, content_obj, section_index, block_index):
         result = self.visual_agent.compute_visual_block(
@@ -136,9 +140,7 @@ class ManagerAgent:
         )
 
         if isinstance(result, dict) and result.get("placeholder_removed") and not result.get("success"):
-
-            print(f"[REPAIR] Visual placeholder removed → Topic {topic.id}")
-
+            print(f"[REPAIR] Visual placeholder removed -> Topic {topic.id}")
             content_obj = self.content_agent.repair_topic_content(
                 project,
                 report,
@@ -147,14 +149,12 @@ class ManagerAgent:
             )
 
         return result
-    
+
     def validate_subsection_generation(self, subsection):
         return self.content_agent.validate_subsection_generation(subsection)
 
-
     def get_subsection_content(self, subsection):
         return self.content_agent.get_subsection_content(subsection)
-
 
     def generate_subsection_content(self, project, report, subsection, topics, content_obj):
         return self.content_agent.generate_subsection_content(
@@ -164,14 +164,12 @@ class ManagerAgent:
             topics,
             content_obj,
         )
-    
+
     def validate_section_generation(self, section):
         return self.content_agent.validate_section_generation(section)
 
-
     def get_section_content(self, section):
         return self.content_agent.get_section_content(section)
-
 
     def generate_section_content(self, project, report, section, subsections, content_obj):
         return self.content_agent.generate_section_content(
@@ -181,32 +179,44 @@ class ManagerAgent:
             subsections,
             content_obj,
         )
-    
+
     def generate_report_document(self, report):
         return self.content_agent.generate_report_document(report)
-    
 
+    def _emit_task_log(self, task_id, message, level="info"):
+        print(message)
+        if task_id:
+            log_background_task(task_id, message, level=level)
 
     def trigger_subsection_auto_generation(self, project, report, subsection):
-
         if subsection.is_generating:
             print("[AUTO] Subsection already generating")
-            return False
+            return None
 
         subsection.is_generating = True
         subsection.save()
 
-        print(f"[AUTO] Triggered auto generation → Subsection {subsection.id}")
+        task = create_background_task(
+            task_type="subsection_pipeline",
+            title=f"Subsection pipeline for {subsection.title}",
+            description="Generate topics, run topic pipelines, and compose subsection content.",
+            project=project,
+            report=report,
+            subsection=subsection,
+        )
+
+        self._emit_task_log(
+            task.id,
+            f"[AUTO] Triggered auto generation for subsection '{subsection.title}'.",
+        )
 
         thread = threading.Thread(
             target=self._run_subsection_pipeline,
-            args=(project, report, subsection),
+            args=(project, report, subsection, task.id),
             daemon=True,
         )
-
         thread.start()
-
-        return True
+        return task
 
     def delete_topic_with_dependencies(self, topic):
         return self.content_agent.delete_topic_with_dependencies(topic)
@@ -240,10 +250,13 @@ class ManagerAgent:
         project,
         report,
         topic,
+        task_id=None,
         plan_generated=False,
         max_attempts=2,
     ):
         last_error = None
+        if task_id:
+            start_background_task(task_id, f"Topic pipeline started for '{topic.title}'.")
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -251,8 +264,14 @@ class ManagerAgent:
                     project,
                     report,
                     topic,
+                    task_id=task_id,
                     plan_generated=plan_generated,
                 )
+                if task_id:
+                    complete_background_task(
+                        task_id,
+                        f"Topic pipeline completed for '{topic.title}'.",
+                    )
                 return {
                     "success": True,
                     "topic_id": topic.id,
@@ -260,22 +279,25 @@ class ManagerAgent:
                 }
             except Exception as exc:
                 last_error = exc
-
-                print(
-                    f"[TOPIC RETRY] Topic {topic.id} attempt {attempt}/{max_attempts} failed: {exc}"
+                self._emit_task_log(
+                    task_id,
+                    f"[TOPIC RETRY] Topic {topic.id} attempt {attempt}/{max_attempts} failed: {exc}",
+                    level="warning",
                 )
 
                 if attempt < max_attempts and self._is_retryable_llm_error(exc):
                     backoff_seconds = 8 * attempt
-                    print(
-                        f"[TOPIC RETRY] Waiting {backoff_seconds}s before retrying Topic {topic.id}"
+                    self._emit_task_log(
+                        task_id,
+                        f"[TOPIC RETRY] Waiting {backoff_seconds}s before retrying topic {topic.id}.",
                     )
                     time.sleep(backoff_seconds)
                     continue
 
                 if attempt < max_attempts:
-                    print(
-                        f"[TOPIC RETRY] Retrying Topic {topic.id} once more after failure."
+                    self._emit_task_log(
+                        task_id,
+                        f"[TOPIC RETRY] Retrying topic {topic.id} once more after failure.",
                     )
                     time.sleep(2)
 
@@ -283,9 +305,17 @@ class ManagerAgent:
         topic_title = topic.title
         self.delete_topic_with_dependencies(topic)
 
-        print(
-            f"[TOPIC CLEANUP] Removed failed Topic {topic_id} ({topic_title}) after {max_attempts} attempts."
+        self._emit_task_log(
+            task_id,
+            f"[TOPIC CLEANUP] Removed failed topic {topic_id} ({topic_title}) after {max_attempts} attempts.",
+            level="error",
         )
+
+        if task_id:
+            fail_background_task(
+                task_id,
+                str(last_error) if last_error else "Unknown topic pipeline error",
+            )
 
         return {
             "success": False,
@@ -294,71 +324,84 @@ class ManagerAgent:
             "error": str(last_error) if last_error else "Unknown topic pipeline error",
         }
 
-
-
-    # MAIN PIPELINE
-    def _run_subsection_pipeline(self, project, report, subsection):
+    def _run_subsection_pipeline(self, project, report, subsection, task_id=None):
         start_time = now()
         status = "success"
         error_message = ""
         try:
+            if task_id:
+                start_background_task(
+                    task_id,
+                    f"Subsection pipeline started for '{subsection.title}'.",
+                )
 
             section = subsection.section
+            self._emit_task_log(
+                task_id,
+                f"[AUTO] Starting subsection pipeline for subsection {subsection.id}.",
+            )
 
-            print(f"[AUTO] Starting subsection pipeline → Subsection {subsection.id}")
-
-            # Generate Topics
             self.generate_topics(report, subsection, section, project.id)
-
             topics = list(subsection.topics.all())
+            self._emit_task_log(
+                task_id,
+                f"[AUTO] Generated {len(topics)} topic candidate(s).",
+            )
 
-            print(f"[AUTO] Generated {len(topics)} topics")
-
-
-            # Approve Topics
             self.approve_topics(subsection, section)
+            self._emit_task_log(task_id, "[AUTO] Topics approved.")
 
-            print("[AUTO] Topics approved")
-
-            # Concurrent Topic Pipelines
             successful_topics = []
             failed_topics = []
 
             with ThreadPoolExecutor(
                 max_workers=self._topic_pipeline_workers_for_project(project)
             ) as executor:
-
                 futures = []
 
                 for topic in topics:
-
+                    topic_task = create_background_task(
+                        task_type="topic_pipeline",
+                        title=f"Topic pipeline for {topic.title}",
+                        description="Generate a topic plan, compute SQL, create content, and prepare visuals.",
+                        project=project,
+                        report=report,
+                        subsection=subsection,
+                        topic=topic,
+                        parent_id=task_id,
+                    )
                     futures.append(
                         executor.submit(
                             self._run_topic_pipeline_with_retry,
                             project,
                             report,
                             topic,
+                            topic_task.id,
                         )
                     )
 
-                for f in futures:
+                for future in futures:
                     try:
-                        result = f.result()
+                        result = future.result()
                         if result and result.get("success"):
                             successful_topics.append(result)
                         elif result:
                             failed_topics.append(result)
-                    except Exception as e:
-                        print(f"[AUTO] Topic pipeline failed: {e}")
+                    except Exception as exc:
+                        self._emit_task_log(
+                            task_id,
+                            f"[AUTO] Topic pipeline failed: {exc}",
+                            level="error",
+                        )
 
-            print("[AUTO] All topic pipelines completed")
+            self._emit_task_log(task_id, "[AUTO] All topic pipelines completed.")
 
             if failed_topics:
-                failed_titles = ", ".join(
-                    item["topic_title"] for item in failed_topics
-                )
-                print(
-                    f"[AUTO] Failed topics were removed after retry exhaustion: {failed_titles}"
+                failed_titles = ", ".join(item["topic_title"] for item in failed_topics)
+                self._emit_task_log(
+                    task_id,
+                    f"[AUTO] Failed topics were removed after retry exhaustion: {failed_titles}",
+                    level="warning",
                 )
 
             if not successful_topics:
@@ -367,14 +410,11 @@ class ManagerAgent:
                     "All topic pipelines failed. Failed topics were removed; "
                     "subsection content generation was skipped."
                 )
-                print(f"[AUTO] {error_message}")
+                self._emit_task_log(task_id, f"[AUTO] {error_message}", level="error")
                 return
 
-            # Generate Subsection Content
             topics = self.validate_subsection_generation(subsection)
-
             subsection_content = self.get_subsection_content(subsection)
-
             self.generate_subsection_content(
                 project,
                 report,
@@ -383,16 +423,22 @@ class ManagerAgent:
                 subsection_content,
             )
 
-            print("[AUTO] Subsection content generated")
-        except Exception as e:
+            self._emit_task_log(
+                task_id,
+                "[AUTO] Subsection content generated.",
+                level="success",
+            )
+        except Exception as exc:
             status = "failed"
-            error_message = str(e)
-            print(f"[AUTO ERROR] Subsection {subsection.id}: {e}")
+            error_message = str(exc)
+            self._emit_task_log(
+                task_id,
+                f"[AUTO ERROR] Subsection {subsection.id}: {exc}",
+                level="error",
+            )
             traceback.print_exc()
-
         finally:
             end_time = now()
-
             SubSectionGenerateTime.objects.create(
                 subsection=subsection,
                 report=report,
@@ -406,10 +452,20 @@ class ManagerAgent:
             subsection.is_generating = False
             subsection.save()
 
-            print(f"[AUTO] Subsection pipeline finished → Subsection {subsection.id}")
+            if task_id:
+                if status == "success":
+                    complete_background_task(
+                        task_id,
+                        f"Subsection pipeline completed for '{subsection.title}'.",
+                    )
+                else:
+                    fail_background_task(
+                        task_id,
+                        error_message or f"Subsection pipeline failed for '{subsection.title}'.",
+                    )
 
+            print(f"[AUTO] Subsection pipeline finished -> Subsection {subsection.id}")
 
-    # SINGLE TOPIC PIPELINE
     def _run_topic_pipeline(self, project, report, topic, plan_generated=False):
         try:
             return self._execute_topic_pipeline_once(
@@ -418,46 +474,57 @@ class ManagerAgent:
                 topic,
                 plan_generated=plan_generated,
             )
-        except Exception as e:
-            print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
+        except Exception as exc:
+            print(f"[PIPELINE ERROR] Topic {topic.id}: {exc}")
             traceback.print_exc()
             return None
 
-    def _execute_topic_pipeline_once(self, project, report, topic, plan_generated=False):
+    def _execute_topic_pipeline_once(self, project, report, topic, task_id=None, plan_generated=False):
         start_time = now()
         status = "success"
         error_message = ""
         try:
-            print(f"[PIPELINE] Start → Topic {topic.id}")
+            self._emit_task_log(task_id, f"[PIPELINE] Start -> Topic {topic.id}")
 
-            # 1. PLAN + SQL PLACEHOLDERS
-            content_obj = self._stage_analysis_and_sql(project, report, topic, plan_generated)
-
-            # 2. CONTENT GENERATION
+            content_obj = self._stage_analysis_and_sql(
+                project,
+                report,
+                topic,
+                task_id=task_id,
+                plan_generated=plan_generated,
+            )
             content_obj = self._stage_generate_content(
-                project, report, topic, content_obj
+                project,
+                report,
+                topic,
+                content_obj,
+                task_id=task_id,
             )
-
-            # 3. VISUAL PIPELINE
             content_obj = self._stage_generate_visuals(
-                project, report, topic, content_obj
+                project,
+                report,
+                topic,
+                content_obj,
+                task_id=task_id,
             )
-
             content_obj = self._stage_repair_visual_narrative(
-                project, report, topic, content_obj
+                project,
+                report,
+                topic,
+                content_obj,
+                task_id=task_id,
             )
 
-            print(f"[PIPELINE] Completed → Topic {topic.id}")
+            self._emit_task_log(task_id, f"[PIPELINE] Completed -> Topic {topic.id}", level="success")
             return content_obj
-        except Exception as e:
+        except Exception as exc:
             status = "failed"
-            error_message = str(e)
-            print(f"[PIPELINE ERROR] Topic {topic.id}: {e}")
+            error_message = str(exc)
+            self._emit_task_log(task_id, f"[PIPELINE ERROR] Topic {topic.id}: {exc}", level="error")
             traceback.print_exc()
             raise
         finally:
             end_time = now()
-
             TopicGenerateTime.objects.create(
                 topic=topic,
                 subsection=topic.subsection,
@@ -469,67 +536,52 @@ class ManagerAgent:
                 error_message=error_message,
             )
 
-
-    def _stage_analysis_and_sql(self, project, report, topic, plan_generated=False):
+    def _stage_analysis_and_sql(self, project, report, topic, task_id=None, plan_generated=False):
         if not plan_generated:
             plan_obj = self.generate_topic_analysis_plan(project, report, topic)
-
             plan_obj.is_approved = True
             topic.is_approved = True
-
             topic.save()
             plan_obj.save()
-            content_obj = self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
+            self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
         else:
-            content_obj = self.content_agent.get_topic_content(topic)       
+            self.content_agent.get_topic_content(topic)
+
         content_obj = self.content_agent.get_topic_content(topic)
         content_obj = self.sql_agent.compute_precomputed_sql_placeholders(
             project=project,
             topic_content_obj=content_obj,
             topic=topic,
         )
-        print(f"[STAGE 1] Analysis + SQL ready → Topic {topic.id}")
+        self._emit_task_log(task_id, f"[STAGE 1] Analysis + SQL ready -> Topic {topic.id}")
         return content_obj
 
-
-    def _stage_generate_content(self, project, report, topic, content_obj):
+    def _stage_generate_content(self, project, report, topic, content_obj, task_id=None):
         content_obj = self.content_agent.generate_topic_content(
             project,
             report,
             topic,
             content_obj,
         )
-
-        print(f"[STAGE 2] Content generated → Topic {topic.id}")
-
+        self._emit_task_log(task_id, f"[STAGE 2] Content generated -> Topic {topic.id}")
         return content_obj
-    
 
-    def _stage_generate_visuals(self, project, report, topic, content_obj):
+    def _stage_generate_visuals(self, project, report, topic, content_obj, task_id=None):
+        max_rounds = 3
 
-        MAX_ROUNDS = 3
-
-        for attempt in range(MAX_ROUNDS):
-
-            print(f"[STAGE 3] Round {attempt+1} → Topic {topic.id}")
-
+        for attempt in range(max_rounds):
+            self._emit_task_log(task_id, f"[STAGE 3] Round {attempt + 1} -> Topic {topic.id}")
             sections = content_obj.content_json.get("sections", [])
-
             tasks = []
 
             with ThreadPoolExecutor(
                 max_workers=self._visual_pipeline_workers_for_project(project)
             ) as executor:
-
-                for s_index, section in enumerate(sections):
-
+                for section_index, section in enumerate(sections):
                     blocks = section.get("content_blocks", [])
-
-                    for b_index, block in enumerate(blocks):
-
+                    for block_index, block in enumerate(blocks):
                         if block.get("type") != "visual_placeholder":
                             continue
-
                         if block.get("generated_visual"):
                             continue
 
@@ -540,24 +592,23 @@ class ManagerAgent:
                                 report,
                                 topic,
                                 content_obj,
-                                s_index,
-                                b_index,
+                                section_index,
+                                block_index,
                             )
                         )
 
-                for t in tasks:
+                for task in tasks:
                     try:
-                        t.result()
-                    except Exception as e:
-                        print(f"[VISUAL ERROR] {e}")
+                        task.result()
+                    except Exception as exc:
+                        self._emit_task_log(task_id, f"[VISUAL ERROR] {exc}", level="warning")
 
-            # CHECK REMAINING
             if not has_pending_visuals(content_obj):
-                print(f"[STAGE 3] All visuals done → Topic {topic.id}")
+                self._emit_task_log(task_id, f"[STAGE 3] All visuals done -> Topic {topic.id}")
                 break
 
         return content_obj
-    
+
     def _process_visual_block_pipeline(
         self,
         project,
@@ -567,8 +618,6 @@ class ManagerAgent:
         section_index,
         block_index,
     ):
-
-        # GENERATE VISUAL
         self.compute_visual_block(
             project,
             report,
@@ -586,7 +635,6 @@ class ManagerAgent:
         narrative,
         visual_block,
     ):
-
         sections = content_obj.content_json["sections"]
         blocks = sections[section_index]["content_blocks"]
 
@@ -594,31 +642,23 @@ class ManagerAgent:
         after = narrative.get("after_block")
 
         new_blocks = []
-
         if before:
             new_blocks.append(before)
-
         new_blocks.append(visual_block)
-
         if after:
             new_blocks.append(after)
 
-        # replace original placeholder
-        blocks[block_index:block_index+1] = new_blocks
-
+        blocks[block_index:block_index + 1] = new_blocks
         content_obj.save()
 
     def _has_pending_visuals(self, content_obj):
-
         for section in content_obj.content_json.get("sections", []):
             for block in section.get("content_blocks", []):
                 if block.get("type") == "visual_placeholder" and not block.get("generated_visual"):
                     return True
-
         return False
 
     def generate_precomputed_sql_placeholders(self, topic, plan):
-        
         content_obj, _ = TopicContent.objects.get_or_create(
             topic=topic,
             defaults={
@@ -628,73 +668,55 @@ class ManagerAgent:
             },
         )
 
-        # METADATA CONTEXT
         vector_store = get_vector_store()
-
         metadata_context = vector_store.similarity_search(
             f"{topic.title} {plan.get('required_elements', [])}",
             k=8,
             filter={"project_id": topic.report.project.id},
         )
-
         metadata_context = [
-            {"content": d.page_content, "metadata": d.metadata}
-            for d in metadata_context
+            {"content": doc.page_content, "metadata": doc.metadata}
+            for doc in metadata_context
         ]
 
-        # GENERATE PLACEHOLDERS
         sql_agent = SQLAgent()
-
         placeholders_result = sql_agent.generate_sql_placeholders_from_plan(
             topic_plan=plan,
             project=topic.report.project,
             metadata_context=metadata_context,
         )
-
         placeholders = placeholders_result.get("placeholders", [])
 
-        # FORMAT
-        def to_sql_block(p, topic_id, index):
+        def to_sql_block(placeholder, topic_id, index):
             return {
                 "type": "sql_placeholder",
                 "content": {
                     "id": f"{topic_id}_{index}",
-                    "calculation": p["calculation"],
-                    "description": p["description"],
-                    "data_requirement_ref": p["data_requirement_ref"],
-                }
+                    "calculation": placeholder["calculation"],
+                    "description": placeholder["description"],
+                    "data_requirement_ref": placeholder["data_requirement_ref"],
+                },
             }
 
         sql_blocks = [
-            to_sql_block(p, topic.id, i)
-            for i, p in enumerate(placeholders)
+            to_sql_block(placeholder, topic.id, index)
+            for index, placeholder in enumerate(placeholders)
         ]
 
-        # SAVE
         content_json = content_obj.content_json or {}
         content_json["precomputed_sql_placeholders"] = sql_blocks
-
         content_obj.content_json = content_json
         content_obj.save()
-
         return content_obj
 
-    def _stage_repair_visual_narrative(self, project, report, topic, content_obj):
-
-        print(f"[STAGE 4] Block-level repair → Topic {topic.id}")
+    def _stage_repair_visual_narrative(self, project, report, topic, content_obj, task_id=None):
+        self._emit_task_log(task_id, f"[STAGE 4] Block-level repair -> Topic {topic.id}")
 
         sections = content_obj.content_json.get("sections", [])
-
         for section in sections:
-
             blocks = section.get("content_blocks", [])
-
-            # Extract
             formatted_blocks = build_prompt_blocks(blocks, decode_sql_result)
-
-            # Chunk
             chunks = build_block_chunks(formatted_blocks, chunk_size=6)
-
             all_updates = []
 
             for chunk in chunks:
@@ -704,30 +726,26 @@ class ManagerAgent:
                         blocks_chunk=chunk,
                     )
                     all_updates.extend(updates)
-                except Exception as e:
-                    print(f"[REPAIR ERROR] Topic {topic.id}")
-                    print(f"Error: {str(e)}")
+                except Exception as exc:
+                    self._emit_task_log(
+                        task_id,
+                        f"[REPAIR ERROR] Topic {topic.id}: {exc}",
+                        level="warning",
+                    )
                     traceback.print_exc()
 
-            section["content_blocks"] = apply_repaired_blocks(
-                blocks,
-                all_updates
-            )
+            section["content_blocks"] = apply_repaired_blocks(blocks, all_updates)
 
         content_obj.save()
-
-        print(f"[STAGE 4] Completed → Topic {topic.id}")
-
+        self._emit_task_log(task_id, f"[STAGE 4] Completed -> Topic {topic.id}")
         return content_obj
-    
+
     def normalize_visual_block(self, block):
         raw = block.get("content")
-
         if isinstance(raw, dict):
             return block
 
         if isinstance(raw, str) and "{{VISUAL" in raw:
-
             import re
 
             def extract(field):

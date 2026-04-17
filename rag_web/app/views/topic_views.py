@@ -6,13 +6,14 @@ from app.models import (
     Report,
     Topic,
 )
-from app.agents.manager_agent import ManagerAgent
 from app.utils.text import normalize_title
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 import json
 
-manager = ManagerAgent()
+def get_manager():
+    from app.agents.manager_agent import ManagerAgent
+    return ManagerAgent()
 
 def generate_topic_analysis_plan_view(
     request,
@@ -20,6 +21,7 @@ def generate_topic_analysis_plan_view(
     report_id,
     topic_id,
 ):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -128,6 +130,7 @@ def generate_topic_content_view(
     report_id,
     topic_id,
 ):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)

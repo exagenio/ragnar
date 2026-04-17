@@ -8,12 +8,13 @@ from app.models import (
     Section,
     SubSection,
 )
-from app.agents.manager_agent import ManagerAgent
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 
-manager = ManagerAgent()
+def get_manager():
+    from app.agents.manager_agent import ManagerAgent
+    return ManagerAgent()
 
 def generate_subsection_content_view(
     request,
@@ -21,6 +22,7 @@ def generate_subsection_content_view(
     report_id,
     subsection_id,
 ):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -91,6 +93,7 @@ def generate_section_content_view(
     report_id,
     section_id,
 ):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -154,6 +157,7 @@ def generate_section_content_view(
 
 
 def generate_document_view(request, project_id, report_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -183,6 +187,7 @@ def generate_document_view(request, project_id, report_id):
 
 
 def trigger_auto_generate_subsection(request, project_id, report_id, subsection_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
@@ -194,4 +199,9 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
         subsection,
     )
 
-    return JsonResponse({"started": started})
+    return JsonResponse(
+        {
+            "started": bool(started),
+            "task_id": started.id if started else None,
+        }
+    )

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Background Tasks{% endblock %}
+
+{% block content %}
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Background Tasks</h1>
+            <p class="page-header__subtitle">Track live pipelines for metadata generation, subsection generation, and topic generation.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Running Now</h2>
+        </div>
+        <div class="card__body">
+            {% if running_tasks %}
+            <ul class="list list--divided">
+                {% for task in running_tasks %}
+                <li class="list__item">
+                    <div class="list__row">
+                        <div>
+                            <p class="list__title">{{ task.title }}</p>
+                            <p class="list__meta">
+                                <span class="status-pill status-pill--brand">{{ task.get_task_type_display }}</span>
+                                <span class="status-pill status-pill--brand">{{ task.status }}</span>
+                            </p>
+                            {% if task.last_message %}
+                            <p class="list__meta">{{ task.last_message }}</p>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'background_task_detail' task.id %}" class="button button--primary">Open Live Log</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">No background tasks are running right now.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Recent Tasks</h2>
+        </div>
+        <div class="card__body">
+            {% if recent_tasks %}
+            <ul class="list list--divided">
+                {% for task in recent_tasks %}
+                <li class="list__item">
+                    <div class="list__row">
+                        <div>
+                            <p class="list__title">{{ task.title }}</p>
+                            <p class="list__meta">
+                                <span class="status-pill {% if task.status == 'completed' %}status-pill--success{% elif task.status == 'failed' %}status-pill--danger{% else %}status-pill--brand{% endif %}">
+                                    {{ task.status }}
+                                </span>
+                                <span class="status-pill status-pill--neutral">{{ task.get_task_type_display }}</span>
+                            </p>
+                            {% if task.last_message %}
+                            <p class="list__meta">{{ task.last_message }}</p>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'background_task_detail' task.id %}" class="button button--secondary">View Log</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">No recent task history is available yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

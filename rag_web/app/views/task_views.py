@@ -1,0 +1,72 @@
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+
+from app.models import BackgroundTask
+from app.services.task_tracker import recent_tasks_queryset, running_tasks_queryset
+
+
+def background_task_list(request):
+    return render(
+        request,
+        "background_tasks.html",
+        {
+            "running_tasks": running_tasks_queryset(),
+            "recent_tasks": recent_tasks_queryset(),
+        },
+    )
+
+
+def background_task_detail(request, task_id):
+    task = get_object_or_404(
+        BackgroundTask.objects.select_related(
+            "project",
+            "report",
+            "subsection",
+            "topic",
+            "parent",
+        ),
+        id=task_id,
+    )
+    child_tasks = task.children.select_related("topic", "subsection").all()
+    initial_logs = list(task.logs.order_by("-id")[:120])
+    initial_logs.reverse()
+
+    return render(
+        request,
+        "background_task_detail.html",
+        {
+            "task": task,
+            "child_tasks": child_tasks,
+            "initial_logs": initial_logs,
+        },
+    )
+
+
+def background_task_logs_api(request, task_id):
+    task = get_object_or_404(BackgroundTask, id=task_id)
+    after_id = request.GET.get("after_id")
+    logs = task.logs.all()
+
+    if after_id:
+        logs = logs.filter(id__gt=after_id)
+
+    payload = {
+        "task": {
+            "id": task.id,
+            "title": task.title,
+            "status": task.status,
+            "last_message": task.last_message,
+            "started_at": task.started_at.isoformat() if task.started_at else None,
+            "finished_at": task.finished_at.isoformat() if task.finished_at else None,
+        },
+        "logs": [
+            {
+                "id": log.id,
+                "level": log.level,
+                "message": log.message,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in logs
+        ],
+    }
+    return JsonResponse(payload)

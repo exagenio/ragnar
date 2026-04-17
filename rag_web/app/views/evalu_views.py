@@ -10,15 +10,12 @@ from app.models import (
     ReportEvaluation,
     TopicEvaluation
 )
-from app.agents.manager_agent import ManagerAgent
 from app.services.evaluation.evaluation_service import evaluate_project
 from app.services.evaluation.readability_service import evaluate_project_readability
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 from app.services.evaluation.geval_evaluation_service import evaluate_project_geval
 from app.services.evaluation.evaluation_doc_generator import generate_evaluation_document
-
-manager = ManagerAgent()
 
 def evaluation_dashboard_view(request, project_id):
     project = get_object_or_404(Project, id=project_id)

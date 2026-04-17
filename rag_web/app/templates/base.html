@@ -21,6 +21,9 @@
                 {% if user.is_authenticated %}
                     <span class="app-header__user">Signed in as {{ user.username }}</span>
                     <div class="app-header__actions">
+                        <a href="{% url 'background_task_list' %}" class="button button--secondary">
+                            Tasks
+                        </a>
                         <a href="{% if project %}{% url 'project_settings' project.id %}{% elif request.resolver_match.kwargs.project_id %}{% url 'project_settings' request.resolver_match.kwargs.project_id %}{% else %}{% url 'project_create' %}{% endif %}" class="button button--secondary">
                             Settings
                         </a>

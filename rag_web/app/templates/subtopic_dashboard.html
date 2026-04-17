@@ -106,7 +106,7 @@ function startAutoGenerate(projectId, reportId, subsectionId, button) {
         .then((res) => res.json())
         .then((data) => {
             if (data.started) {
-                showToast("Generation started in background");
+                showToast("Generation started in background. Track it from Tasks.");
                 button.disabled = true;
                 button.innerText = "Generating";
             }

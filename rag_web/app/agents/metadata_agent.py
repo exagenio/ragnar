@@ -4,6 +4,7 @@ from app.services.metadata_generation.row_sampler import sample_table_rows
 from app.services.metadata_generation.metadata_job import run_metadata_generation
 from app.services.metadata_generation.metadata_to_documents import metadata_to_documents
 from app.services.vector_db_config.vector_store import get_vector_store
+from app.services.task_tracker import create_background_task
 
 from app.models import SelectedTable
 from app.services.background_tasks import run_in_background
@@ -84,11 +85,19 @@ class MetadataAgent:
         if not project.is_initialized:
             raise ValueError("Project is not initialized yet.")
 
+        task = create_background_task(
+            task_type="metadata_generation",
+            title=f"Metadata generation for {project.name}",
+            description="Generate table metadata from the selected database schema.",
+            project=project,
+        )
+
         # Run metadata generation in background
-        run_in_background(run_metadata_generation, project.id)
+        run_in_background(run_metadata_generation, project.id, task.id)
 
         return {
-            "message": "Metadata generation started in background. Please wait."
+            "message": "Metadata generation started in background. Please wait.",
+            "task": task,
         }
     
 

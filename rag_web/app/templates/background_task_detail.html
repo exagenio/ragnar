@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.title }}{% endblock %}
+
+{% block content %}
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">{{ task.title }}</h1>
+            <div class="page-header__meta-list">
+                <p>
+                    <span class="status-pill {% if task.status == 'completed' %}status-pill--success{% elif task.status == 'failed' %}status-pill--danger{% else %}status-pill--brand{% endif %}" id="task-status-pill">
+                        {{ task.status }}
+                    </span>
+                    <span class="status-pill status-pill--neutral">{{ task.get_task_type_display }}</span>
+                </p>
+                {% if task.project %}<p>Project: {{ task.project.name }}</p>{% endif %}
+                {% if task.report %}<p>Report: {{ task.report.title }}</p>{% endif %}
+                {% if task.subsection %}<p>Subsection: {{ task.subsection.title }}</p>{% endif %}
+                {% if task.topic %}<p>Topic: {{ task.topic.title }}</p>{% endif %}
+                <p id="task-last-message">{{ task.last_message }}</p>
+            </div>
+        </div>
+        <div class="button-group">
+            <a href="{% url 'background_task_list' %}" class="button button--secondary">Back to Tasks</a>
+        </div>
+    </div>
+
+    {% if child_tasks %}
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Child Tasks</h2>
+        </div>
+        <div class="card__body">
+            <ul class="list list--divided">
+                {% for child in child_tasks %}
+                <li class="list__item">
+                    <div class="list__row">
+                        <div>
+                            <p class="list__title">{{ child.title }}</p>
+                            <p class="list__meta">
+                                <span class="status-pill {% if child.status == 'completed' %}status-pill--success{% elif child.status == 'failed' %}status-pill--danger{% else %}status-pill--brand{% endif %}">
+                                    {{ child.status }}
+                                </span>
+                                {% if child.last_message %}<span>{{ child.last_message }}</span>{% endif %}
+                            </p>
+                        </div>
+                        <a href="{% url 'background_task_detail' child.id %}" class="button button--secondary">Open</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Live Pipeline Log</h2>
+        </div>
+        <div class="card__body">
+            <div class="log-viewer" id="task-log-viewer">
+                {% for log in initial_logs %}
+                <div class="log-line log-line--{{ log.level }}" data-log-id="{{ log.id }}">
+                    <span class="log-line__time">{{ log.created_at|date:"H:i:s" }}</span>
+                    <span class="log-line__message">{{ log.message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const viewer = document.getElementById("task-log-viewer");
+    const statusPill = document.getElementById("task-status-pill");
+    const lastMessage = document.getElementById("task-last-message");
+    let latestLogId = 0;
+
+    const existing = viewer.querySelectorAll("[data-log-id]");
+    if (existing.length > 0) {
+        latestLogId = Number(existing[existing.length - 1].dataset.logId);
+        viewer.scrollTop = viewer.scrollHeight;
+    }
+
+    function statusClass(status) {
+        if (status === "completed") return "status-pill status-pill--success";
+        if (status === "failed") return "status-pill status-pill--danger";
+        return "status-pill status-pill--brand";
+    }
+
+    function appendLog(log) {
+        const row = document.createElement("div");
+        row.className = `log-line log-line--${log.level}`;
+        row.dataset.logId = log.id;
+
+        const time = new Date(log.created_at);
+        const timeEl = document.createElement("span");
+        timeEl.className = "log-line__time";
+        timeEl.textContent = time.toLocaleTimeString();
+
+        const messageEl = document.createElement("span");
+        messageEl.className = "log-line__message";
+        messageEl.textContent = log.message;
+
+        row.appendChild(timeEl);
+        row.appendChild(messageEl);
+        viewer.appendChild(row);
+        viewer.scrollTop = viewer.scrollHeight;
+        latestLogId = log.id;
+    }
+
+    function poll() {
+        fetch(`{% url 'background_task_logs_api' task.id %}?after_id=${latestLogId}`)
+            .then((response) => response.json())
+            .then((data) => {
+                statusPill.className = statusClass(data.task.status);
+                statusPill.textContent = data.task.status;
+                lastMessage.textContent = data.task.last_message || "";
+
+                data.logs.forEach(appendLog);
+
+                if (data.task.status === "completed" || data.task.status === "failed") {
+                    return;
+                }
+
+                setTimeout(poll, 2000);
+            })
+            .catch(() => {
+                setTimeout(poll, 4000);
+            });
+    }
+
+    poll();
+})();
+</script>
+{% endblock %}

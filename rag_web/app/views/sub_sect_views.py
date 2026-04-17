@@ -7,12 +7,14 @@ from app.models import (
     Section,
     SubSection,
 )
-from app.agents.manager_agent import ManagerAgent
 
-manager = ManagerAgent()
+def get_manager():
+    from app.agents.manager_agent import ManagerAgent
+    return ManagerAgent()
 
 
 def generate_topics(request, project_id, report_id, subsection_id):
+    manager = get_manager()
 
     report = get_object_or_404(Report, id=report_id)
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)

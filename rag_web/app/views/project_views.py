@@ -3,10 +3,13 @@ from django.contrib import messages
 from django.shortcuts import render, get_object_or_404
 from app.forms import ProjectLLMSettingsForm, ReportIntentForm
 from ..models import (Report, Project)
-from app.agents.manager_agent import ManagerAgent
 
-manager = ManagerAgent()
+def get_manager():
+    from app.agents.manager_agent import ManagerAgent
+    return ManagerAgent()
+
 def start_report(request, project_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -36,6 +39,7 @@ def start_report(request, project_id):
 
 
 def project_settings(request, project_id):
+    manager = get_manager()
     project = get_object_or_404(Project, id=project_id)
 
     if request.method == "POST":
@@ -60,6 +64,7 @@ def project_settings(request, project_id):
 
 
 def review_outline(request, report_id):
+    manager = get_manager()
 
     report = get_object_or_404(Report, id=report_id)
     outline_obj = report.outline

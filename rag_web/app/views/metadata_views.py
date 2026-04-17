@@ -7,16 +7,18 @@ from ..models import (
 )
 from ..forms import ProjectDBConnectionForm
 from ..forms import TableSelectionForm
-from app.agents.manager_agent import ManagerAgent
 from ..models import (
     TableMetadata,
 )
 
 
-manager = ManagerAgent()
+def get_manager():
+    from app.agents.manager_agent import ManagerAgent
+    return ManagerAgent()
 
 
 def create_project_and_connect_db(request):
+    manager = get_manager()
 
     if request.method == "POST":
         form = ProjectDBConnectionForm(request.POST)
@@ -70,6 +72,7 @@ def project_detail(request, project_id):
 
 
 def select_tables(request, project_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -105,6 +108,7 @@ def select_tables(request, project_id):
 
 
 def column_introspection(request, project_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -125,6 +129,7 @@ def column_introspection(request, project_id):
 
 
 def row_sampling(request, project_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -145,6 +150,7 @@ def row_sampling(request, project_id):
 
 
 def metadata_generation(request, project_id):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -161,11 +167,13 @@ def metadata_generation(request, project_id):
             "project": project,
             "metadata_results": [],
             "message": result["message"],
+            "task": result.get("task"),
         },
     )
 
 
 def review_metadata(request, project_id, table_name):
+    manager = get_manager()
 
     project = get_object_or_404(Project, id=project_id)
 
