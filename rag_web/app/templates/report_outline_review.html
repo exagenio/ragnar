@@ -3,63 +3,69 @@
 {% block title %}Review Report Outline{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
-    <div class="mb-6">
-        <h2 class="text-2xl font-semibold text-gray-900">Review & Edit Report Outline</h2>
-        <p class="text-sm text-gray-600 mt-1">Customize the report structure before generating content</p>
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Review Report Outline</h1>
+            <p class="page-header__subtitle">Customize the report structure before generating content.</p>
+        </div>
     </div>
 
-    <form method="post" class="space-y-6">
+    <form method="post" class="form">
         {% csrf_token %}
 
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Report Title</h3>
-            <input type="text" name="report_title" value="{{ outline.report_title }}" class="w-full px-3 py-2 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
+        <div class="card">
+            <div class="card__body form__section">
+                <div class="section__header">
+                    <h2 class="section__title">Report Title</h2>
+                </div>
+                <input type="text" name="report_title" value="{{ outline.report_title }}" required>
+            </div>
         </div>
 
-        <div id="sections" class="space-y-4">
+        <div id="sections" class="stack stack--tight">
             {% for section in outline.sections %}
-            <div class="section-block bg-white rounded-lg shadow-sm border border-gray-200 p-6" data-section-index="{{ forloop.counter0 }}">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-lg font-medium text-gray-900">Section {{ forloop.counter }}</h4>
-                    <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-700 text-sm font-medium">Remove Section</button>
+            <div class="section-block card" data-section-index="{{ forloop.counter0 }}">
+                <div class="card__body form__section">
+                    <div class="page-header">
+                        <div class="page-header__body">
+                            <h2 class="section__title">Section {{ forloop.counter }}</h2>
+                        </div>
+                        <button type="button" onclick="removeItem(this)" class="button button--danger">Remove Section</button>
+                    </div>
+
+                    <input type="text" name="section_title_{{ forloop.counter0 }}" value="{{ section.section_title }}" required>
+
+                    <div class="section">
+                        <div class="section__header">
+                            <h3 class="section__title">Subsections</h3>
+                        </div>
+                        <ul class="editor-list">
+                            {% for sub in section.subsections %}
+                            <li class="editor-row">
+                                <input type="text" name="sub_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}" value="{{ sub }}" required>
+                                <button type="button" onclick="removeItem(this)" class="button button--danger editor-row__remove">Remove</button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="page-actions">
+                        <button type="button" onclick="addSubsection(this)" class="button button--secondary">Add Subsection</button>
+                    </div>
                 </div>
-
-                <input type="text" name="section_title_{{ forloop.counter0 }}" value="{{ section.section_title }}" class="w-full px-3 py-2 mb-4 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-
-                <div class="space-y-2 mb-4">
-                    <p class="text-sm font-medium text-gray-700">Subsections:</p>
-                    <ul class="space-y-2">
-                        {% for sub in section.subsections %}
-                        <li class="flex items-center gap-2">
-                            <input type="text" name="sub_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}" value="{{ sub }}" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-                            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-700 px-2">✖</button>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-
-                <button type="button" onclick="addSubsection(this)" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                    + Add Subsection
-                </button>
             </div>
             {% endfor %}
         </div>
 
-        <button type="button" onclick="addSection()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
-            + Add Section
-        </button>
+        <div class="page-actions">
+            <button type="button" onclick="addSection()" class="button button--secondary">Add Section</button>
+        </div>
 
-        <div class="flex items-center gap-3 pt-4">
-            <button type="submit" name="action" value="save" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Save Changes
-            </button>
-            <button type="submit" name="action" value="approve" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                Approve Outline
-            </button>
-            <button type="submit" name="action" value="regenerate" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Regenerate
-            </button>
+        <div class="form__actions">
+            <button type="submit" name="action" value="save" class="button button--secondary">Save Changes</button>
+            <button type="submit" name="action" value="approve" class="button button--primary">Approve Outline</button>
+            <button type="submit" name="action" value="regenerate" class="button button--secondary">Regenerate</button>
         </div>
     </form>
 </div>
@@ -74,18 +80,26 @@ function addSection() {
   const index = sections.children.length;
 
   const div = document.createElement("div");
-  div.className = "section-block bg-white rounded-lg shadow-sm border border-gray-200 p-6";
+  div.className = "section-block card";
   div.innerHTML = `
-    <div class="flex items-center justify-between mb-4">
-        <h4 class="text-lg font-medium text-gray-900">Section ${index + 1}</h4>
-        <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-700 text-sm font-medium">Remove Section</button>
+    <div class="card__body form__section">
+        <div class="page-header">
+            <div class="page-header__body">
+                <h2 class="section__title">Section ${index + 1}</h2>
+            </div>
+            <button type="button" onclick="removeItem(this)" class="button button--danger">Remove Section</button>
+        </div>
+        <input type="text" name="section_title_${index}" placeholder="Section title" required>
+        <div class="section">
+            <div class="section__header">
+                <h3 class="section__title">Subsections</h3>
+            </div>
+            <ul class="editor-list"></ul>
+        </div>
+        <div class="page-actions">
+            <button type="button" onclick="addSubsection(this)" class="button button--secondary">Add Subsection</button>
+        </div>
     </div>
-    <input type="text" name="section_title_${index}" placeholder="Section title" class="w-full px-3 py-2 mb-4 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-    <div class="space-y-2 mb-4">
-        <p class="text-sm font-medium text-gray-700">Subsections:</p>
-        <ul class="space-y-2"></ul>
-    </div>
-    <button type="button" onclick="addSubsection(this)" class="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add Subsection</button>
   `;
   sections.appendChild(div);
 }
@@ -97,10 +111,10 @@ function addSubsection(button) {
   const subIndex = ul.children.length;
 
   const li = document.createElement("li");
-  li.className = "flex items-center gap-2";
+  li.className = "editor-row";
   li.innerHTML = `
-    <input type="text" name="sub_${sectionIndex}_${subIndex}" placeholder="Subsection title" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-    <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-700 px-2">✖</button>
+    <input type="text" name="sub_${sectionIndex}_${subIndex}" placeholder="Subsection title" required>
+    <button type="button" onclick="removeItem(this)" class="button button--danger editor-row__remove">Remove</button>
   `;
   ul.appendChild(li);
 }

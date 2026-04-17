@@ -3,29 +3,27 @@
 {% block title %}Metadata Preview{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Metadata Preview</h2>
-            <p class="text-sm text-gray-600 mt-1">Project: <span class="font-medium text-gray-900">{{ project.name }}</span></p>
+<div class="stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Metadata Preview</h1>
+            <p class="page-header__subtitle">Project: {{ project.name }}</p>
         </div>
-        <a href="{% url 'project_detail' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            ← Back to Project
-        </a>
+        <a href="{% url 'project_detail' project.id %}" class="button button--secondary">Back to Project</a>
     </div>
 
-    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p class="text-sm text-yellow-800 italic">This metadata is AI-generated and must be reviewed before approval.</p>
+    <div class="notice notice--brand">
+        <p>This metadata is AI-generated and must be reviewed before approval.</p>
     </div>
 
-    <div class="space-y-4">
+    <div class="stack stack--tight">
         {% for item in metadata_results %}
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">{{ item.table_name }}</h3>
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">{{ item.table_name }}</h2>
             </div>
-            <div class="px-6 py-4">
-                <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono bg-gray-50 p-4 rounded border border-gray-200">{{ item.metadata|safe }}</pre>
+            <div class="card__body">
+                <pre class="code-block">{{ item.metadata|safe }}</pre>
             </div>
         </div>
         {% endfor %}

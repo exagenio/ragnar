@@ -3,234 +3,165 @@
 {% block title %}Evaluation Dashboard{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
-
-    <!-- HEADER -->
-    <div class="mb-6">
-        <h2 class="text-2xl font-semibold text-gray-900">Evaluation Dashboard</h2>
-        <p class="text-sm text-gray-600 mt-1">
-            <span class="font-medium">Project:</span> {{ project.name }}
-        </p>
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Evaluation Dashboard</h1>
+            <p class="page-header__subtitle">Project: {{ project.name }}</p>
+        </div>
     </div>
 
-    <!-- ========================= -->
-    <!-- REPORT SELECT -->
-    <!-- ========================= -->
-     
-    <form method="get" class="mb-6 flex items-center gap-3">
+    <div class="card">
+        <div class="card__body">
+            <form method="get" class="form__actions">
+                <select name="report_id">
+                    <option value="">Select Report</option>
+                    {% for report in reports %}
+                    <option value="{{ report.id }}" {% if selected_report and report.id == selected_report.id %}selected{% endif %}>
+                        {{ report.id }} - {{ report.name }}
+                    </option>
+                    {% endfor %}
+                </select>
 
-        <select name="report_id" class="border rounded px-3 py-2 text-sm">
-
-            <option value="">-- Select Report --</option>
-
-            {% for report in reports %}
-            <option value="{{ report.id }}"
-                {% if selected_report and report.id == selected_report.id %}selected{% endif %}>
-                {{ report.id }} - {{ report.name }}
-            </option>
-            {% endfor %}
-
-        </select>
-
-        <!-- ✅ KEEP EVAL TYPE IN GET -->
-        <input type="hidden" name="eval_type" value="{{ eval_type }}">
-
-        <button type="submit"
-                class="px-4 py-2 bg-gray-800 text-white text-sm rounded hover:bg-gray-900">
-            Load
-        </button>
-
-    </form>
+                <input type="hidden" name="eval_type" value="{{ eval_type }}">
+                <button type="submit" class="button button--secondary">Load</button>
+            </form>
+        </div>
+    </div>
 
     {% if selected_report %}
+    <div class="card">
+        <div class="card__body">
+            <form method="post" class="form__actions">
+                {% csrf_token %}
+                <input type="hidden" name="report_id" value="{{ selected_report.id }}">
 
-    <!-- ========================= -->
-    <!-- RUN EVALUATION -->
-    <!-- ========================= -->
-    <form method="post" class="mb-6 flex items-center gap-3">
-        {% csrf_token %}
-        <input type="hidden" name="report_id" value="{{ selected_report.id }}">
+                <select name="eval_type">
+                    <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>OpenEval</option>
+                    <option value="geval" {% if eval_type == "g-eval" %}selected{% endif %}>GEval</option>
+                </select>
 
-        <!-- ✅ EVAL TYPE SELECT -->
-        <select name="eval_type" class="border rounded px-3 py-2 text-sm">
-            <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>
-                OpenEval
-            </option>
-            <option value="geval" {% if eval_type == "g-eval" %}selected{% endif %}>
-                GEval
-            </option>
-        </select>
+                <button type="submit" class="button button--primary">Run Evaluation</button>
+                <button type="submit" name="action" value="readability" class="button button--secondary">Readability</button>
+            </form>
+        </div>
+    </div>
 
-        <button type="submit"
-                class="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-            ▶ Run Evaluation
-        </button>
-
-        <button type="submit" name="action" value="readability"
-                class="px-3 py-2 bg-gray-200 rounded text-sm">
-            Readability
-        </button>
-    </form>
-
-    <!-- ========================= -->
-    <!-- REPORT SCORE -->
-    <!-- ========================= -->
-    <div class="bg-white border rounded p-6 mb-6">
-
-        <h3 class="text-lg font-semibold mb-4">Overall Report Score</h3>
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Overall Report Score</h2>
+        </div>
 
         {% if eval_type == "g-eval" and geval_project_summary %}
-
-        <!-- ✅ GEVAL SUMMARY -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-
-            <div class="p-4 bg-blue-50 rounded text-center">
-                <div class="text-sm text-gray-500">Overall</div>
-                <div class="text-xl font-bold text-blue-600">
-                    {{ geval_project_summary.overall_score }}
-                </div>
+        <div class="card__body grid grid--3">
+            <div class="metric-card">
+                <p class="metric-card__label">Overall</p>
+                <p class="metric-card__value">{{ geval_project_summary.overall_score }}</p>
             </div>
-
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">Correctness</div>
-                <div class="font-semibold">
-                    {{ geval_project_summary.correctness }}
-                </div>
+            <div class="metric-card">
+                <p class="metric-card__label">Correctness</p>
+                <p class="metric-card__value">{{ geval_project_summary.correctness }}</p>
             </div>
-
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">Relevance</div>
-                <div class="font-semibold">
-                    {{ geval_project_summary.relevance }}
-                </div>
+            <div class="metric-card">
+                <p class="metric-card__label">Relevance</p>
+                <p class="metric-card__value">{{ geval_project_summary.relevance }}</p>
             </div>
-
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">Hallucination</div>
-                <div class="font-semibold">
-                    {{ geval_project_summary.hallucination }}
-                </div>
+            <div class="metric-card">
+                <p class="metric-card__label">Hallucination</p>
+                <p class="metric-card__value">{{ geval_project_summary.hallucination }}</p>
             </div>
-
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">Conciseness</div>
-                <div class="font-semibold">
-                    {{ geval_project_summary.conciseness }}
-                </div>
+            <div class="metric-card">
+                <p class="metric-card__label">Conciseness</p>
+                <p class="metric-card__value">{{ geval_project_summary.conciseness }}</p>
             </div>
-
         </div>
-
         {% elif report_eval %}
-
-        <!-- ✅ OPENEVAL -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">Overall</div>
-                <div class="text-xl font-bold text-blue-600">
-                    {{ report_eval.overall_score|floatformat:2 }}
-                </div>
+        <div class="card__body grid grid--3">
+            <div class="metric-card">
+                <p class="metric-card__label">Overall</p>
+                <p class="metric-card__value">{{ report_eval.overall_score|floatformat:2 }}</p>
             </div>
-
             {% for key, value in report_eval.average_scores.items %}
-            <div class="p-4 bg-gray-50 rounded text-center">
-                <div class="text-sm text-gray-500">{{ key }}</div>
-                <div class="font-semibold">
-                    {{ value|floatformat:2 }}
-                </div>
+            <div class="metric-card">
+                <p class="metric-card__label">{{ key }}</p>
+                <p class="metric-card__value">{{ value|floatformat:2 }}</p>
             </div>
             {% endfor %}
-
         </div>
-
         {% else %}
-        <p class="text-gray-500">No evaluation results yet.</p>
+        <div class="card__body">
+            <div class="empty-state">No evaluation results yet.</div>
+        </div>
         {% endif %}
-
     </div>
 
-    <!-- ========================= -->
-    <!-- TOPIC TABLE -->
-    <!-- ========================= -->
-    <div class="bg-white border rounded p-6">
-
-        <h3 class="text-lg font-semibold mb-4">Topic Evaluation</h3>
-
-        <table class="w-full text-sm border">
-
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="p-2">Topic</th>
-                    <th class="p-2">Overall</th>
-                    <th class="p-2">Hallucination</th>
-                    <th class="p-2">Correctness</th>
-                    <th class="p-2">Relevance</th>
-                    <th class="p-2">Conciseness</th>
-                </tr>
-            </thead>
-
-            <tbody>
-
-            {% for eval in topic_evals %}
-            <tr class="border-t">
-
-                <td class="p-2">{{ eval.topic.title }}</td>
-                <td class="p-2">{{ eval.overall_score|floatformat:2 }}</td>
-
-                <!-- ✅ FIXED -->
-                <td class="p-2">{{ eval.display_scores.hallucination|default:"-" }}</td>
-                <td class="p-2">{{ eval.display_scores.correctness|default:"-" }}</td>
-                <td class="p-2">{{ eval.display_scores.relevance|default:"-" }}</td>
-                <td class="p-2">{{ eval.display_scores.conciseness|default:"-" }}</td>
-
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="p-4 text-center text-gray-500">
-                    No data
-                </td>
-            </tr>
-            {% endfor %}
-
-            </tbody>
-
-        </table>
-
-        <!-- ========================= -->
-        <!-- READABILITY -->
-        <!-- ========================= -->
-        <h3 class="text-lg font-semibold mt-6 mb-4">
-            Readability (Flesch-Kincaid Grade)
-        </h3>
-
-        <table class="w-full text-sm border">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="p-2">Topic</th>
-                    <th class="p-2">Grade Level</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for r in readability_scores %}
-                <tr class="border-t">
-                    <td class="p-2">{{ r.topic.title }}</td>
-                    <td class="p-2">{{ r.flesch_kincaid_grade|floatformat:2 }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="2" class="p-4 text-center text-gray-500">
-                        No readability data
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Topic Evaluation</h2>
+        </div>
+        <div class="card__body">
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Topic</th>
+                            <th>Overall</th>
+                            <th>Hallucination</th>
+                            <th>Correctness</th>
+                            <th>Relevance</th>
+                            <th>Conciseness</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for eval in topic_evals %}
+                        <tr>
+                            <td>{{ eval.topic.title }}</td>
+                            <td>{{ eval.overall_score|floatformat:2 }}</td>
+                            <td>{{ eval.display_scores.hallucination|default:"-" }}</td>
+                            <td>{{ eval.display_scores.correctness|default:"-" }}</td>
+                            <td>{{ eval.display_scores.relevance|default:"-" }}</td>
+                            <td>{{ eval.display_scores.conciseness|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6">No data</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
+    <div class="card">
+        <div class="card__header">
+            <h2 class="section__title">Readability</h2>
+        </div>
+        <div class="card__body">
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Topic</th>
+                            <th>Grade Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in readability_scores %}
+                        <tr>
+                            <td>{{ r.topic.title }}</td>
+                            <td>{{ r.flesch_kincaid_grade|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="2">No readability data</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
     {% endif %}
-
 </div>
 {% endblock %}

@@ -3,52 +3,56 @@
 {% block title %}Topic Overview{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Topic Overview</h2>
-            <p class="text-sm text-gray-600 mt-1">Report: <span class="font-medium text-gray-900">{{ report.report_title }}</span></p>
+<div class="stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Topic Overview</h1>
+            <p class="page-header__subtitle">Report: {{ report.report_title }}</p>
         </div>
-        <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            ← Back
-        </a>
+        <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="button button--secondary">Back</a>
     </div>
 
-    <div class="space-y-6">
+    <div class="stack">
         {% for section in outline.sections %}
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">{{ section.section_title }}</h3>
-
-            <div class="space-y-4">
-                {% for subsection in section.subsections %}
-                <div>
-                    <h4 class="text-base font-medium text-gray-800 mb-2">{{ subsection.title }}</h4>
-
-                    {% if subsection.topics %}
-                    <ul class="space-y-2 ml-4">
-                        {% for topic in subsection.topics %}
-                        <li class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm text-gray-900">{{ topic }}</span>
-                                {% with tkey=section.section_title|add:"|||"|add:subsection.title|add:"|||"|add:topic %}
-                                    {% if topic_plan_lookup.tkey %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Plan exists</span>
-                                    {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">No plan</span>
-                                    {% endif %}
-                                {% endwith %}
-                            </div>
-                            <a href="{% url 'topic_analysis_plan' project.id report.id section.section_title|slugify subsection.title|slugify topic|slugify %}" class="text-sm text-blue-600 hover:text-blue-700">
-                                Open Analysis →
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="text-sm text-gray-500 italic ml-4">No approved topics yet.</p>
-                    {% endif %}
+        <div class="card">
+            <div class="card__body section">
+                <div class="section__header">
+                    <h2 class="section__title">{{ section.section_title }}</h2>
                 </div>
-                {% endfor %}
+
+                <div class="stack stack--tight">
+                    {% for subsection in section.subsections %}
+                    <div class="metric-card">
+                        <div class="section__header">
+                            <h3 class="section__title">{{ subsection.title }}</h3>
+                        </div>
+
+                        {% if subsection.topics %}
+                        <ul class="list list--divided">
+                            {% for topic in subsection.topics %}
+                            <li class="list__item">
+                                <div class="list__row">
+                                    <div>
+                                        <p class="list__title">{{ topic }}</p>
+                                        {% with tkey=section.section_title|add:"|||"|add:subsection.title|add:"|||"|add:topic %}
+                                            {% if topic_plan_lookup.tkey %}
+                                            <span class="status-pill status-pill--success">Plan exists</span>
+                                            {% else %}
+                                            <span class="status-pill status-pill--danger">No plan</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </div>
+                                    <a href="{% url 'topic_analysis_plan' project.id report.id section.section_title|slugify subsection.title|slugify topic|slugify %}" class="button button--ghost">Open Analysis</a>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="muted-text">No approved topics yet.</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
         {% endfor %}

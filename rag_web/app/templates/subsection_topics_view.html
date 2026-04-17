@@ -3,23 +3,25 @@
 {% block title %}Approved Topics{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Approved Topics</h2>
-            <p class="text-sm text-gray-600 mt-1">{{ section }} → {{ subsection }}</p>
+<div class="stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Approved Topics</h1>
+            <p class="page-header__subtitle">{{ section }} / {{ subsection }}</p>
         </div>
-        <a href="javascript:history.back()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            ← Back
-        </a>
+        <a href="javascript:history.back()" class="button button--secondary">Back</a>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <ul class="space-y-2">
-            {% for topic in topics %}
-            <li class="p-3 bg-gray-50 rounded-lg text-sm text-gray-900">{{ topic }}</li>
-            {% endfor %}
-        </ul>
+    <div class="card">
+        <div class="card__body">
+            <ul class="list list--divided">
+                {% for topic in topics %}
+                <li class="list__item">
+                    <p class="list__title">{{ topic }}</p>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
     </div>
 </div>
 {% endblock %}

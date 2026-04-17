@@ -3,161 +3,122 @@
 {% block title %}Subtopic Dashboard{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Subtopi Dashboard</h2>
-            <p class="text-sm text-gray-600 mt-1">Report: <span class="font-medium text-gray-900">{{ report.title }}</span></p>
+<div class="stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Subtopic Dashboard</h1>
+            <p class="page-header__subtitle">Report: {{ report.title }}</p>
         </div>
-        <div class="flex items-center gap-3">
-            <a href="{% url 'generate_document' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors shadow-sm">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                Generate Document
+        <div class="button-group">
+            <a href="{% url 'generate_document' project.id report.id %}" class="button button--primary">
+                <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+                <span>Generate Document</span>
             </a>
-            <a href="{% url 'project_detail' project.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                ← Back to Project
+            <a href="{% url 'project_detail' project.id %}" class="button button--secondary">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Project</span>
             </a>
         </div>
     </div>
 
     {% if sections %}
-    <div class="space-y-6">
+    <div class="stack">
         {% for section in sections %}
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">{{ section.title }}</h3>
-                {% if section.all_subsections_have_content %}
-                <a href="{% url 'generate_section_content' project.id report.id section.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                    Generate Section Content
-                </a>
-                {% else %}
-                <button disabled class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-300 rounded-lg cursor-not-allowed" title="Complete all subsection content generation first">
-                    Generate Section Content
-                </button>
-                {% endif %}
-            </div>
-            <div class="space-y-2">
-                {% for subsection in section.sub_sections.all %}
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span class="font-medium text-gray-900">{{ subsection.title }}</span>
-                    {% if subsection.topics.exists %}
-                    <a href="{% url 'view_topics' project.id report.id subsection.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700">
-                        View Topics ({{ subsection.topics.count }})
+        <div class="card">
+            <div class="card__body section">
+                <div class="page-header">
+                    <div class="page-header__body">
+                        <h2 class="section__title">{{ section.title }}</h2>
+                    </div>
+                    {% if section.all_subsections_have_content %}
+                    <a href="{% url 'generate_section_content' project.id report.id section.id %}" class="button button--primary">
+                        <i class="fa-solid fa-play" aria-hidden="true"></i>
+                        <span>Generate Section Content</span>
                     </a>
                     {% else %}
-                    <a href="{% url 'generate_topics' project.id report.id subsection.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                        Generate Topics
-                    </a>
-                    {% if subsection.is_generating %}
-
-<button disabled
-class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg">
-Generating...
-</button>
-
-{% else %}
-
-<button
-class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 auto-generate-btn"
-data-project="{{ project.id }}"
-data-report="{{ report.id }}"
-data-subsection="{{ subsection.id }}">
-
-Auto Generate
-
-</button>
-
-{% endif %}
+                    <button disabled class="button button--secondary">Generate Section Content</button>
                     {% endif %}
                 </div>
-                {% endfor %}
+
+                <ul class="list list--divided">
+                    {% for subsection in section.sub_sections.all %}
+                    <li class="list__item">
+                        <div class="list__row">
+                            <p class="list__title">{{ subsection.title }}</p>
+                            <div class="button-group">
+                                {% if subsection.topics.exists %}
+                                <a href="{% url 'view_topics' project.id report.id subsection.id %}" class="button button--secondary">
+                                    <i class="fa-solid fa-list" aria-hidden="true"></i>
+                                    <span>View Topics ({{ subsection.topics.count }})</span>
+                                </a>
+                                {% else %}
+                                <a href="{% url 'generate_topics' project.id report.id subsection.id %}" class="button button--primary">
+                                    <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+                                    <span>Generate Topics</span>
+                                </a>
+                                {% if subsection.is_generating %}
+                                <button disabled class="button button--secondary">Generating</button>
+                                {% else %}
+                                <button
+                                    class="button button--accent auto-generate-btn"
+                                    data-project="{{ project.id }}"
+                                    data-report="{{ report.id }}"
+                                    data-subsection="{{ subsection.id }}">
+                                    <i class="fa-solid fa-gear" aria-hidden="true"></i>
+                                    <span>Auto Generate</span>
+                                </button>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p class="text-sm text-yellow-800">No sections found. Approve the outline first.</p>
-    </div>
+    <div class="empty-state">No sections found. Approve the outline first.</div>
     {% endif %}
 </div>
 
 <script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".auto-generate-btn").forEach((button) => {
+        button.addEventListener("click", function () {
+            const projectId = this.dataset.project;
+            const reportId = this.dataset.report;
+            const subsectionId = this.dataset.subsection;
+            startAutoGenerate(projectId, reportId, subsectionId, this);
+        });
+    });
+});
 
-document.addEventListener("DOMContentLoaded", function(){
-
-document.querySelectorAll(".auto-generate-btn").forEach(button => {
-
-    button.addEventListener("click", function(){
-
-        console.log("testing")
-
-        const projectId = this.dataset.project
-        const reportId = this.dataset.report
-        const subsectionId = this.dataset.subsection
-
-        startAutoGenerate(projectId, reportId, subsectionId, this)
-
+function startAutoGenerate(projectId, reportId, subsectionId, button) {
+    fetch(`/projects/${projectId}/reports/${reportId}/subsections/${subsectionId}/auto-generate/`, {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+            "Content-Type": "application/json"
+        }
     })
-
-})
-
-})
-
-
-function startAutoGenerate(projectId, reportId, subsectionId, button){
-
-console.log("clicked")
-
-fetch(`/projects/${projectId}/reports/${reportId}/subsections/${subsectionId}/auto-generate/`, {
-    method: "POST",
-    headers: {
-        "X-CSRFToken": "{{ csrf_token }}",
-        "Content-Type": "application/json"
-    }
-})
-.then(res => res.json())
-.then(data => {
-
-    if(data.started){
-
-        showToast("🚀 Generation started in background")
-
-        button.disabled = true
-        button.innerText = "Generating..."
-
-    }
-
-})
-
+        .then((res) => res.json())
+        .then((data) => {
+            if (data.started) {
+                showToast("Generation started in background");
+                button.disabled = true;
+                button.innerText = "Generating";
+            }
+        });
 }
 
-</script>
-
-
-<script>
-
-function showToast(message){
-
-const toast = document.createElement("div")
-
-toast.innerText = message
-
-toast.style.position = "fixed"
-toast.style.bottom = "20px"
-toast.style.right = "20px"
-toast.style.background = "#4CAF50"
-toast.style.color = "white"
-toast.style.padding = "12px 20px"
-toast.style.borderRadius = "6px"
-
-document.body.appendChild(toast)
-
-setTimeout(() => toast.remove(), 3000)
-
+function showToast(message) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
-
 </script>
 {% endblock %}

@@ -3,74 +3,76 @@
 {% block title %}Create Project{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-4xl space-y-6">
-    <div>
-        <h2 class="text-2xl font-semibold text-gray-900">Create Project & Connect Database</h2>
-        <p class="mt-1 text-sm text-gray-600">Set up the database connection and choose the LLM provider and models for this project.</p>
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Create Project and Connect Database</h1>
+            <p class="page-header__subtitle">Set up the database connection and choose the LLM provider and models for this project.</p>
+        </div>
     </div>
 
-    <form method="post" class="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <form method="post" class="card card--subtle form">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
-            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div class="notice notice--danger">
                 {{ form.non_field_errors }}
             </div>
         {% endif %}
 
-        <section class="space-y-4">
-            <div>
-                <h3 class="text-lg font-medium text-gray-900">Project</h3>
-                <p class="text-sm text-gray-500">Basic details for this report workspace.</p>
+        <div class="card__body form__section">
+            <div class="section__header">
+                <h2 class="section__title">Project</h2>
+                <p class="section__description">Basic details for this report workspace.</p>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.project_name %}</div>
-                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.project_description %}</div>
+            <div class="form__grid">
+                {% include "partials/form_field.html" with field=form.project_name full_width=True %}
+                {% include "partials/form_field.html" with field=form.project_description full_width=True %}
             </div>
-        </section>
+        </div>
 
-        <section class="space-y-4 border-t border-gray-200 pt-6">
-            <div>
-                <h3 class="text-lg font-medium text-gray-900">Database Connection</h3>
-                <p class="text-sm text-gray-500">Credentials used to inspect schema and generate report content.</p>
+        <div class="card__body form__section">
+            <div class="section__header">
+                <h2 class="section__title">Database Connection</h2>
+                <p class="section__description">Credentials used to inspect schema and generate report content.</p>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div>{% include "partials/form_field.html" with field=form.db_type %}</div>
-                <div>{% include "partials/form_field.html" with field=form.schema %}</div>
-                <div>{% include "partials/form_field.html" with field=form.host %}</div>
-                <div>{% include "partials/form_field.html" with field=form.port %}</div>
-                <div>{% include "partials/form_field.html" with field=form.database_name %}</div>
-                <div>{% include "partials/form_field.html" with field=form.username %}</div>
-                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.password %}</div>
+            <div class="form__grid">
+                {% include "partials/form_field.html" with field=form.db_type %}
+                {% include "partials/form_field.html" with field=form.schema %}
+                {% include "partials/form_field.html" with field=form.host %}
+                {% include "partials/form_field.html" with field=form.port %}
+                {% include "partials/form_field.html" with field=form.database_name %}
+                {% include "partials/form_field.html" with field=form.username %}
+                {% include "partials/form_field.html" with field=form.password full_width=True %}
             </div>
-        </section>
+        </div>
 
-        <section class="space-y-4 border-t border-gray-200 pt-6">
-            <div>
-                <h3 class="text-lg font-medium text-gray-900">LLM Settings</h3>
-                <p class="text-sm text-gray-500">Choose the provider, preset models, or switch either slot to a custom model code.</p>
+        <div class="card__body form__section">
+            <div class="section__header">
+                <h2 class="section__title">LLM Settings</h2>
+                <p class="section__description">Choose the provider, preset models, or switch either slot to a custom model code.</p>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.llm_provider %}</div>
-                <div>{% include "partials/form_field.html" with field=form.primary_model_selection %}</div>
-                <div id="primary-model-custom-wrap">{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
-                <div>{% include "partials/form_field.html" with field=form.secondary_model_selection %}</div>
-                <div id="secondary-model-custom-wrap">{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
-                <div class="md:col-span-2">
-                    <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700">
+            <div class="form__grid">
+                {% include "partials/form_field.html" with field=form.llm_provider full_width=True %}
+                {% include "partials/form_field.html" with field=form.primary_model_selection %}
+                <div id="primary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
+                {% include "partials/form_field.html" with field=form.secondary_model_selection %}
+                <div id="secondary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
+                <div class="form__field form__field--full" id="custom-openrouter-key-toggle" hidden>
+                    <label class="form__checkbox">
                         {{ form.use_custom_openrouter_api_key }}
                         <span>{{ form.use_custom_openrouter_api_key.label }}</span>
                     </label>
                 </div>
-                <div class="md:col-span-2" id="openrouter-key-wrap">{% include "partials/form_field.html" with field=form.openrouter_api_key %}</div>
+                <div class="form__field form__field--full" id="openrouter-key-wrap" hidden>{% include "partials/form_field.html" with field=form.openrouter_api_key %}</div>
             </div>
-            <div class="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            <div class="notice">
                 If no custom OpenRouter key is provided, the app uses the server-side environment key.
             </div>
-        </section>
+        </div>
 
-        <div class="pt-2">
-            <button type="submit" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+        <div class="card__footer">
+            <button type="submit" class="button button--primary">
                 Create Project
             </button>
         </div>
@@ -86,6 +88,7 @@
         const secondarySelect = document.getElementById("id_secondary_model_selection");
         const primaryCustomWrap = document.getElementById("primary-model-custom-wrap");
         const secondaryCustomWrap = document.getElementById("secondary-model-custom-wrap");
+        const customKeyToggleWrap = document.getElementById("custom-openrouter-key-toggle");
         const useCustomKey = document.getElementById("id_use_custom_openrouter_api_key");
         const openRouterKeyWrap = document.getElementById("openrouter-key-wrap");
         const customChoice = "{{ form.custom_model_choice }}";
@@ -117,17 +120,14 @@
             rebuildOptions(primarySelect, provider, "primary");
             rebuildOptions(secondarySelect, provider, "secondary");
 
-            primaryCustomWrap.style.display = primarySelect.value === customChoice ? "block" : "none";
-            secondaryCustomWrap.style.display = secondarySelect.value === customChoice ? "block" : "none";
+            primaryCustomWrap.hidden = primarySelect.value !== customChoice;
+            secondaryCustomWrap.hidden = secondarySelect.value !== customChoice;
 
             const showOpenRouterFields = provider === "openrouter";
             const showKeyInput = showOpenRouterFields && useCustomKey.checked;
 
-            const customKeyContainer = useCustomKey.closest(".md\\:col-span-2");
-            if (customKeyContainer) {
-                customKeyContainer.style.display = showOpenRouterFields ? "block" : "none";
-            }
-            openRouterKeyWrap.style.display = showKeyInput ? "block" : "none";
+            customKeyToggleWrap.hidden = !showOpenRouterFields;
+            openRouterKeyWrap.hidden = !showKeyInput;
         }
 
         providerField.addEventListener("change", syncModelVisibility);

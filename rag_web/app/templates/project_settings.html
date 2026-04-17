@@ -3,50 +3,52 @@
 {% block title %}Project Settings{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-3xl space-y-6">
-    <div class="flex items-start justify-between gap-4">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Project Settings</h2>
-            <p class="mt-1 text-sm text-gray-600">Update the provider and model choices for {{ project.name }}.</p>
+<div class="page page--reading stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Project Settings</h1>
+            <p class="page-header__subtitle">Update the provider and model choices for {{ project.name }}.</p>
         </div>
-        <a href="{% url 'project_detail' project.id %}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        <a href="{% url 'project_detail' project.id %}" class="button button--secondary">
             Back to Project
         </a>
     </div>
 
-    <form method="post" class="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <form method="post" class="card card--subtle form">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
-            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div class="notice notice--danger">
                 {{ form.non_field_errors }}
             </div>
         {% endif %}
 
-        <div class="grid gap-4 md:grid-cols-2">
-            <div class="md:col-span-2">{% include "partials/form_field.html" with field=form.llm_provider %}</div>
-            <div>{% include "partials/form_field.html" with field=form.primary_model_selection %}</div>
-            <div id="primary-model-custom-wrap">{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
-            <div>{% include "partials/form_field.html" with field=form.secondary_model_selection %}</div>
-            <div id="secondary-model-custom-wrap">{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
-            <div class="md:col-span-2">
-                <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700">
+        <div class="card__body form__section">
+            <div class="form__grid">
+                {% include "partials/form_field.html" with field=form.llm_provider full_width=True %}
+                {% include "partials/form_field.html" with field=form.primary_model_selection %}
+                <div id="primary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
+                {% include "partials/form_field.html" with field=form.secondary_model_selection %}
+                <div id="secondary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
+                <div class="form__field form__field--full" id="custom-openrouter-key-toggle" hidden>
+                    <label class="form__checkbox">
                     {{ form.use_custom_openrouter_api_key }}
                     <span>{{ form.use_custom_openrouter_api_key.label }}</span>
-                </label>
+                    </label>
                 {% if project.has_custom_openrouter_api_key %}
-                    <p class="mt-2 text-xs text-gray-500">A custom OpenRouter API key is currently stored for this project.</p>
+                    <p class="form__help">A custom OpenRouter API key is currently stored for this project.</p>
                 {% endif %}
+                </div>
+                <div class="form__field form__field--full" id="openrouter-key-wrap" hidden>{% include "partials/form_field.html" with field=form.openrouter_api_key %}</div>
             </div>
-            <div class="md:col-span-2" id="openrouter-key-wrap">{% include "partials/form_field.html" with field=form.openrouter_api_key %}</div>
+
+            <div class="notice">
+                Uncheck the custom key option to switch this project back to the environment-level OpenRouter key.
+            </div>
         </div>
 
-        <div class="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Uncheck the custom key option to switch this project back to the environment-level OpenRouter key.
-        </div>
-
-        <div>
-            <button type="submit" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+        <div class="card__footer">
+            <button type="submit" class="button button--primary">
                 Save Settings
             </button>
         </div>
@@ -62,6 +64,7 @@
         const secondarySelect = document.getElementById("id_secondary_model_selection");
         const primaryCustomWrap = document.getElementById("primary-model-custom-wrap");
         const secondaryCustomWrap = document.getElementById("secondary-model-custom-wrap");
+        const customKeyToggleWrap = document.getElementById("custom-openrouter-key-toggle");
         const useCustomKey = document.getElementById("id_use_custom_openrouter_api_key");
         const openRouterKeyWrap = document.getElementById("openrouter-key-wrap");
         const customChoice = "{{ form.custom_model_choice }}";
@@ -93,17 +96,14 @@
             rebuildOptions(primarySelect, provider, "primary");
             rebuildOptions(secondarySelect, provider, "secondary");
 
-            primaryCustomWrap.style.display = primarySelect.value === customChoice ? "block" : "none";
-            secondaryCustomWrap.style.display = secondarySelect.value === customChoice ? "block" : "none";
+            primaryCustomWrap.hidden = primarySelect.value !== customChoice;
+            secondaryCustomWrap.hidden = secondarySelect.value !== customChoice;
 
             const showOpenRouterFields = provider === "openrouter";
             const showKeyInput = showOpenRouterFields && useCustomKey.checked;
 
-            const customKeyContainer = useCustomKey.closest(".md\\:col-span-2");
-            if (customKeyContainer) {
-                customKeyContainer.style.display = showOpenRouterFields ? "block" : "none";
-            }
-            openRouterKeyWrap.style.display = showKeyInput ? "block" : "none";
+            customKeyToggleWrap.hidden = !showOpenRouterFields;
+            openRouterKeyWrap.hidden = !showKeyInput;
         }
 
         providerField.addEventListener("change", syncModelVisibility);

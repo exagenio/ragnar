@@ -3,50 +3,25 @@
 {% block title %}Start Report{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
-    <div class="mb-6">
-        <h2 class="text-2xl font-semibold text-gray-900">Start Report</h2>
-        <p class="text-sm text-gray-600 mt-1">Generate a new report outline using AI</p>
+<div class="page page--narrow stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Start Report</h1>
+            <p class="page-header__subtitle">Generate a new report outline using AI.</p>
+        </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            {{ form.as_p }}
+    <div class="card">
+        <div class="card__body">
+            <form method="post" class="form django-form">
+                {% csrf_token %}
+                {{ form.as_p }}
 
-            <div class="pt-4">
-                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                    Generate Outline
-                </button>
-            </div>
-        </form>
+                <div class="form__actions">
+                    <button type="submit" class="button button--primary">Generate Outline</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
-
-<style>
-    form p {
-        margin-bottom: 1rem;
-    }
-    form label {
-        display: block;
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: #374151;
-        margin-bottom: 0.5rem;
-    }
-    form input, form select, form textarea {
-        display: block;
-        width: 100%;
-        padding: 0.5rem 0.75rem;
-        font-size: 0.875rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        transition: border-color 0.15s ease-in-out;
-    }
-    form input:focus, form select:focus, form textarea:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-</style>
 {% endblock %}

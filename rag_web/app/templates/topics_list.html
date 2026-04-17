@@ -3,52 +3,44 @@
 {% block title %}Approved Topics{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Approved Topics</h2>
-            <p class="text-sm text-gray-600 mt-1">{{ subsection.title }}</p>
+<div class="stack">
+    <div class="page-header">
+        <div class="page-header__body">
+            <h1 class="page-header__title">Approved Topics</h1>
+            <p class="page-header__subtitle">{{ subsection.title }}</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="button-group">
             {% if all_topics_have_content %}
-            <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                Generate Subsection Content
-            </a>
+            <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="button button--primary">Generate Subsection Content</a>
             {% else %}
-            <button disabled class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-300 rounded-lg cursor-not-allowed" title="Complete all topic content generation first">
-                Generate Subsection Content
-            </button>
+            <button disabled class="button button--secondary">Generate Subsection Content</button>
             {% endif %}
-            <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                ← Back to Dashboard
-            </a>
+            <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="button button--secondary">Back to Dashboard</a>
         </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div class="card">
         {% if topics %}
-        <ul class="divide-y divide-gray-200">
-            {% for topic in topics %}
-            <li class="p-4 hover:bg-gray-50 transition-colors">
-                <div class="flex items-center justify-between">
-                    <span class="font-medium text-gray-900">{{ topic.title }}</span>
-                    <div class="flex items-center gap-2">
-                        <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
-                            Open Analysis Plan
-                        </a>
-                        {% if topic.analysis_plan and topic.analysis_plan.is_approved %}
-                        <a href="{% url 'topic_content' project.id report.id topic.id %}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                            Generate Content
-                        </a>
-                        {% endif %}
+        <div class="card__body">
+            <ul class="list list--divided">
+                {% for topic in topics %}
+                <li class="list__item">
+                    <div class="list__row">
+                        <p class="list__title">{{ topic.title }}</p>
+                        <div class="button-group">
+                            <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}" class="button button--secondary">Open Analysis Plan</a>
+                            {% if topic.analysis_plan and topic.analysis_plan.is_approved %}
+                            <a href="{% url 'topic_content' project.id report.id topic.id %}" class="button button--primary">Generate Content</a>
+                            {% endif %}
+                        </div>
                     </div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         {% else %}
-        <div class="p-8 text-center">
-            <p class="text-sm text-gray-500">No approved topics yet.</p>
+        <div class="card__body">
+            <div class="empty-state">No approved topics yet.</div>
         </div>
         {% endif %}
     </div>

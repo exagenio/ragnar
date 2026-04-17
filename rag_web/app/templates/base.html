@@ -1,87 +1,62 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Ragnar{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'app/main.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <a href="{% if user.is_authenticated %}{% url 'project_create' %}{% else %}{% url 'login' %}{% endif %}" class="text-xl font-semibold text-gray-900">
-                        Ragnar
-                    </a>
-                </div>
-                <div class="flex items-center gap-3 text-sm">
-                    {% if user.is_authenticated %}
-
-                        <span class="text-gray-600">Signed in as {{ user.username }}</span>
-                        <a href="{% if project %}{% url 'project_settings' project.id %}{% elif request.resolver_match.kwargs.project_id %}{% url 'project_settings' request.resolver_match.kwargs.project_id %}{% else %}{% url 'project_create' %}{% endif %}" class="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50">
+<body>
+<div class="app-shell">
+    <header class="app-header">
+        <div class="app-header__inner">
+            <a href="{% if user.is_authenticated %}{% url 'project_create' %}{% else %}{% url 'login' %}{% endif %}" class="app-brand">
+                <span class="app-brand__mark">RG</span>
+                <span>Ragnar</span>
+            </a>
+            <div class="app-header__meta">
+                {% if user.is_authenticated %}
+                    <span class="app-header__user">Signed in as {{ user.username }}</span>
+                    <div class="app-header__actions">
+                        <a href="{% if project %}{% url 'project_settings' project.id %}{% elif request.resolver_match.kwargs.project_id %}{% url 'project_settings' request.resolver_match.kwargs.project_id %}{% else %}{% url 'project_create' %}{% endif %}" class="button button--secondary">
                             Settings
                         </a>
                         <form method="post" action="{% url 'logout' %}">
                             {% csrf_token %}
-                            <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-800">
+                            <button type="submit" class="button button--primary">
                                 Logout
                             </button>
                         </form>
-                    {% else %}
-                        <a href="{% url 'login' %}" class="text-gray-700 hover:text-gray-900">Login</a>
-                        <a href="{% url 'register' %}" class="rounded-lg bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-800">
-                            Register
-                        </a>
-                    {% endif %}
-                </div>
+                    </div>
+                {% else %}
+                    <div class="app-header__actions">
+                        <a href="{% url 'login' %}" class="button button--secondary">Login</a>
+                        <a href="{% url 'register' %}" class="button button--primary">Register</a>
+                    </div>
+                {% endif %}
             </div>
         </div>
-    </nav>
+    </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {% if messages %}
-            <div class="mb-6 space-y-2">
-                {% for message in messages %}
-                    <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+    <main class="app-main">
+        <div class="page">
+            {% if messages %}
+                <div class="stack stack--tight">
+                    {% for message in messages %}
+                        <div class="notice {% if message.tags == 'error' %}notice--danger{% else %}notice--brand{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
 
-        {% block content %}
-        {% endblock %}
+            {% block content %}
+            {% endblock %}
+        </div>
     </main>
+</div>
 </body>
-<style>
-    input[type="text"],
-    input[type="email"],
-    input[type="password"],
-    input[type="number"],
-    select,
-    textarea {
-        display: block;
-        width: 100%;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        padding: 0.625rem 0.75rem;
-        font-size: 0.875rem;
-        line-height: 1.25rem;
-        background: #ffffff;
-    }
-
-    input[type="checkbox"] {
-        height: 1rem;
-        width: 1rem;
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-    }
-</style>
 </html>
