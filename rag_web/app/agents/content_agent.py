@@ -3,6 +3,7 @@ import json
 
 # Third-party imports
 from django.utils.text import slugify
+from django.db.models import Prefetch
 
 # Local imports
 from app.models import (
@@ -526,19 +527,34 @@ class ContentAgent:
 
         topic.delete()
 
-    def generate_report_document(self, report):
+    def generate_report_document(self, report, progress_callback=None):
+
+        approved_topics = Prefetch(
+            "topics",
+            queryset=Topic.objects.filter(is_approved=True)
+            .select_related("content")
+            .order_by("created_at"),
+        )
 
         sections = (
             Section.objects.filter(report=report)
+            .select_related("content")
             .prefetch_related(
-                "sub_sections__topics__content",
-                "sub_sections__content",
-                "content",
+                Prefetch(
+                    "sub_sections",
+                    queryset=SubSection.objects.select_related("content")
+                    .prefetch_related(approved_topics)
+                    .order_by("created_at"),
+                ),
             )
             .order_by("created_at")
         )
 
-        document_buffer = generate_report_document(report, sections)
+        document_buffer = generate_report_document(
+            report,
+            sections,
+            progress_callback=progress_callback,
+        )
 
         filename = f"{slugify(report.title)}_report.docx"
 

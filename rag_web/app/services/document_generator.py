@@ -2,7 +2,7 @@ import json
 import base64
 import struct
 from io import BytesIO
-from tempfile import NamedTemporaryFile
+from typing import Callable
 
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
@@ -12,19 +12,25 @@ from docx.oxml.ns import qn
 import plotly.io as pio
 
 
-def generate_report_document(report, sections):
+def generate_report_document(report, sections, progress_callback: Callable[[str], None] | None = None):
     """Generate report document"""
     doc = Document()
+    progress = progress_callback or (lambda message: None)
 
+    progress("Building title page.")
     _add_title_page(doc, report)
     doc.add_page_break()
 
+    progress("Building table of contents.")
     _add_table_of_contents(doc, sections)
     doc.add_page_break()
 
+    total_sections = len(sections)
     for section_num, section in enumerate(sections, start=1):
-        _add_section(doc, section, report, section_num)
+        progress(f"Writing section {section_num} of {total_sections}: {section.title}")
+        _add_section(doc, section, report, section_num, progress)
 
+    progress("Finalizing DOCX package.")
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
@@ -76,7 +82,7 @@ def _add_table_of_contents(doc, sections):
         doc.add_paragraph()
 
 
-def _add_section(doc, section, report, section_num):
+def _add_section(doc, section, report, section_num, progress_callback):
     """Add section"""
 
     heading = doc.add_heading(f"{section_num}. {section.title}", level=1)
@@ -89,7 +95,10 @@ def _add_section(doc, section, report, section_num):
         _add_section_content(doc, section.content.content_json)
 
     for subsection_num, subsection in enumerate(section.sub_sections.all(), start=1):
-        _add_subsection(doc, subsection, report, section_num, subsection_num)
+        progress_callback(
+            f"Writing subsection {section_num}.{subsection_num}: {subsection.title}"
+        )
+        _add_subsection(doc, subsection, report, section_num, subsection_num, progress_callback)
 
     doc.add_page_break()
 
@@ -103,7 +112,7 @@ def _add_section_content(doc, content_json):
             para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
-def _add_subsection(doc, subsection, report, section_num, subsection_num):
+def _add_subsection(doc, subsection, report, section_num, subsection_num, progress_callback):
     """Add subsection"""
 
     heading = doc.add_heading(f"{section_num}.{subsection_num} {subsection.title}", level=2)
@@ -116,7 +125,10 @@ def _add_subsection(doc, subsection, report, section_num, subsection_num):
         _add_subsection_content(doc, subsection.content.content_json)
 
     for topic_num, topic in enumerate(subsection.topics.filter(is_approved=True), start=1):
-        _add_topic(doc, topic, section_num, subsection_num, topic_num)
+        progress_callback(
+            f"Writing topic {section_num}.{subsection_num}.{topic_num}: {topic.title}"
+        )
+        _add_topic(doc, topic, section_num, subsection_num, topic_num, progress_callback)
 
 
 def _add_subsection_content(doc, content_json):
@@ -128,7 +140,7 @@ def _add_subsection_content(doc, content_json):
             para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
-def _add_topic(doc, topic, section_num, subsection_num, topic_num):
+def _add_topic(doc, topic, section_num, subsection_num, topic_num, progress_callback):
     """Add topic"""
 
     heading = doc.add_heading(f"{section_num}.{subsection_num}.{topic_num} {topic.title}", level=3)
@@ -138,18 +150,18 @@ def _add_topic(doc, topic, section_num, subsection_num, topic_num):
     run.font.color.rgb = RGBColor(102, 153, 204)
 
     if hasattr(topic, 'content') and topic.content.status == 'generated':
-        _add_topic_content(doc, topic.content.content_json)
+        _add_topic_content(doc, topic.content.content_json, progress_callback)
 
 
-def _add_topic_content(doc, content_json):
+def _add_topic_content(doc, content_json, progress_callback):
     """Add topic content"""
 
     for section in content_json.get('sections', []):
         for block in section.get('content_blocks', []):
-            _add_content_block(doc, block)
+            _add_content_block(doc, block, progress_callback)
 
 
-def _add_content_block(doc, block):
+def _add_content_block(doc, block, progress_callback):
     """Add content block"""
 
     # Handle different content block types
@@ -164,10 +176,10 @@ def _add_content_block(doc, block):
             doc.add_paragraph(item, style='List Bullet')
 
     elif block_type == 'visual_placeholder':
-        _add_visual(doc, block)
+        _add_visual(doc, block, progress_callback)
 
 
-def _add_visual(doc, block):
+def _add_visual(doc, block, progress_callback):
     """Add visual"""
 
     # Render plotly figures or tables
@@ -182,15 +194,15 @@ def _add_visual(doc, block):
         return
 
     if visual.get("visual_spec", {}).get("type") == "table":
+        progress_callback("Rendering table visual for the document.")
         _render_table(doc, visual)
         return
 
     try:
+        progress_callback("Rendering chart visual for the document.")
         fig = pio.from_json(fig_json)
-        tmp = NamedTemporaryFile(delete=False, suffix=".png")
-        fig.write_image(tmp.name)
-
-        doc.add_picture(tmp.name, width=Inches(6))
+        image_bytes = pio.to_image(fig, format="png")
+        doc.add_picture(BytesIO(image_bytes), width=Inches(6))
     except Exception:
         pass
 
@@ -217,13 +229,20 @@ def _render_table(doc, visual):
         return
 
     table = doc.add_table(rows=len(cells[0]) + 1, cols=len(headers))
+    table.style = "Table Grid"
+    table.autofit = True
+    _apply_table_borders(table)
 
     for i, header in enumerate(headers):
-        table.rows[0].cells[i].text = str(header)
+        cell = table.rows[0].cells[i]
+        cell.text = str(header)
+        _format_table_header_cell(cell)
 
     for row_idx in range(len(cells[0])):
         for col_idx in range(len(headers)):
-            table.rows[row_idx + 1].cells[col_idx].text = str(cells[col_idx][row_idx])
+            cell = table.rows[row_idx + 1].cells[col_idx]
+            cell.text = str(cells[col_idx][row_idx])
+            _format_table_body_cell(cell)
 
 
 def decode_bdata(bdata, dtype):
@@ -259,3 +278,113 @@ def style_heading(run, level):
     elif level == 3:
         run.font.size = Pt(12)
         run.font.bold = True
+
+
+def _apply_table_borders(table):
+    """Ensure DOCX tables render with visible row and column borders."""
+
+    table_pr = table._tbl.tblPr
+    borders = table_pr.first_child_found_in("w:tblBorders")
+
+    if borders is None:
+        borders = OxmlElement("w:tblBorders")
+        table_pr.append(borders)
+
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        border = borders.find(qn(f"w:{edge}"))
+        if border is None:
+            border = OxmlElement(f"w:{edge}")
+            borders.append(border)
+
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), "8")
+        border.set(qn("w:space"), "0")
+        border.set(qn("w:color"), "000000")
+
+
+def _format_table_header_cell(cell):
+    """Apply header styling so table headers are clearly separated."""
+
+    _set_cell_shading(cell, "D9E6F5")
+    _set_cell_margins(cell)
+    _set_cell_borders(cell)
+
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in paragraph.runs:
+            run.font.bold = True
+            run.font.size = Pt(10.5)
+
+
+def _format_table_body_cell(cell):
+    """Apply body cell styling for better readability."""
+
+    _set_cell_margins(cell)
+    _set_cell_borders(cell)
+
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        for run in paragraph.runs:
+            run.font.size = Pt(10)
+
+
+def _set_cell_shading(cell, fill):
+    """Apply background shading to a DOCX table cell."""
+
+    cell_pr = cell._tc.get_or_add_tcPr()
+    shading = cell_pr.first_child_found_in("w:shd")
+
+    if shading is None:
+        shading = OxmlElement("w:shd")
+        cell_pr.append(shading)
+
+    shading.set(qn("w:val"), "clear")
+    shading.set(qn("w:color"), "auto")
+    shading.set(qn("w:fill"), fill)
+
+
+def _set_cell_margins(cell, top=90, start=120, bottom=90, end=120):
+    """Add padding inside DOCX table cells."""
+
+    cell_pr = cell._tc.get_or_add_tcPr()
+    margins = cell_pr.first_child_found_in("w:tcMar")
+
+    if margins is None:
+        margins = OxmlElement("w:tcMar")
+        cell_pr.append(margins)
+
+    for side, value in {
+        "top": top,
+        "start": start,
+        "bottom": bottom,
+        "end": end,
+    }.items():
+        margin = margins.find(qn(f"w:{side}"))
+        if margin is None:
+            margin = OxmlElement(f"w:{side}")
+            margins.append(margin)
+
+        margin.set(qn("w:w"), str(value))
+        margin.set(qn("w:type"), "dxa")
+
+
+def _set_cell_borders(cell):
+    """Apply explicit borders to each DOCX table cell for consistent rendering."""
+
+    cell_pr = cell._tc.get_or_add_tcPr()
+    borders = cell_pr.first_child_found_in("w:tcBorders")
+
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        cell_pr.append(borders)
+
+    for edge in ("top", "left", "bottom", "right"):
+        border = borders.find(qn(f"w:{edge}"))
+        if border is None:
+            border = OxmlElement(f"w:{edge}")
+            borders.append(border)
+
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), "10")
+        border.set(qn("w:space"), "0")
+        border.set(qn("w:color"), "000000")

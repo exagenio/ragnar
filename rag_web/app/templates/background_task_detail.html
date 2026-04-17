@@ -22,6 +22,14 @@
             </div>
         </div>
         <div class="button-group">
+            <a
+                href="{% if task.task_type == 'document_export' and task.status == 'completed' %}{% url 'background_task_download' task.id %}{% else %}#{% endif %}"
+                class="button button--primary {% if task.task_type == 'document_export' and task.status != 'completed' %}button--disabled{% endif %}{% if not task.task_type == 'document_export' %} is-hidden{% endif %}"
+                id="task-download-button"
+                {% if task.task_type == 'document_export' and task.status != 'completed' %}aria-disabled="true"{% endif %}
+            >
+                Download Document
+            </a>
             <a href="{% url 'background_task_list' %}" class="button button--secondary">Back to Tasks</a>
         </div>
     </div>
@@ -76,6 +84,7 @@
     const viewer = document.getElementById("task-log-viewer");
     const statusPill = document.getElementById("task-status-pill");
     const lastMessage = document.getElementById("task-last-message");
+    const downloadButton = document.getElementById("task-download-button");
     let latestLogId = 0;
 
     const existing = viewer.querySelectorAll("[data-log-id]");
@@ -118,6 +127,12 @@
                 statusPill.className = statusClass(data.task.status);
                 statusPill.textContent = data.task.status;
                 lastMessage.textContent = data.task.last_message || "";
+
+                if (data.task.download_url) {
+                    downloadButton.href = data.task.download_url;
+                    downloadButton.classList.remove("is-hidden", "button--disabled");
+                    downloadButton.removeAttribute("aria-disabled");
+                }
 
                 data.logs.forEach(appendLog);
 

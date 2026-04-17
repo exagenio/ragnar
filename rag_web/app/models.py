@@ -393,6 +393,7 @@ class BackgroundTask(models.Model):
         ("metadata_generation", "Metadata Generation"),
         ("subsection_pipeline", "Subsection Pipeline"),
         ("topic_pipeline", "Topic Pipeline"),
+        ("document_export", "Document Export"),
     ]
 
     STATUS_CHOICES = [

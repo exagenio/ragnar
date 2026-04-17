@@ -154,6 +154,11 @@ urlpatterns = [
         protected(task_views.background_task_logs_api),
         name="background_task_logs_api",
     ),
+    path(
+        "tasks/<int:task_id>/download/",
+        protected(task_views.background_task_download),
+        name="background_task_download",
+    ),
 ]
 
 if settings.DEBUG:

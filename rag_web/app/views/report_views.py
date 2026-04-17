@@ -11,6 +11,7 @@ from app.models import (
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
+from app.services.document_export_job import create_document_export_task
 
 def get_manager():
     from app.agents.manager_agent import ManagerAgent
@@ -157,23 +158,20 @@ def generate_section_content_view(
 
 
 def generate_document_view(request, project_id, report_id):
-    manager = get_manager()
-
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
 
     try:
-
-        document_buffer, filename = manager.generate_report_document(report)
-
-        response = HttpResponse(
-            document_buffer.getvalue(),
-            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        task = create_document_export_task(
+            project=project,
+            report=report,
         )
 
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-
-        return response
+        messages.success(
+            request,
+            "Document export started in the background. You can track it live from the task page.",
+        )
+        return redirect("background_task_detail", task_id=task.id)
 
     except Exception as e:
 

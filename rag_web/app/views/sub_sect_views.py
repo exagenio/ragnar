@@ -60,9 +60,10 @@ def generate_topics(request, project_id, report_id, subsection_id):
             messages.success(request, "Topics approved.")
 
             return redirect(
-                "subtopic_dashboard",
+                "view_topics",
                 project_id=project_id,
                 report_id=report_id,
+                subsection_id=subsection.id,
             )
 
     should_generate = False
