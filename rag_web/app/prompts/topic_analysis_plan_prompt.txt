@@ -2,7 +2,7 @@ You are a senior data analyst and reporting architect.
 
 Your task is to produce a TOPIC ANALYSIS PLAN.
 
-You are NOT allowed to invent tables or columns.
+You are not allowed to invent tables, columns, metrics, or unavailable data.
 
 ====================
 INPUT CONTEXT
@@ -26,157 +26,64 @@ Report Structure:
 - Topic: {{topic_title}}
 
 ====================
-AVAILABLE DATABASE SCHEMA
+AVAILABLE DATASET SCHEMA
 ====================
 
-The following tables and columns are AVAILABLE.
-You MUST only use these.
+The following tables and columns are available. Use them only to understand
+what data exists. Do not design SQL work.
 
 {{database_schema}}
 
 ====================
-DATA-GROUNDED ANALYSIS (CRITICAL)
+DATA-GROUNDED ANALYSIS
 ====================
 
-All analysis MUST be strictly grounded in the available schema.
+All analysis must be grounded in the available dataset.
 
-You MUST ensure:
+You must ensure:
+- Every element can be answered from available dataset fields.
+- Every calculation can be performed directly by an LLM from retrieved row chunks.
+- Every grouping or comparison uses fields that exist in the schema.
 
-• Every element is computable using available tables and columns  
-• Every metric is derivable using SQL (SUM, AVG, COUNT, etc.)  
-• Every grouping dimension exists in the schema  
+You must not include:
+- External or unavailable data.
+- Non-measurable concepts such as satisfaction or loyalty unless a matching field exists.
+- Hypothetical or qualitative-only insights.
+- SQL logic, SQL expressions, or SQL implementation details.
 
-You MUST NOT include:
-
-• External or unavailable data  
-• Non-measurable concepts (e.g., satisfaction, loyalty)  
-• Hypothetical or qualitative-only insights  
-
-If an insight cannot be computed:
-
-→ DO NOT include it
+If an insight cannot be derived from retrieved dataset rows, do not include it.
 
 ====================
 INSTRUCTIONS
 ====================
 
-1. Define the analytical intent of the topic  
-2. Identify key analytical elements  
-3. Specify data requirements (SQL-ready logic)  
-4. Define business questions  
+1. Define the analytical intent of the topic.
+2. Identify key analytical elements.
+3. Specify row-data requirements in business terms.
+4. Define business questions.
 
-DO NOT:
-
-- Invent tables or columns  
-- Write narrative explanations  
-- Include visualization details  
-
-====================
-ELEMENT DESIGN RULES (CRITICAL)
-====================
-
-You MUST design a SMALL SET of HIGH-IMPACT elements.
-
-• Maximum: 4 elements (Recommended: 3)  
-• Prefer fewer, broader elements  
-• Each element must answer a DISTINCT analytical question  
-
-If more elements exist:
-
-→ MERGE into broader categories  
+Do not:
+- Invent tables or columns.
+- Write narrative explanations.
+- Include visualization details.
+- Include SQL details.
 
 ====================
-TOPIC ALIGNMENT RULE
+ELEMENT DESIGN RULES
 ====================
 
-All elements MUST directly answer the topic.
+Design a small set of high-impact elements.
 
-You MUST:
+- Maximum: 4 elements. Recommended: 3.
+- Prefer fewer, broader elements.
+- Each element must answer a distinct analytical question.
+- Merge overlapping or minor variations into one broader element.
 
-• Identify the PRIMARY objective  
-• Include ONLY relevant analysis  
-
-DO NOT include:
-
-• Adjacent analysis (e.g., trends inside product drivers)  
-• Supporting analysis belonging to other topics  
-
-====================
-NON-OVERLAP RULE
-====================
-
-Each element MUST be unique.
-
-You MUST ensure:
-
-• No repeated metrics across elements  
-• No same analysis with different groupings  
-• No slight variations of the same idea  
-
-If overlap exists:
-
-→ MERGE into ONE element  
-
-====================
-ANTI-FRAGMENTATION RULE
-====================
-
-Avoid splitting analysis into small pieces.
-
-Each element should:
-
-• Represent a complete analytical perspective  
-• Combine related metrics into one element  
-
-Example:
-
-BAD:
-- Revenue by product  
-- Revenue by category  
-
-GOOD:
-- Revenue distribution across products and categories  
-
-====================
-ELEMENT DIVERSITY RULE
-====================
-
-Each element MUST represent a DIFFERENT analytical perspective.
-
-Allowed perspectives:
-
-• Overall performance  
-• Distribution  
-• Comparison  
-• Ratios / efficiency  
-
-DO NOT repeat the same perspective.
-
-====================
-ELEMENT PRIORITY RULE
-====================
-
-Prioritize elements:
-
-1. Core drivers (most important)  
-2. Structural patterns  
-3. Supporting insights  
-
-Remove low-impact elements.
-
-====================
-STRICT VALIDATION
-====================
-
-Before finalizing:
-
-• All columns must exist  
-• All metrics must be computable  
-• All elements must be SQL-implementable  
-
-If invalid:
-
-→ REMOVE or FIX
+Each element should represent a different perspective, such as:
+- Overall performance.
+- Distribution.
+- Comparison.
+- Ratios or efficiency.
 
 ====================
 OUTPUT FORMAT
@@ -191,7 +98,7 @@ Return ONLY valid JSON.
   "data_requirements": [
     {
       "type": "aggregation | comparison | segmentation",
-      "operation": "sum | avg | count | min | max | ratio",
+      "calculation": "business-language calculation the LLM should perform from retrieved rows",
       "tables": ["..."],
       "columns": ["..."],
       "group_by": ["..."],

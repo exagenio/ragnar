@@ -4,8 +4,9 @@ from django.conf import settings
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_google_vertexai import ChatVertexAI, VertexAIEmbeddings
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_ollama import ChatOllama
 from langchain_openrouter import ChatOpenRouter
+from sentence_transformers import SentenceTransformer
 
 
 class LLMBackend(str, Enum):
@@ -24,8 +25,8 @@ class ModelSize(str, Enum):
 
 
 LLM_PROVIDER_CHOICES = [
-    (LLMProvider.VERTEX_AI.value, "Vertex AI"),
     (LLMProvider.OPENROUTER.value, "OpenRouter"),
+    (LLMProvider.VERTEX_AI.value, "Vertex AI"),
 ]
 
 CUSTOM_MODEL_CHOICE = "__custom__"
@@ -51,16 +52,39 @@ PROVIDER_MODEL_CHOICES = {
     },
 }
 
-DEFAULT_PROVIDER = LLMProvider.VERTEX_AI.value
+DEFAULT_PROVIDER = LLMProvider.OPENROUTER.value
 DEFAULT_MODELS = {
     ModelSize.PRIMARY: PROVIDER_MODEL_CHOICES[DEFAULT_PROVIDER]["primary"][0],
     ModelSize.SMALL: PROVIDER_MODEL_CHOICES[DEFAULT_PROVIDER]["secondary"][0],
 }
 LOCAL_MODEL = "llama3.1:8b"
+LOCAL_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+
+class SentenceTransformersEmbeddings(Embeddings):
+    def __init__(self, model_name: str):
+        self.model_name = model_name
+        self.model = SentenceTransformer(model_name)
+
+    def embed_documents(self, texts, **kwargs):
+        embeddings = self.model.encode(
+            texts,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+        return [emb.tolist() for emb in embeddings]
+
+    def embed_query(self, text, **kwargs):
+        embedding = self.model.encode(
+            text,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+        return embedding.tolist()
 
 
 def _get_vertex_project():
-    return getattr(settings, "VERTEX_AI_PROJECT", "project-08491770-bd93-473e-a10")
+    return getattr(settings, "VERTEX_AI_PROJECT", None)
 
 
 def _get_vertex_location():
@@ -72,7 +96,10 @@ def _resolve_provider(project=None, provider=None):
         return LLMProvider(provider)
 
     if project and getattr(project, "llm_provider", None):
-        return LLMProvider(project.llm_provider)
+        project_provider = LLMProvider(project.llm_provider)
+        if project_provider == LLMProvider.VERTEX_AI and not _get_vertex_project():
+            return LLMProvider.OPENROUTER
+        return project_provider
 
     return LLMProvider(DEFAULT_PROVIDER)
 
@@ -81,10 +108,16 @@ def _resolve_model_name(model_size, project=None, provider=None, model=None):
     if model:
         return model
 
-    if project:
+    if project and provider and getattr(project, "llm_provider", None) == provider:
         if model_size == ModelSize.PRIMARY:
             return project.primary_llm_model
         return project.secondary_llm_model
+
+    provider_models = PROVIDER_MODEL_CHOICES.get(provider or DEFAULT_PROVIDER)
+    if provider_models:
+        if model_size == ModelSize.PRIMARY:
+            return provider_models["primary"][0]
+        return provider_models["secondary"][0]
 
     return DEFAULT_MODELS[model_size]
 
@@ -136,11 +169,17 @@ def get_llm(
         )
 
     if effective_provider == LLMProvider.VERTEX_AI:
+        vertex_project = _get_vertex_project()
+        if not vertex_project:
+            raise ValueError(
+                "Vertex AI project is not configured. Set VERTEX_AI_PROJECT or choose OpenRouter."
+            )
+
         return ChatVertexAI(
             model=model_name,
             temperature=temperature,
             max_retries=2,
-            project=_get_vertex_project(),
+            project=vertex_project,
             location=_get_vertex_location(),
         )
 
@@ -149,13 +188,14 @@ def get_llm(
 
 def get_embeddings(
     *,
-    backend: LLMBackend,
+    backend: LLMBackend | str,
     project=None,
 ) -> Embeddings:
+    backend = LLMBackend(backend)
+
     if backend == LLMBackend.LOCAL:
-        return OllamaEmbeddings(
-            model=LOCAL_MODEL,
-            base_url="http://localhost:11434",
+        return SentenceTransformersEmbeddings(
+            model_name=getattr(settings, "LOCAL_EMBEDDING_MODEL", LOCAL_EMBEDDING_MODEL)
         )
 
     if backend == LLMBackend.CLOUD:

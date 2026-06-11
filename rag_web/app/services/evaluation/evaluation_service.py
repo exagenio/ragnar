@@ -92,7 +92,7 @@ def extract_content_blocks_text(content_json):
 
 
 def retrieve_metadata_for_topic(project, topic, vector_store, report):
-    """Retrieve metadata for topic"""
+    """Retrieve row-data context for topic evaluation."""
 
     # Build semantic query using section, subsection and topic
     section_title = topic.subsection.section.title
@@ -118,13 +118,14 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
     {'; '.join(required_elements)}
     """
 
-    # Retrieve relevant metadata from vector store
+    # Baseline RAG evaluation uses retrieved full-dataset row chunks, not
+    # generated schema metadata or precomputed numerical insights.
     docs = vector_store.similarity_search(
         query=query,
         k=10,
         filter={
             "project_id": project.id,
-            "type": ["table_description", "column", "analytical_capability"],
+            "type": "table_data_chunk",
         },
     )
 
@@ -174,18 +175,13 @@ def evaluate_topic(project, topic, evaluators, vector_store, report):
     # Extract content, input and context
     content_text = extract_content_blocks_text(content_json)
     input_text = build_eval_input(topic, report)
-    sql_results = content_json.get("precomputed_sql_placeholders", [])
-
-    metadata_context = retrieve_metadata_for_topic(
+    retrieved_context = retrieve_metadata_for_topic(
         project, topic, vector_store, report
     )
 
     context_str = f"""
-    SQL DATA:
-    {json.dumps(sql_results, indent=2)}
-
-    METADATA:
-    {metadata_context}
+    RETRIEVED DATA:
+    {retrieved_context}
     """
 
     results = []
@@ -262,9 +258,7 @@ def evaluate_project(project_id: int, report_id: int):
         subsection__section__report=report
     )
 
-    vector_store = get_vector_store(
-        backend=settings.DEFAULT_LLM_BACKEND
-    )
+    vector_store = get_vector_store(backend=LLMBackend.LOCAL)
 
     llm = get_judge_llm(project)
     evaluators = build_evaluators(llm)

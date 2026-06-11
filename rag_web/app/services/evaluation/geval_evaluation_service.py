@@ -1,4 +1,3 @@
-import json
 from concurrent.futures import ThreadPoolExecutor
 from deepeval.models import OpenRouterModel
 from django.conf import settings
@@ -44,7 +43,7 @@ def get_geval_metrics(model):
             name="hallucination",
             criteria="""
             Check whether the output contains any claims not supported by the
-            provided SQL COMPUTED ANALYTICAL INSIGHTS or metadata context. Penalize unsupported claims.
+            retrieved dataset rows. Penalize unsupported claims.
             """,
             evaluation_params=[
                 LLMTestCaseParams.ACTUAL_OUTPUT,
@@ -120,30 +119,20 @@ def evaluate_topic_geval(project, topic, report, vector_store, model):
     input_text = build_eval_input(topic, report)
 
     # Context
-    sql_results = content_json.get("precomputed_sql_placeholders", [])
-
-    metadata_context = retrieve_metadata_for_topic(
+    retrieved_context = retrieve_metadata_for_topic(
         project, topic, vector_store, report
     )
 
     context_str = f"""
-SQL COMPUTED ANALYTICAL INSIGHTS:
-{json.dumps(sql_results, indent=2)}
-
-METADATA:
-{metadata_context}
+RETRIEVED DATA:
+{retrieved_context}
 """
     
     context_list = []
 
-    if sql_results:
+    if retrieved_context:
         context_list.append(
-            f"SQL COMPUTED ANALYTICAL INSIGHTS:\n{json.dumps(sql_results, indent=2)}"
-        )
-
-    if metadata_context:
-        context_list.append(
-            f"METADATA:\n{metadata_context}"
+            f"RETRIEVED DATA:\n{retrieved_context}"
         )
 
     # Test case
@@ -198,9 +187,7 @@ def evaluate_project_geval(project_id: int, report_id: int):
         subsection__section__report=report
     )
 
-    vector_store = get_vector_store(
-        backend=settings.DEFAULT_LLM_BACKEND
-    )
+    vector_store = get_vector_store(backend="local")
 
     if project.llm_provider == LLMProvider.OPENROUTER.value:
         api_key = project.get_openrouter_api_key() or settings.OPENROUTER_API_KEY

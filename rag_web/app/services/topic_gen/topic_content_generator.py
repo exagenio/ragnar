@@ -36,7 +36,6 @@ def generate_topic_content(
     topic_title: str,
     topic_plan: Dict,
     existing_content: Dict | None = None,
-    precomputed_sql_placeholders: List[Dict] | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict:
     """Generate topic content"""
@@ -49,7 +48,7 @@ def generate_topic_content(
         project=project,
     )
 
-    vector_store = get_vector_store()
+    vector_store = get_vector_store(backend=LLMBackend.LOCAL)
 
     # Initialize content state
     default_state = {
@@ -74,6 +73,8 @@ def generate_topic_content(
     else:
         content_state = default_state
 
+    content_state.pop("precomputed_sql_placeholders", None)
+
     required_elements = topic_plan.get("required_elements", [])
 
     # Iterate through required elements
@@ -93,7 +94,7 @@ def generate_topic_content(
         # Handle iterative content generation logic
         while iteration_count < MAX_ITERATIONS_PER_ELEMENT:
 
-            metadata_context = retrieve_metadata_context(
+            retrieved_data_context = retrieve_metadata_context(
                 vector_store=vector_store,
                 project_id=project_id,
                 query=_build_metadata_query(
@@ -114,10 +115,9 @@ def generate_topic_content(
                 subsection_title=subsection_title,
                 topic_title=topic_title,
                 topic_plan=topic_plan,
-                metadata_context=metadata_context,
+                metadata_context=retrieved_data_context,
                 current_required_element=element,
                 covered_points=covered_points,
-                precomputed_sql_placeholders=precomputed_sql_placeholders,
             )
 
             # Merge generated blocks
@@ -173,7 +173,6 @@ def generate_single_iteration(
     metadata_context: List[Dict],
     current_required_element: str,
     covered_points: List[str],
-    precomputed_sql_placeholders: List[Dict] | None = None,
 ) -> Dict:
     """Generate single iteration"""
 
@@ -192,7 +191,6 @@ def generate_single_iteration(
             "metadata_context_json": json.dumps(metadata_context, indent=2),
             "current_required_element": current_required_element,
             "covered_elements_summary": "\n".join(f"- {p}" for p in covered_points),
-            "precomputed_sql_json": json.dumps(precomputed_sql_placeholders or [], indent=2),
         },
     )
 
@@ -216,15 +214,30 @@ def generate_single_iteration(
     return extract_json_or_fail(raw_text)
 
 
-def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: int = 8):
-    """Retrieve metadata context"""
+def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: int = 30):
+    """Retrieve full-dataset row context."""
 
-    docs = vector_store.similarity_search(
-        query,
+    data_docs = vector_store.similarity_search(
+        f"{query} dataset rows full table data values calculate",
         k=k,
-        filter={"project_id": project_id},
+        filter={"project_id": project_id, "type": "table_data_chunk"},
     )
-    return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
+
+    seen = set()
+    context = []
+    for doc in data_docs:
+        key = (
+            doc.metadata.get("table_name"),
+            doc.metadata.get("type"),
+            doc.metadata.get("chunk_index"),
+            doc.page_content,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        context.append({"content": doc.page_content})
+
+    return context
 
 
 def _build_metadata_query(section, subsection, topic, element):

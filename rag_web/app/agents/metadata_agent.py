@@ -2,8 +2,6 @@ from app.services.metadata_generation.schema_introspector import get_tables
 from app.services.metadata_generation.column_introspector import get_table_columns
 from app.services.metadata_generation.row_sampler import sample_table_rows
 from app.services.metadata_generation.metadata_job import run_metadata_generation
-from app.services.metadata_generation.metadata_to_documents import metadata_to_documents
-from app.services.vector_db_config.vector_store import get_vector_store
 from app.services.task_tracker import create_background_task
 
 from app.models import SelectedTable
@@ -121,8 +119,5 @@ class MetadataAgent:
         metadata_obj.status = "approved"
         metadata_obj.save()
 
-        # Convert metadata to documents and store in vector db
-        vector_store = get_vector_store()
-        docs = metadata_to_documents(metadata_obj)
-
-        vector_store.add_documents(docs)
+        # Baseline RAG uses full dataset row embeddings only; approved schema
+        # metadata is kept in the database and is not embedded into PGVector.

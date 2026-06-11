@@ -293,10 +293,6 @@ class ContentAgent:
         content_obj.status = "in_progress"
         content_obj.save()
 
-        precomputed = (content_obj.content_json or {}).get(
-            "precomputed_sql_placeholders", []
-        )
-
         # Generate and normalize content
         result = generate_topic_content(
             project=project,
@@ -310,7 +306,6 @@ class ContentAgent:
             topic_title=topic.title,
             topic_plan=topic.analysis_plan.plan_json,
             existing_content=content_obj.content_json or None,
-            precomputed_sql_placeholders=precomputed, 
         )
 
         result = normalize_placeholders(result)

@@ -39,13 +39,17 @@ def generate_subsection_topics(
     prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
 
     # Retrieve relevant documents from vector store
-    vector_store = get_vector_store(backend=backend)
+    vector_store = get_vector_store(backend=LLMBackend.LOCAL)
     docs = vector_store.similarity_search(
-        query=f"{context.get('section_title', '')} {context.get('subsection_title', '')}",
+        query=(
+            f"{context.get('section_title', '')} "
+            f"{context.get('subsection_title', '')} "
+            "dataset rows available fields business analysis topics"
+        ),
         k=50,
         filter={
             "project_id": project_id,
-            "type": ["table_description", "column", "analytical_capability", "confidence_note"],
+            "type": "table_data_chunk",
         },
     )
 

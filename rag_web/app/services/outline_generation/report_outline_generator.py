@@ -44,19 +44,14 @@ def generate_report_outline(
     industry_guidance = get_industry_guidance(data["industry"])
 
     # Retrieve schema context using vector search
-    vector_store = get_vector_store(backend=backend)
+    vector_store = get_vector_store(backend=LLMBackend.LOCAL)
 
     docs = vector_store.similarity_search(
-        query="full database schema tables columns analytical capabilities",
+        query="full dataset rows available fields business analysis report outline",
         k=50,
         filter={
             "project_id": project_id,
-            "type": [
-                "table_description",
-                "column",
-                "analytical_capability",
-                "confidence_note",
-            ],
+            "type": "table_data_chunk",
         },
     )
 

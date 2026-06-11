@@ -7,11 +7,9 @@ from django.utils.timezone import now
 
 from app.agents.content_agent import ContentAgent
 from app.agents.metadata_agent import MetadataAgent
-from app.agents.sql_agent import SQLAgent
 from app.agents.visual_Agent import VisualAgent
 from app.models import (
     SubSectionGenerateTime,
-    TopicContent,
     TopicGenerateTime,
 )
 from app.services.project_service import ProjectService
@@ -23,7 +21,6 @@ from app.services.task_tracker import (
     start_background_task,
 )
 from app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
-from app.services.vector_db_config.vector_store import get_vector_store
 from app.utils.block_processing import (
     apply_repaired_blocks,
     build_block_chunks,
@@ -45,7 +42,6 @@ class ManagerAgent:
         self.project_service = ProjectService()
         self.metadata_agent = MetadataAgent()
         self.content_agent = ContentAgent()
-        self.sql_agent = SQLAgent()
         self.visual_agent = VisualAgent()
 
     def create_project_with_database(self, data):
@@ -118,8 +114,6 @@ class ManagerAgent:
             form_data,
             approve,
         )
-        if approve:
-            self.generate_precomputed_sql_placeholders(topic, plan)
         plan_obj.save()
 
     def generate_topic_content(self, project, report, topic, content_obj):
@@ -363,7 +357,7 @@ class ManagerAgent:
                     topic_task = create_background_task(
                         task_type="topic_pipeline",
                         title=f"Topic pipeline for {topic.title}",
-                        description="Generate a topic plan, compute SQL, create content, and prepare visuals.",
+                        description="Generate a topic plan and create vector-grounded content.",
                         project=project,
                         report=report,
                         subsection=subsection,
@@ -500,20 +494,6 @@ class ManagerAgent:
                 content_obj,
                 task_id=task_id,
             )
-            content_obj = self._stage_generate_visuals(
-                project,
-                report,
-                topic,
-                content_obj,
-                task_id=task_id,
-            )
-            content_obj = self._stage_repair_visual_narrative(
-                project,
-                report,
-                topic,
-                content_obj,
-                task_id=task_id,
-            )
 
             self._emit_task_log(task_id, f"[PIPELINE] Completed -> Topic {topic.id}", level="success")
             return content_obj
@@ -543,17 +523,11 @@ class ManagerAgent:
             topic.is_approved = True
             topic.save()
             plan_obj.save()
-            self.generate_precomputed_sql_placeholders(topic, plan_obj.plan_json)
         else:
             self.content_agent.get_topic_content(topic)
 
         content_obj = self.content_agent.get_topic_content(topic)
-        content_obj = self.sql_agent.compute_precomputed_sql_placeholders(
-            project=project,
-            topic_content_obj=content_obj,
-            topic=topic,
-        )
-        self._emit_task_log(task_id, f"[STAGE 1] Analysis + SQL ready -> Topic {topic.id}")
+        self._emit_task_log(task_id, f"[STAGE 1] Analysis plan ready -> Topic {topic.id}")
         return content_obj
 
     def _stage_generate_content(self, project, report, topic, content_obj, task_id=None):
@@ -657,57 +631,6 @@ class ManagerAgent:
                 if block.get("type") == "visual_placeholder" and not block.get("generated_visual"):
                     return True
         return False
-
-    def generate_precomputed_sql_placeholders(self, topic, plan):
-        content_obj, _ = TopicContent.objects.get_or_create(
-            topic=topic,
-            defaults={
-                "content_json": {},
-                "status": "draft",
-                "iteration_count": 0,
-            },
-        )
-
-        vector_store = get_vector_store()
-        metadata_context = vector_store.similarity_search(
-            f"{topic.title} {plan.get('required_elements', [])}",
-            k=8,
-            filter={"project_id": topic.report.project.id},
-        )
-        metadata_context = [
-            {"content": doc.page_content, "metadata": doc.metadata}
-            for doc in metadata_context
-        ]
-
-        sql_agent = SQLAgent()
-        placeholders_result = sql_agent.generate_sql_placeholders_from_plan(
-            topic_plan=plan,
-            project=topic.report.project,
-            metadata_context=metadata_context,
-        )
-        placeholders = placeholders_result.get("placeholders", [])
-
-        def to_sql_block(placeholder, topic_id, index):
-            return {
-                "type": "sql_placeholder",
-                "content": {
-                    "id": f"{topic_id}_{index}",
-                    "calculation": placeholder["calculation"],
-                    "description": placeholder["description"],
-                    "data_requirement_ref": placeholder["data_requirement_ref"],
-                },
-            }
-
-        sql_blocks = [
-            to_sql_block(placeholder, topic.id, index)
-            for index, placeholder in enumerate(placeholders)
-        ]
-
-        content_json = content_obj.content_json or {}
-        content_json["precomputed_sql_placeholders"] = sql_blocks
-        content_obj.content_json = content_json
-        content_obj.save()
-        return content_obj
 
     def _stage_repair_visual_narrative(self, project, report, topic, content_obj, task_id=None):
         self._emit_task_log(task_id, f"[STAGE 4] Block-level repair -> Topic {topic.id}")

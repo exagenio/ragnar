@@ -36,20 +36,6 @@
                         {% endfor %}
                     </ul>
 
-                    {% elif block.type == "sql_placeholder" %}
-                    {% if not block.generated_result or block.generated_result.status != "ok" %}
-                    <div class="content-panel__block">
-                        <pre class="code-block">{{ block.content }}</pre>
-                        <form method="post" class="form__actions">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="compute_sql">
-                            <input type="hidden" name="section_index" value="{{ section_index }}">
-                            <input type="hidden" name="block_index" value="{{ block_index }}">
-                            <button type="submit" class="button button--primary">Compute</button>
-                        </form>
-                    </div>
-                    {% endif %}
-
                     {% elif block.type == "visual_placeholder" %}
                     {% if not block.generated_visual or block.generated_visual.status != "ok" %}
                     <div class="content-panel__block">
