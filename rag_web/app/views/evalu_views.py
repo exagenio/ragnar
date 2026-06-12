@@ -1,20 +1,25 @@
-from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.db.models import Avg
 from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from app.models import (
     Project,
     Report,
+    Topic,
     TopicReadability,
     ReportEvaluation,
     TopicEvaluation
 )
-from app.services.evaluation.evaluation_service import evaluate_project
+from app.services.evaluation.evaluation_service import (
+    evaluate_project,
+    evaluate_single_topic,
+)
 from app.services.evaluation.readability_service import evaluate_project_readability
-from django.shortcuts import get_object_or_404, render, redirect
-from django.contrib import messages
-from app.services.evaluation.geval_evaluation_service import evaluate_project_geval
+from app.services.evaluation.geval_evaluation_service import (
+    evaluate_project_geval,
+    evaluate_single_topic_geval,
+)
 from app.services.evaluation.evaluation_doc_generator import generate_evaluation_document
 
 def evaluation_dashboard_view(request, project_id):
@@ -69,6 +74,7 @@ def evaluation_dashboard_view(request, project_id):
 
         # LOAD RESULTS
         readability_scores = None
+        readability_average = None
         geval_project_summary = None
 
         if selected_report:
@@ -80,10 +86,17 @@ def evaluation_dashboard_view(request, project_id):
             topic_evals = TopicEvaluation.objects.filter(
                 topic__subsection__section__report=selected_report
             ).select_related("topic")
+            if eval_type == "geval":
+                topic_evals = topic_evals.filter(geval_scores__isnull=False)
+            else:
+                topic_evals = topic_evals.filter(scores__isnull=False)
 
             readability_scores = TopicReadability.objects.filter(
                 report=selected_report
             ).select_related("topic")
+            readability_average = readability_scores.aggregate(
+                average=Avg("flesch_kincaid_grade")
+            )["average"]
 
             # GEVAL CALCULATION
             project_overall_scores = []
@@ -95,7 +108,7 @@ def evaluation_dashboard_view(request, project_id):
 
             for eval_obj in topic_evals:
 
-                if eval_type == "g-eval":
+                if eval_type == "geval":
                     scores = eval_obj.geval_scores or {}
                 else:
                     scores = eval_obj.scores or {}
@@ -141,6 +154,7 @@ def evaluation_dashboard_view(request, project_id):
             "report_eval": report_eval,
             "topic_evals": topic_evals,
             "readability_scores": readability_scores,
+            "readability_average": readability_average,
             "geval_project_summary": geval_project_summary,
             "eval_type": eval_type,
         }
@@ -152,20 +166,64 @@ def evaluation_dashboard_view(request, project_id):
         return redirect("evaluation_dashboard_view", project_id=project.id)
 
 
+def reevaluate_topic_view(request, project_id, topic_id):
+    project = get_object_or_404(Project, id=project_id)
+    report_id = request.POST.get("report_id")
+    eval_type = request.POST.get("eval_type", "openeval")
+
+    if request.method != "POST" or not report_id:
+        messages.error(request, "A report is required to re-evaluate a topic.")
+        return redirect("evaluation_dashboard_view", project_id=project.id)
+
+    report = get_object_or_404(Report, id=report_id, project=project)
+    topic = get_object_or_404(
+        Topic,
+        id=topic_id,
+        subsection__section__report=report,
+    )
+
+    try:
+        if eval_type == "geval":
+            evaluate_single_topic_geval(project, report, topic)
+        else:
+            evaluate_single_topic(project, report, topic)
+        messages.success(request, f'Re-evaluated topic "{topic.title}".')
+    except Exception as exc:
+        messages.error(request, f"Topic re-evaluation failed: {exc}")
+
+    dashboard_url = reverse(
+        "evaluation_dashboard_view",
+        kwargs={"project_id": project.id},
+    )
+    return redirect(
+        f"{dashboard_url}?report_id={report.id}&eval_type={eval_type}"
+    )
+
+
 def export_evaluation_doc(request, project_id):
 
     report_id = request.GET.get("report_id")
+    eval_type = request.GET.get("eval_type", "geval")
 
     if not report_id:
         return HttpResponse("Missing report_id", status=400)
 
-    report = get_object_or_404(Report, id=report_id)
+    project = get_object_or_404(Project, id=project_id)
+    report = get_object_or_404(Report, id=report_id, project=project)
 
     topic_evals = TopicEvaluation.objects.filter(
         topic__subsection__section__report=report
     ).select_related("topic")
+    if eval_type == "geval":
+        topic_evals = topic_evals.filter(geval_scores__isnull=False)
+    else:
+        topic_evals = topic_evals.filter(scores__isnull=False)
 
-    buffer = generate_evaluation_document(report, topic_evals)
+    buffer = generate_evaluation_document(
+        report,
+        topic_evals,
+        eval_type=eval_type,
+    )
 
     response = HttpResponse(
         buffer,
@@ -173,7 +231,7 @@ def export_evaluation_doc(request, project_id):
     )
 
     response["Content-Disposition"] = (
-        f'attachment; filename="evaluation_report_{report.id}.docx"'
+        f'attachment; filename="{eval_type}_evaluation_report_{report.id}.docx"'
     )
 
     return response

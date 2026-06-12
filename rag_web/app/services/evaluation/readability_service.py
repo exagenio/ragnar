@@ -3,7 +3,7 @@ from app.models import TopicContent, TopicReadability, Topic, Report
 
 
 def extract_readable_text(content_json):
-
+    """Extract prose from current and legacy topic content block schemas."""
     sections = content_json.get("sections", [])
     texts = []
 
@@ -15,12 +15,14 @@ def extract_readable_text(content_json):
             block_type = block.get("type")
 
             if block_type == "paragraph":
-                text = block.get("text", "")
+                text = block.get("content", block.get("text", ""))
                 if text:
                     texts.append(str(text))
 
             elif block_type == "bullet_list":
-                items = block.get("items", [])
+                items = block.get("content", block.get("items", []))
+                if isinstance(items, str):
+                    items = [items]
                 for item in items:
                     if item:
                         texts.append(str(item))
@@ -66,7 +68,7 @@ def evaluate_topic_readability(topic, report):
         },
     )
 
-    print(f"[READABILITY DONE] Topic {topic.id} → FK: {fk_score}")
+    print(f"[READABILITY DONE] Topic {topic.id} -> FK: {fk_score}")
 
     return fk_score
 
@@ -79,7 +81,7 @@ def evaluate_project_readability(project_id, report_id):
         subsection__section__report=report
     )
 
-    print(f"[READABILITY START] Report {report_id} → {topics.count()} topics")
+    print(f"[READABILITY START] Report {report_id} -> {topics.count()} topics")
 
     processed = 0
     skipped = 0

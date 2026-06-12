@@ -2,14 +2,65 @@ import json
 import base64
 import struct
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openrouter import ChatOpenRouter
 from openevals.llm import create_llm_as_judge
+from openevals.prompts import (
+    ANSWER_RELEVANCE_PROMPT,
+    CONCISENESS_PROMPT,
+    CORRECTNESS_PROMPT,
+    HALLUCINATION_PROMPT,
+)
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
 from app.services.vector_db_config.vector_store import get_vector_store
 from app.services.llm_config.llm_provider import LLMBackend, ModelSize, get_llm
+
+_EVALUATION_LOG_LOCK = Lock()
+
+
+def log_evaluation_payload(
+    engine,
+    category,
+    topic,
+    report,
+    input_text=None,
+    output_text=None,
+    context_text=None,
+):
+    """Print the exact payload passed to one evaluation category."""
+
+    separator = "=" * 80
+    context_text = str(context_text or "")
+    context_preview = context_text[:4000]
+    if len(context_text) > len(context_preview):
+        context_preview += "\n...[retrieved context truncated in console]"
+
+    with _EVALUATION_LOG_LOCK:
+        print(f"\n{separator}")
+        print(
+            f"[EVALUATION PAYLOAD] engine={engine} category={category} "
+            f"report={report.id} "
+            f"topic={topic.id} title={topic.title}"
+        )
+        print(
+            f"[INPUT]\n{input_text}"
+            if input_text is not None
+            else "[INPUT] Not passed to this category"
+        )
+        print(
+            f"[OUTPUT]\n{output_text}"
+            if output_text is not None
+            else "[OUTPUT] Not passed to this category"
+        )
+        if context_text:
+            print(f"[CONTEXT] characters={len(context_text)}\n{context_preview}")
+        else:
+            print("[CONTEXT] Not passed to this category")
+        print(separator)
+
 
 def get_judge_llm(project=None):
     """Get judge llm"""
@@ -42,6 +93,7 @@ def stringify_blocks(blocks):
                 f"[VISUAL]\n"
                 f"Type: {block.get('visual_type')}\n"
                 f"Purpose: {block.get('purpose')}\n"
+                f"Data: {json.dumps(block.get('data'), ensure_ascii=False)}\n"
             )
 
     return "\n\n".join(lines)
@@ -109,20 +161,25 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
     if plan and plan.plan_json:
         required_elements = plan.plan_json.get("required_elements", [])
 
+    required_elements_text = "; ".join(
+        _format_plan_element(element)
+        for element in _as_list(required_elements)
+    )
+
     query = f"""
     Section: {section_title}
     Subsection: {subsection_title}
     Topic: {topic_title}
 
     Required Analysis:
-    {'; '.join(required_elements)}
+    {required_elements_text}
     """
 
     # Baseline RAG evaluation uses retrieved full-dataset row chunks, not
     # generated schema metadata or precomputed numerical insights.
     docs = vector_store.similarity_search(
         query=query,
-        k=10,
+        k=30,
         filter={
             "project_id": project.id,
             "type": "table_data_chunk",
@@ -130,6 +187,20 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
     )
 
     return "\n".join([doc.page_content for doc in docs])
+
+
+def _format_plan_element(element):
+    if isinstance(element, str):
+        return element
+    return json.dumps(element, sort_keys=True, ensure_ascii=False)
+
+
+def _as_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
 
 
 def build_evaluators(llm):
@@ -183,12 +254,21 @@ def evaluate_topic(project, topic, evaluators, vector_store, report):
     RETRIEVED DATA:
     {retrieved_context}
     """
-
     results = []
 
     # Run evaluators in parallel
     def run_eval(name, evaluator):
         try:
+            category_context = context_str if name == "hallucination" else None
+            log_evaluation_payload(
+                engine="OpenEval",
+                category=name,
+                topic=topic,
+                report=report,
+                input_text=input_text,
+                output_text=content_text,
+                context_text=category_context,
+            )
 
             if name == "hallucination":
                 return evaluator(
@@ -224,6 +304,10 @@ def evaluate_topic(project, topic, evaluators, vector_store, report):
         for f in futures:
             res = f.result()
             if res:
+                print(
+                    f"[EVALUATION CATEGORY RESULT] engine=OpenEval "
+                    f"topic={topic.id} result={res}"
+                )
                 results.append(res)
 
     if not results:
@@ -236,6 +320,20 @@ def evaluate_topic(project, topic, evaluators, vector_store, report):
         score = float(r.get("score", 0)) * 100
         scores[key] = score
 
+    expected_categories = {
+        "hallucination",
+        "correctness",
+        "relevance",
+        "conciseness",
+    }
+    missing_categories = expected_categories - set(scores)
+    if missing_categories:
+        print(
+            f"[EVALUATION INCOMPLETE] engine=OpenEval topic={topic.id} "
+            f"missing={sorted(missing_categories)}. "
+            "A category evaluator failed or returned no usable score."
+        )
+
     overall_score = sum(scores.values()) / len(scores)
 
     issues = [r.get("comment", "") for r in results if r.get("comment")]
@@ -246,6 +344,44 @@ def evaluate_topic(project, topic, evaluators, vector_store, report):
         "summary": " | ".join(issues),
         "overall_score": overall_score,
     }
+
+
+def evaluate_single_topic(
+    project,
+    report,
+    topic,
+    vector_store=None,
+    evaluators=None,
+):
+    """Run and persist the standard evaluation for one topic."""
+
+    vector_store = vector_store or get_vector_store(backend=LLMBackend.LOCAL)
+    evaluators = evaluators or build_evaluators(get_judge_llm(project))
+    result = evaluate_topic(
+        project,
+        topic,
+        evaluators,
+        vector_store,
+        report,
+    )
+    if not result:
+        raise ValueError(f"Topic {topic.id} has no generated content to evaluate.")
+
+    TopicEvaluation.objects.update_or_create(
+        topic=topic,
+        report=report,
+        defaults={
+            "scores": result["scores"],
+            "issues": result["issues"],
+            "summary": result["summary"],
+            "overall_score": result["overall_score"],
+        },
+    )
+    print(
+        f"[EVALUATION RESULT] engine=OpenEval report={report.id} "
+        f"topic={topic.id} scores={result['scores']}"
+    )
+    return result
 
 
 def evaluate_project(project_id: int, report_id: int):
@@ -267,12 +403,12 @@ def evaluate_project(project_id: int, report_id: int):
 
     for topic in topics:
 
-        result = evaluate_topic(
+        result = evaluate_single_topic(
             project,
-            topic,
-            evaluators,
-            vector_store,
             report,
+            topic,
+            vector_store=vector_store,
+            evaluators=evaluators,
         )
 
         if not result:
@@ -286,12 +422,6 @@ def evaluate_project(project_id: int, report_id: int):
         }
 
         print("\n\n__Result__\n", topic_res, "\n\n\n")
-
-        TopicEvaluation.objects.update_or_create(
-            topic=topic,
-            report=report,
-            defaults=topic_res,
-        )
 
         topic_results.append(result)
 

@@ -140,6 +140,11 @@ urlpatterns = [
         name="export_evaluation_doc",
     ),
     path(
+        "projects/<int:project_id>/evaluation/topics/<int:topic_id>/re-evaluate/",
+        protected(evalu_views.reevaluate_topic_view),
+        name="reevaluate_topic_view",
+    ),
+    path(
         "tasks/",
         protected(task_views.background_task_list),
         name="background_task_list",

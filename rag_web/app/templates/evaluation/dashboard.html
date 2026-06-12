@@ -38,11 +38,19 @@
 
                 <select name="eval_type">
                     <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>OpenEval</option>
-                    <option value="geval" {% if eval_type == "g-eval" %}selected{% endif %}>GEval</option>
+                    <option value="geval" {% if eval_type == "geval" %}selected{% endif %}>GEval</option>
                 </select>
 
                 <button type="submit" class="button button--primary">Run Evaluation</button>
                 <button type="submit" name="action" value="readability" class="button button--secondary">Readability</button>
+                {% if topic_evals %}
+                <a
+                    class="button button--secondary"
+                    href="{% url 'export_evaluation_doc' project.id %}?report_id={{ selected_report.id }}&eval_type={{ eval_type }}"
+                >
+                    Download Evaluation Report
+                </a>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -52,7 +60,7 @@
             <h2 class="section__title">Overall Report Score</h2>
         </div>
 
-        {% if eval_type == "g-eval" and geval_project_summary %}
+        {% if eval_type == "geval" and geval_project_summary %}
         <div class="card__body grid grid--3">
             <div class="metric-card">
                 <p class="metric-card__label">Overall</p>
@@ -110,6 +118,7 @@
                             <th>Correctness</th>
                             <th>Relevance</th>
                             <th>Conciseness</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -121,10 +130,23 @@
                             <td>{{ eval.display_scores.correctness|default:"-" }}</td>
                             <td>{{ eval.display_scores.relevance|default:"-" }}</td>
                             <td>{{ eval.display_scores.conciseness|default:"-" }}</td>
+                            <td>
+                                <form
+                                    method="post"
+                                    action="{% url 'reevaluate_topic_view' project.id eval.topic.id %}"
+                                >
+                                    {% csrf_token %}
+                                    <input type="hidden" name="report_id" value="{{ selected_report.id }}">
+                                    <input type="hidden" name="eval_type" value="{{ eval_type }}">
+                                    <button type="submit" class="button button--secondary">
+                                        Re-evaluate
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6">No data</td>
+                            <td colspan="7">No data</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -138,6 +160,12 @@
             <h2 class="section__title">Readability</h2>
         </div>
         <div class="card__body">
+            {% if readability_average is not None %}
+            <div class="metric-card">
+                <p class="metric-card__label">Overall Flesch-Kincaid Grade Level</p>
+                <p class="metric-card__value">{{ readability_average|floatformat:2 }}</p>
+            </div>
+            {% endif %}
             <div class="table-wrap">
                 <table class="data-table">
                     <thead>

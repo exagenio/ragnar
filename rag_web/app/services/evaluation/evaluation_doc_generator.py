@@ -4,13 +4,14 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 
-def generate_evaluation_document(report, topic_evals):
+def generate_evaluation_document(report, topic_evals, eval_type="geval"):
     """Generate evaluation document"""
 
     doc = Document()
+    engine_name = "G-Eval" if eval_type == "geval" else "OpenEval"
 
     # Create title section
-    title = doc.add_heading("Evaluation Report", 0)
+    title = doc.add_heading(f"{engine_name} Evaluation Report", 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     doc.add_paragraph(f"Report ID: {report.id}")
@@ -31,7 +32,11 @@ def generate_evaluation_document(report, topic_evals):
 
     # Process each topic evaluation and compute metrics
     for eval_obj in topic_evals:
-        scores = eval_obj.geval_scores or {}
+        scores = (
+            eval_obj.geval_scores
+            if eval_type == "geval"
+            else eval_obj.scores
+        ) or {}
 
         c = float(scores.get("correctness", 0))
         r = float(scores.get("relevance", 0))
@@ -138,7 +143,11 @@ def generate_evaluation_document(report, topic_evals):
 
     for eval_obj in topic_evals:
         topic = eval_obj.topic
-        scores = eval_obj.geval_scores or {}
+        scores = (
+            eval_obj.geval_scores
+            if eval_type == "geval"
+            else eval_obj.scores
+        ) or {}
 
         doc.add_heading(f"Topic {topic.id}: {topic.title}", level=2)
 
@@ -149,11 +158,21 @@ def generate_evaluation_document(report, topic_evals):
         doc.add_paragraph(f"Conciseness: {scores.get('conciseness', 0)}")
 
         doc.add_paragraph("Issues:")
-        for issue in eval_obj.geval_issues or []:
+        issues = (
+            eval_obj.geval_issues
+            if eval_type == "geval"
+            else eval_obj.issues
+        ) or []
+        for issue in issues:
             doc.add_paragraph(f"- {issue}")
 
         doc.add_paragraph("Summary:")
-        doc.add_paragraph(eval_obj.geval_summary or "-")
+        summary = (
+            eval_obj.geval_summary
+            if eval_type == "geval"
+            else eval_obj.summary
+        )
+        doc.add_paragraph(summary or "-")
 
         doc.add_paragraph()
 
