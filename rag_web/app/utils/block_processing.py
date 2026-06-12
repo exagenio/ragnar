@@ -32,7 +32,7 @@ def build_prompt_blocks(blocks, decode_fn):
             content = block.get("content", {})
 
             decoded = decode_fn(
-                block.get("generated_visual", {}).get("data")
+                block.get("generated_visual", {}).get("visual_data")
             )
 
             formatted.append({

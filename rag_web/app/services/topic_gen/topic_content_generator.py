@@ -3,9 +3,10 @@ import re
 from pathlib import Path
 from typing import Dict, List
 from django.conf import settings
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
 from app.services.llm_config.llm_provider import (
     get_llm,
+    get_sentence_transformer_model,
     LLMBackend,
     ModelSize,
 )
@@ -13,8 +14,6 @@ from ..vector_db_config.vector_store import get_vector_store
 from app.agents.rate_limiter import rate_limiter
 
 
-# Load semantic model once
-semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
 SIMILARITY_THRESHOLD = 0.8
 
 
@@ -67,7 +66,10 @@ def generate_topic_content(
 
         # Ensure nested structures exist
         content_state["sections"] = existing_content.get("sections", [])
-        content_state["element_progress"] = existing_content.get("element_progress", {})
+        element_progress = existing_content.get("element_progress", {})
+        content_state["element_progress"] = (
+            element_progress if isinstance(element_progress, dict) else {}
+        )
         content_state["completed_elements"] = existing_content.get("completed_elements", [])
         content_state["limitations"] = existing_content.get("limitations", [])
     else:
@@ -75,17 +77,30 @@ def generate_topic_content(
 
     content_state.pop("precomputed_sql_placeholders", None)
 
-    required_elements = topic_plan.get("required_elements", [])
+    required_elements = _as_list(topic_plan.get("required_elements", []))
+    completed_element_keys = _dedupe_values(
+        [
+            _element_key(element, index)
+            for index, element in enumerate(
+                _as_list(content_state["completed_elements"])
+            )
+        ]
+    )
+    completed_element_key_set = set(completed_element_keys)
+    content_state["completed_elements"] = completed_element_keys
 
     # Iterate through required elements
-    for element in required_elements:
-        if element in content_state["completed_elements"]:
+    for element_index, element in enumerate(required_elements):
+        element_key = _element_key(element, element_index)
+        element_context = _element_context(element)
+
+        if element_key in completed_element_key_set:
             continue
 
         covered_points = []
 
         for elem, points in content_state["element_progress"].items():
-            for p in points:
+            for p in _as_list(points):
                 covered_points.append(f"[{elem}] {p}")
 
         iteration_count = 0
@@ -101,7 +116,7 @@ def generate_topic_content(
                     section_title,
                     subsection_title,
                     topic_title,
-                    element,
+                    element_context,
                 ),
             )
 
@@ -116,7 +131,7 @@ def generate_topic_content(
                 topic_title=topic_title,
                 topic_plan=topic_plan,
                 metadata_context=retrieved_data_context,
-                current_required_element=element,
+                current_required_element=element_context,
                 covered_points=covered_points,
             )
 
@@ -139,20 +154,24 @@ def generate_topic_content(
             retry_used = False
             iteration_count += 1
 
-            existing_limits = content_state.get("limitations", [])
-            new_limits = iteration_output.get("limitations", [])
+            existing_limits = _as_list(content_state.get("limitations", []))
+            new_limits = _as_list(iteration_output.get("limitations", []))
 
-            content_state["limitations"] = list(
-                dict.fromkeys(existing_limits + new_limits)
+            content_state["limitations"] = _dedupe_values(
+                existing_limits + new_limits
             )
 
-            new_points = iteration_output.get("newly_covered_points", [])
-            covered_points = list(dict.fromkeys(covered_points + new_points))
+            new_points = _as_list(
+                iteration_output.get("newly_covered_points", [])
+            )
+            covered_points = _dedupe_values(covered_points + new_points)
 
-            content_state["element_progress"][element] = covered_points
+            content_state["element_progress"][element_key] = covered_points
 
             if iteration_output.get("is_element_complete") is True:
-                content_state["completed_elements"].append(element)
+                if element_key not in completed_element_key_set:
+                    completed_element_key_set.add(element_key)
+                    content_state["completed_elements"].append(element_key)
                 break
 
     content_state["status"] = "generated"
@@ -331,12 +350,79 @@ def _is_similar(text1: str, text2: str) -> bool:
     if not text1 or not text2:
         return False
 
-    emb1 = semantic_model.encode(text1, convert_to_tensor=True)
-    emb2 = semantic_model.encode(text2, convert_to_tensor=True)
+    model = _get_semantic_model()
+    emb1 = model.encode(text1, convert_to_tensor=True)
+    emb2 = model.encode(text2, convert_to_tensor=True)
 
     score = util.cos_sim(emb1, emb2)
     score_value = float(score.max())
     return score_value >= SIMILARITY_THRESHOLD
+
+
+def _get_semantic_model():
+    """Load the duplicate-detection model only when it is first needed."""
+
+    model_name = getattr(
+        settings,
+        "LOCAL_EMBEDDING_MODEL",
+        "all-MiniLM-L6-v2",
+    )
+    return get_sentence_transformer_model(model_name)
+
+
+def _element_key(element, index):
+    """Return a stable string key for string or structured plan elements."""
+
+    if isinstance(element, str) and element.strip():
+        return element.strip()
+
+    if isinstance(element, dict):
+        for field in ("title", "name", "element", "question", "description"):
+            value = element.get(field)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        return json.dumps(element, sort_keys=True, ensure_ascii=False)
+
+    return str(element).strip() or f"element_{index + 1}"
+
+
+def _element_context(element):
+    """Serialize structured elements clearly for retrieval and prompting."""
+
+    if isinstance(element, str):
+        return element
+    return json.dumps(element, sort_keys=True, ensure_ascii=False)
+
+
+def _dedupe_values(values):
+    """Deduplicate strings or structured LLM output without hashing dicts."""
+
+    unique = []
+    seen = set()
+
+    for value in values:
+        if isinstance(value, (dict, list)):
+            marker = json.dumps(value, sort_keys=True, ensure_ascii=False)
+        else:
+            marker = str(value)
+
+        if marker in seen:
+            continue
+        seen.add(marker)
+        unique.append(value)
+
+    return unique
+
+
+def _as_list(value):
+    """Normalize optional or malformed LLM list fields."""
+
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
 
 
 def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:

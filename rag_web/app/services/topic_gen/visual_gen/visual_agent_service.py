@@ -14,8 +14,7 @@ def generate_visual_plan(
     project=None,
     visual_placeholder: Dict[str, Any],
     topic_plan: Dict[str, Any],
-    metadata_context: Dict,
-    database_schema: Dict,
+    retrieved_data_context: list,
     existing_visuals: list | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict[str, Any]:
@@ -36,8 +35,7 @@ def generate_visual_plan(
         visual_type=parsed_visual["type"],
         visual_purpose=parsed_visual["purpose"],
         topic_plan=topic_plan,
-        metadata_context=metadata_context,
-        database_schema=database_schema,
+        retrieved_data_context=retrieved_data_context,
         existing_visuals=existing_visuals or [],
     )
 
@@ -54,6 +52,10 @@ def generate_visual_plan(
     # Normalize visual spec if valid
     if result.get("status") == "ok":
         result["visual_spec"] = _normalize_visual_spec(result.get("visual_spec"))
+        result["visual_data"] = _normalize_visual_data(
+            result.get("visual_data"),
+            result["visual_spec"],
+        )
 
     return result
 
@@ -63,8 +65,7 @@ def _render_visual_agent_prompt(
     visual_type: str,
     visual_purpose: str,
     topic_plan: Dict,
-    metadata_context: Dict,
-    database_schema: Dict,
+    retrieved_data_context: list,
     existing_visuals: list,
 ) -> str:
     """Render visual agent prompt"""
@@ -75,8 +76,10 @@ def _render_visual_agent_prompt(
         "visual_type": visual_type,
         "visual_purpose": visual_purpose,
         "topic_plan_json": json.dumps(topic_plan, indent=2),
-        "metadata_context_json": json.dumps(metadata_context, indent=2),
-        "database_schema_json": json.dumps(database_schema, indent=2),
+        "retrieved_data_context_json": json.dumps(
+            retrieved_data_context,
+            indent=2,
+        ),
         "existing_visuals_json": json.dumps(existing_visuals, indent=2),
     }
 
@@ -144,6 +147,7 @@ def _normalize_visual_spec(visual_spec: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("visual_spec is missing")
 
     visual_type = visual_spec.get("type", "").lower()
+    visual_spec["type"] = visual_type
 
     # Handle x axis
     x_col = visual_spec.get("x_axis_column")
@@ -175,6 +179,68 @@ def _normalize_visual_spec(visual_spec: Dict[str, Any]) -> Dict[str, Any]:
     visual_spec.setdefault("notes", None)
 
     return visual_spec
+
+
+def _normalize_visual_data(
+    visual_data: Dict[str, Any],
+    visual_spec: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Validate compact chart data calculated by the LLM."""
+
+    if not isinstance(visual_data, dict):
+        raise ValueError("visual_data is missing")
+
+    columns = visual_data.get("columns")
+    rows = visual_data.get("rows")
+
+    if not isinstance(columns, list) or not columns:
+        raise ValueError("visual_data.columns must be a non-empty list")
+    if not all(isinstance(column, str) and column for column in columns):
+        raise ValueError("visual_data.columns must contain non-empty strings")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("visual_data.rows must be a non-empty list")
+    if len(rows) > 20:
+        raise ValueError("visual_data must not contain more than 20 rows")
+
+    normalized_rows = []
+    for row in rows:
+        if isinstance(row, dict):
+            normalized_rows.append([row.get(column) for column in columns])
+        elif isinstance(row, list) and len(row) == len(columns):
+            normalized_rows.append(row)
+        else:
+            raise ValueError(
+                "Each visual_data row must match the declared columns"
+            )
+
+    required_columns = set(visual_spec.get("y_axis_columns", []))
+    x_axis = visual_spec.get("x_axis_column")
+    if x_axis:
+        required_columns.add(x_axis)
+
+    missing_columns = required_columns.difference(columns)
+    if missing_columns:
+        raise ValueError(
+            "visual_data is missing visual columns: "
+            + ", ".join(sorted(missing_columns))
+        )
+
+    if visual_spec.get("type") != "table":
+        for y_column in visual_spec.get("y_axis_columns", []):
+            y_index = columns.index(y_column)
+            if not all(
+                isinstance(row[y_index], (int, float))
+                and not isinstance(row[y_index], bool)
+                for row in normalized_rows
+            ):
+                raise ValueError(
+                    f"visual_data column '{y_column}' must contain numeric values"
+                )
+
+    return {
+        "columns": columns,
+        "rows": normalized_rows,
+    }
 
 
 def _extract_text_from_response(content):

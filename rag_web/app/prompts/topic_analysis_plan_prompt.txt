@@ -61,12 +61,18 @@ INSTRUCTIONS
 2. Identify key analytical elements.
 3. Specify row-data requirements in business terms.
 4. Define business questions.
+5. Select visual types that can be calculated directly from retrieved rows.
 
 Do not:
 - Invent tables or columns.
 - Write narrative explanations.
-- Include visualization details.
 - Include SQL details.
+
+Visual requirements:
+- Use an empty list when no visual is justified.
+- Otherwise choose at most 2 from:
+  line_chart, bar_chart, pie_chart, table, combo_chart.
+- Choose only visuals supported by the available fields and calculations.
 
 ====================
 ELEMENT DESIGN RULES
@@ -105,5 +111,8 @@ Return ONLY valid JSON.
       "filters": ["..."]
     }
   ],
-  "business_questions": ["..."]
+  "business_questions": ["..."],
+  "visual_requirements": [
+    "bar_chart"
+  ]
 }

@@ -3,6 +3,7 @@ import threading
 import time
 import traceback
 
+from django.conf import settings
 from django.utils.timezone import now
 
 from app.agents.content_agent import ContentAgent
@@ -230,14 +231,12 @@ class ManagerAgent:
         return any(marker in message for marker in retry_markers)
 
     def _topic_pipeline_workers_for_project(self, project):
-        if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 1
-        return 2
+        configured_workers = getattr(settings, "TOPIC_PIPELINE_WORKERS", 2)
+        return max(2, min(int(configured_workers), 3))
 
     def _visual_pipeline_workers_for_project(self, project):
-        if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 1
-        return 2
+        configured_workers = getattr(settings, "VISUAL_PIPELINE_WORKERS", 1)
+        return max(1, min(int(configured_workers), 2))
 
     def _run_topic_pipeline_with_retry(
         self,
@@ -347,9 +346,14 @@ class ManagerAgent:
 
             successful_topics = []
             failed_topics = []
+            topic_workers = self._topic_pipeline_workers_for_project(project)
+            self._emit_task_log(
+                task_id,
+                f"[AUTO] Running up to {topic_workers} topic pipelines concurrently.",
+            )
 
             with ThreadPoolExecutor(
-                max_workers=self._topic_pipeline_workers_for_project(project)
+                max_workers=topic_workers
             ) as executor:
                 futures = []
 
@@ -488,6 +492,20 @@ class ManagerAgent:
                 plan_generated=plan_generated,
             )
             content_obj = self._stage_generate_content(
+                project,
+                report,
+                topic,
+                content_obj,
+                task_id=task_id,
+            )
+            content_obj = self._stage_generate_visuals(
+                project,
+                report,
+                topic,
+                content_obj,
+                task_id=task_id,
+            )
+            content_obj = self._stage_repair_visual_narrative(
                 project,
                 report,
                 topic,

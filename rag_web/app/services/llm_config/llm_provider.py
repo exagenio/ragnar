@@ -1,4 +1,5 @@
 from enum import Enum
+import threading
 
 from django.conf import settings
 from langchain_core.embeddings import Embeddings
@@ -59,12 +60,14 @@ DEFAULT_MODELS = {
 }
 LOCAL_MODEL = "llama3.1:8b"
 LOCAL_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+_sentence_transformer_models = {}
+_sentence_transformer_lock = threading.Lock()
 
 
 class SentenceTransformersEmbeddings(Embeddings):
     def __init__(self, model_name: str):
         self.model_name = model_name
-        self.model = SentenceTransformer(model_name)
+        self.model = get_sentence_transformer_model(model_name)
 
     def embed_documents(self, texts, **kwargs):
         embeddings = self.model.encode(
@@ -81,6 +84,21 @@ class SentenceTransformersEmbeddings(Embeddings):
             convert_to_numpy=True,
         )
         return embedding.tolist()
+
+
+def get_sentence_transformer_model(model_name: str):
+    """Return one shared SentenceTransformer instance per model and process."""
+
+    model = _sentence_transformer_models.get(model_name)
+    if model is not None:
+        return model
+
+    with _sentence_transformer_lock:
+        model = _sentence_transformer_models.get(model_name)
+        if model is None:
+            model = SentenceTransformer(model_name)
+            _sentence_transformer_models[model_name] = model
+        return model
 
 
 def _get_vertex_project():

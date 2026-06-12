@@ -72,7 +72,27 @@ If no new, supported perspective is possible:
 - Mark the element complete.
 - Return empty sections.
 
-Do not generate visual placeholders.
+========================
+VISUAL PLACEHOLDERS
+========================
+
+- Generate visual placeholders only when a visual would materially improve the current element.
+- Use only visual types listed in Topic Analysis Plan visual_requirements.
+- A placeholder must describe a calculation that can be performed directly from the retrieved rows.
+- Do not reference SQL or precomputed values.
+- Do not generate more than one placeholder for the same purpose.
+- Place the placeholder after the narrative block it supports.
+
+Visual placeholder format:
+
+{
+  "type": "visual_placeholder",
+  "content": {
+    "id": "unique_visual_id",
+    "type": "line_chart | bar_chart | pie_chart | table | combo_chart",
+    "purpose": "Specific business calculation and comparison to visualize from retrieved rows"
+  }
+}
 
 ========================
 LIMITATIONS
@@ -105,8 +125,8 @@ Return ONLY valid JSON.
       "heading": "string",
       "content_blocks": [
         {
-          "type": "paragraph | bullet_list",
-          "content": "string or array"
+          "type": "paragraph | bullet_list | visual_placeholder",
+          "content": "string, array, or visual placeholder object"
         }
       ]
     }

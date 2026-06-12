@@ -152,3 +152,8 @@ MEDIA_URL = "/media/"
 # Default behavior (can be changed per request)
 DEFAULT_LLM_BACKEND = os.getenv("DEFAULT_LLM_BACKEND", "cloud")  # Use cloud LLM providers by default
 
+# Keep topic generation parallel enough for throughput without creating large
+# bursts of concurrent LLM requests. Values are clamped in ManagerAgent.
+TOPIC_PIPELINE_WORKERS = int(os.getenv("TOPIC_PIPELINE_WORKERS", "2"))
+VISUAL_PIPELINE_WORKERS = int(os.getenv("VISUAL_PIPELINE_WORKERS", "1"))
+

@@ -8,10 +8,10 @@ import plotly.graph_objects as go
 def render_visual(
     *,
     visual_spec: Dict[str, Any],
-    sql_result: Dict[str, Any],
+    visual_data: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Render a visual (chart/table) from SQL result data and save as PNG.
+    Render a visual from compact data calculated from retrieved rows.
 
     visual_spec example:
     {
@@ -21,17 +21,17 @@ def render_visual(
         "y_axis_columns": ["column_name_1", "column_name_2", ...]
     }
 
-    sql_result example:
+    visual_data example:
     {
         "columns": [...],
         "rows": [...]
     }
     """
 
-    if not sql_result or "columns" not in sql_result or "rows" not in sql_result:
-        raise ValueError("Invalid SQL result for visualization")
+    if not visual_data or "columns" not in visual_data or "rows" not in visual_data:
+        raise ValueError("Invalid calculated data for visualization")
 
-    df = pd.DataFrame(sql_result["rows"], columns=sql_result["columns"])
+    df = pd.DataFrame(visual_data["rows"], columns=visual_data["columns"])
 
     # Extract axis info
     x_axis = visual_spec.get("x_axis_column") or visual_spec.get("x_axis")
