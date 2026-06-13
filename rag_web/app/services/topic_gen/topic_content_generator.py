@@ -9,8 +9,11 @@ from app.services.llm_config.llm_provider import (
     LLMBackend,
     ModelSize,
 )
-from ..vector_db_config.vector_store import get_vector_store
 from app.agents.rate_limiter import rate_limiter
+from app.services.metadata_generation.metadata_retriever import (
+    format_metadata_context_json,
+    retrieve_multi_table_metadata,
+)
 
 
 # Load semantic model once
@@ -48,8 +51,6 @@ def generate_topic_content(
         temperature=0,
         project=project,
     )
-
-    vector_store = get_vector_store()
 
     # Initialize content state
     default_state = {
@@ -94,8 +95,7 @@ def generate_topic_content(
         while iteration_count < MAX_ITERATIONS_PER_ELEMENT:
 
             metadata_context = retrieve_metadata_context(
-                vector_store=vector_store,
-                project_id=project_id,
+                project=project,
                 query=_build_metadata_query(
                     section_title,
                     subsection_title,
@@ -189,7 +189,7 @@ def generate_single_iteration(
             "subsection_title": subsection_title,
             "topic_title": topic_title,
             "topic_plan_json": json.dumps(topic_plan, indent=2),
-            "metadata_context_json": json.dumps(metadata_context, indent=2),
+            "metadata_context_json": format_metadata_context_json(metadata_context),
             "current_required_element": current_required_element,
             "covered_elements_summary": "\n".join(f"- {p}" for p in covered_points),
             "precomputed_sql_json": json.dumps(precomputed_sql_placeholders or [], indent=2),
@@ -216,15 +216,18 @@ def generate_single_iteration(
     return extract_json_or_fail(raw_text)
 
 
-def retrieve_metadata_context(*, vector_store, project_id: int, query: str, k: int = 8):
+def retrieve_metadata_context(*, project, query: str, k: int = 8):
     """Retrieve metadata context"""
 
-    docs = vector_store.similarity_search(
-        query,
-        k=k,
-        filter={"project_id": project_id},
+    return retrieve_multi_table_metadata(
+        project=project,
+        primary_query=query,
+        secondary_queries=[
+            "topic content generation business entities measures dimensions join paths",
+        ],
+        per_query_k=k,
+        max_docs=max(k * 2, 16),
     )
-    return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
 
 
 def _build_metadata_query(section, subsection, topic, element):

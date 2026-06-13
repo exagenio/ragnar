@@ -9,8 +9,10 @@ from app.services.llm_config.llm_provider import (
     ModelSize,
 )
 from .industry_guidance import get_industry_guidance
-from app.services.vector_db_config.vector_store import get_vector_store
-from app.services.sub_sec_gen.subsection_topic_generator import build_retrieved_context
+from app.services.metadata_generation.metadata_retriever import (
+    build_retrieved_context,
+    retrieve_multi_table_metadata,
+)
 
 
 PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "report_outline_prompt.txt"
@@ -43,28 +45,26 @@ def generate_report_outline(
     # Get industry guidance
     industry_guidance = get_industry_guidance(data["industry"])
 
-    # Retrieve schema context using vector search
-    vector_store = get_vector_store(backend=backend)
-
-    docs = vector_store.similarity_search(
-        query="full database schema tables columns analytical capabilities",
-        k=50,
-        filter={
-            "project_id": project_id,
-            "type": [
-                "table_description",
-                "table_relationship",
-                "column",
-                "column_relationship",
-                "analytical_capability",
-                "confidence_note",
-            ],
-        },
+    metadata_context = retrieve_multi_table_metadata(
+        project=project,
+        primary_query="full database schema tables columns analytical capabilities",
+        secondary_queries=[
+            "database relationships joins foreign keys one-to-many many-to-many reporting capabilities",
+        ],
+        metadata_types=[
+            "table_description",
+            "table_relationship",
+            "column",
+            "column_relationship",
+            "analytical_capability",
+            "confidence_note",
+        ],
+        per_query_k=12,
+        max_docs=36,
+        backend=backend,
     )
 
-    print(docs)
-
-    retrieved_context = build_retrieved_context(docs)
+    retrieved_context = build_retrieved_context(metadata_context)
 
     # Build prompt with placeholders
     prompt = prompt_template.format_map(

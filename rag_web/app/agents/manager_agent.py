@@ -15,6 +15,7 @@ from app.models import (
     TopicGenerateTime,
 )
 from app.services.project_service import ProjectService
+from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
 from app.services.task_tracker import (
     complete_background_task,
     create_background_task,
@@ -23,7 +24,6 @@ from app.services.task_tracker import (
     start_background_task,
 )
 from app.services.topic_gen.visual_gen.visual_narrative_generator import repair_content_chunk
-from app.services.vector_db_config.vector_store import get_vector_store
 from app.utils.block_processing import (
     apply_repaired_blocks,
     build_block_chunks,
@@ -670,16 +670,15 @@ class ManagerAgent:
             },
         )
 
-        vector_store = get_vector_store()
-        metadata_context = vector_store.similarity_search(
-            f"{topic.title} {plan.get('required_elements', [])}",
-            k=8,
-            filter={"project_id": topic.report.project.id},
+        metadata_context = retrieve_multi_table_metadata(
+            project=topic.report.project,
+            primary_query=f"{topic.title} {plan.get('required_elements', [])}",
+            secondary_queries=[
+                "sql placeholder generation quantitative metrics joins relationships analytical capabilities",
+            ],
+            per_query_k=10,
+            max_docs=24,
         )
-        metadata_context = [
-            {"content": doc.page_content, "metadata": doc.metadata}
-            for doc in metadata_context
-        ]
 
         sql_agent = SQLAgent()
         placeholders_result = sql_agent.generate_sql_placeholders_from_plan(

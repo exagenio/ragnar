@@ -197,6 +197,9 @@ is clearly implied by schema metadata.
 If the relationship is unclear,
 return FAILURE.
 
+If the selected dataset contains only one table:
+→ generate the visual dataset from that table alone and do NOT force joins
+
 ========================
 VISUAL PLAN EXECUTION (CRITICAL)
 ========================

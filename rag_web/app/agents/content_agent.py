@@ -29,6 +29,7 @@ from app.services.sub_sec_gen.sub_section_content_generator import generate_subs
 from app.services.section_content_generator import generate_section_content
 from app.services.topic_gen.visual_gen.placeholder_normalizer import normalize_placeholders
 from app.services.topic_gen.topic_content_repair import repair_topic_content
+from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
 
 
 class ContentAgent:
@@ -387,6 +388,18 @@ class ContentAgent:
             section_title=subsection.section.title,
             subsection_title=subsection.title,
             topics_progress=topics_progress,
+            metadata_context=retrieve_multi_table_metadata(
+                project=project,
+                primary_query=(
+                    f"{report.title} {subsection.section.title} {subsection.title} "
+                    f"{' '.join(topics_progress.keys())}"
+                ),
+                secondary_queries=[
+                    "subsection synthesis cross-topic relationships business entities metrics joins",
+                ],
+                per_query_k=10,
+                max_docs=24,
+            ),
         )
 
         content_obj.content_json = result
@@ -477,6 +490,17 @@ class ContentAgent:
             report_title=report.title,
             section_title=section.title,
             subsections_themes=subsections_themes,
+            metadata_context=retrieve_multi_table_metadata(
+                project=project,
+                primary_query=(
+                    f"{report.title} {section.title} {' '.join(subsections_themes.keys())}"
+                ),
+                secondary_queries=[
+                    "section synthesis cross-subsection relationships business entities measures joins",
+                ],
+                per_query_k=10,
+                max_docs=24,
+            ),
         )
 
         content_obj.content_json = result

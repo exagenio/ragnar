@@ -33,6 +33,7 @@ You MUST use it to understand:
 - what entities exist
 - what can be measured
 - how entities relate
+- or, if this is a single-table dataset, how analysis can be produced from that table alone
 
 You MUST express everything in BUSINESS TERMS.
 

@@ -37,6 +37,17 @@ The key themes below show the main insights covered by each subsection:
 {{subsections_themes_json}}
 
 ========================
+AVAILABLE DATA METADATA
+========================
+
+The following metadata captures the relevant business entities, measures,
+time dimensions, and cross-table relationships for this section.
+
+Use it to ground synthesis in the actual data model and avoid unsupported claims.
+
+{{metadata_context_json}}
+
+========================
 YOUR TASK
 ========================
 
@@ -54,6 +65,7 @@ Generate a section introduction that:
    - "This [title] analysis..."
 9. Do NOT include the drvtion title in quotes or paraphrased form
 10. Start directly with the business context, not structural references
+11. Only describe cross-subsection relationships that are supported by the metadata context
 ========================
 WRITING RULES (STRICT)
 ========================

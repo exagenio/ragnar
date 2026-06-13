@@ -9,6 +9,9 @@ from app.services.llm_config.llm_provider import (
     ModelSize,
 )
 from app.agents.rate_limiter import rate_limiter
+from app.services.metadata_generation.metadata_retriever import (
+    format_metadata_context_json,
+)
 
 
 PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "subsection_content_gen_prompt.txt"
@@ -26,6 +29,7 @@ def generate_subsection_content(
     section_title: str,
     subsection_title: str,
     topics_progress: Dict[str, Dict],
+    metadata_context: List[Dict] | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict:
     """Generate subsection content"""
@@ -38,6 +42,8 @@ def generate_subsection_content(
         temperature=0.2,
         project=project,
     )
+
+    metadata_context = metadata_context or []
 
     # Format topics progress as json
     topics_progress_formatted = json.dumps(topics_progress, indent=2)
@@ -54,6 +60,7 @@ def generate_subsection_content(
             "section_title": section_title,
             "subsection_title": subsection_title,
             "topics_progress_json": topics_progress_formatted,
+            "metadata_context_json": format_metadata_context_json(metadata_context),
         },
     )
 

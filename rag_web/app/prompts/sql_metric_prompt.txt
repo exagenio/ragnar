@@ -156,6 +156,9 @@ Only perform joins if relationships are clearly defined.
 If join logic is uncertain:
 → return FAILURE
 
+If the selected dataset contains only one table:
+→ generate the metric from that table alone and do NOT force joins
+
 ========================
 OUTPUT FORMAT
 ========================

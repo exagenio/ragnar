@@ -7,6 +7,9 @@ from django.conf import settings
 
 from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 from app.agents.rate_limiter import rate_limiter
+from app.services.metadata_generation.metadata_retriever import (
+    format_metadata_context_json,
+)
 
 
 PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "section_content_gen_prompt.txt"
@@ -23,6 +26,7 @@ def generate_section_content(
     report_title: str,
     section_title: str,
     subsections_themes: Dict[str, List[str]],
+    metadata_context: List[Dict] | None = None,
     backend: LLMBackend | None = None,
 ) -> Dict:
     """Generate section content"""
@@ -35,6 +39,8 @@ def generate_section_content(
         temperature=0.2,
         project=project,
     )
+
+    metadata_context = metadata_context or []
 
     # Format subsection themes as json string
     subsections_themes_formatted = json.dumps(subsections_themes, indent=2)
@@ -50,6 +56,7 @@ def generate_section_content(
             "report_title": report_title,
             "section_title": section_title,
             "subsections_themes_json": subsections_themes_formatted,
+            "metadata_context_json": format_metadata_context_json(metadata_context),
         },
     )
 

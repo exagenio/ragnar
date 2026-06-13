@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from app.models import SelectedTable
 
 from app.services.metadata_generation.column_introspector import get_table_columns
-from app.services.vector_db_config.vector_store import get_vector_store
+from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
 
 from app.services.sql_gen.sql_agent import (
     generate_sql_for_precomputed_placeholder,
@@ -183,7 +183,7 @@ class SQLAgent:
         try:
             # Retrieve metadata context
             metadata_context = self.retrieve_metadata_context(
-                project_id=project.id,
+                project=project,
                 sql_placeholder=placeholder,
                 topic_title=topic.title,
             )
@@ -230,34 +230,28 @@ class SQLAgent:
     def retrieve_metadata_context(
         self,
         *,
-        project_id: int,
+        project,
         sql_placeholder: dict,
         topic_title: str,
         k: int = 8,
     ):
         """Retrieve metadata context"""
 
-        vector_store = get_vector_store()
-
-        # Build query and retrieve metadata
         query = self._build_metadata_query(
             sql_placeholder=sql_placeholder,
             topic_title=topic_title,
         )
 
-        docs = vector_store.similarity_search(
-            query,
-            k=k,
-            filter={"project_id": project_id},
+        return retrieve_multi_table_metadata(
+            project=project,
+            primary_query=query,
+            secondary_queries=[
+                "sql query generation joins relationship types business metrics measures dimensions",
+                "numerical insight generation analytical capability join paths aggregations",
+            ],
+            per_query_k=k,
+            max_docs=max(k * 3, 20),
         )
-
-        return [
-            {
-                "content": d.page_content,
-                "metadata": d.metadata,
-            }
-            for d in docs
-        ]
 
 
     def _build_metadata_query(self, sql_placeholder: dict, topic_title: str):

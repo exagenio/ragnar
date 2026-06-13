@@ -38,6 +38,17 @@ The element_progress below shows what key points were addressed by each topic:
 {{topics_progress_json}}
 
 ========================
+AVAILABLE DATA METADATA
+========================
+
+The following metadata captures the relevant business entities, measures,
+time dimensions, and cross-table relationships for this subsection.
+
+Use it to strengthen synthesis and to avoid implying unsupported connections.
+
+{{metadata_context_json}}
+
+========================
 YOUR TASK
 ========================
 
@@ -69,6 +80,7 @@ WRITING RULES (STRICT)
    - "This [title] analysis..."
 12. Do NOT include the subsection title in quotes or paraphrased form
 13. Start directly with the business context, not structural references
+14. Only describe cross-topic relationships that are supported by the metadata context
 
 ========================
 TONE AND STYLE

@@ -10,6 +10,7 @@ from openevals.llm import create_llm_as_judge
 from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, TopicAnalysisPlan
 from app.services.vector_db_config.vector_store import get_vector_store
 from app.services.llm_config.llm_provider import LLMBackend, ModelSize, get_llm
+from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
 
 def get_judge_llm(project=None):
     """Get judge llm"""
@@ -118,23 +119,24 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
     {'; '.join(required_elements)}
     """
 
-    # Retrieve relevant metadata from vector store
-    docs = vector_store.similarity_search(
-        query=query,
-        k=10,
-        filter={
-            "project_id": project.id,
-            "type": [
-                "table_description",
-                "table_relationship",
-                "column",
-                "column_relationship",
-                "analytical_capability",
-            ],
-        },
+    metadata_context = retrieve_multi_table_metadata(
+        project=project,
+        primary_query=query,
+        secondary_queries=[
+            "topic evaluation joins relationships analytical capabilities business entities",
+        ],
+        metadata_types=[
+            "table_description",
+            "table_relationship",
+            "column",
+            "column_relationship",
+            "analytical_capability",
+        ],
+        per_query_k=10,
+        max_docs=24,
     )
 
-    return "\n".join([doc.page_content for doc in docs])
+    return "\n".join([item["content"] for item in metadata_context])
 
 
 def build_evaluators(llm):

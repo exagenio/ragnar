@@ -27,6 +27,8 @@ Rules:
 - Use cautious language (e.g., "appears", "likely")
 - Relationship types must come from the provided relationship hints only
 - If no clear relationship exists for a table or column, return an empty list for that relationship section
+- If only one table is selected, describe the table using only its own schema and sample rows
+- For single-table datasets, do NOT invent relationships just to satisfy the format
 
 Output MUST be valid JSON in the following format:
 

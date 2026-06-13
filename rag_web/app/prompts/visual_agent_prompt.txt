@@ -42,6 +42,7 @@ You MUST use this metadata to understand:
 - What the data represents
 - What can be aggregated
 - What dimensions make sense for comparison or trends
+- If only one table is selected, what can be analyzed without joins
 
 {{metadata_context_json}}
 
