@@ -53,7 +53,9 @@ def generate_report_outline(
             "project_id": project_id,
             "type": [
                 "table_description",
+                "table_relationship",
                 "column",
+                "column_relationship",
                 "analytical_capability",
                 "confidence_note",
             ],

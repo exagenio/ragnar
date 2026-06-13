@@ -124,7 +124,13 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
         k=10,
         filter={
             "project_id": project.id,
-            "type": ["table_description", "column", "analytical_capability"],
+            "type": [
+                "table_description",
+                "table_relationship",
+                "column",
+                "column_relationship",
+                "analytical_capability",
+            ],
         },
     )
 

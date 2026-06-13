@@ -24,6 +24,22 @@ def metadata_to_documents(metadata_obj):
         )
     )
 
+    for relationship in data.get("table_relationships", []):
+        docs.append(
+            Document(
+                page_content=relationship.get("description", ""),
+                metadata={
+                    "project_id": project_id,
+                    "table_name": table,
+                    "type": "table_relationship",
+                    "related_table": relationship.get("related_table"),
+                    "relationship_type": relationship.get("relationship_type"),
+                    "direction": relationship.get("direction"),
+                    "through_table": relationship.get("through_table"),
+                },
+            )
+        )
+
     # Process column descriptions and metadata
     for col, col_data in data["columns"].items():
 
@@ -51,9 +67,26 @@ def metadata_to_documents(metadata_obj):
             )
         )
 
+        for relationship in col_data.get("relationships", []) if isinstance(col_data, dict) else []:
+            docs.append(
+                Document(
+                    page_content=relationship.get("description", ""),
+                    metadata={
+                        "project_id": project_id,
+                        "table_name": table,
+                        "type": "column_relationship",
+                        "column": col,
+                        "related_table": relationship.get("related_table"),
+                        "related_column": relationship.get("related_column"),
+                        "relationship_type": relationship.get("relationship_type"),
+                    },
+                )
+            )
+
     # Group columns by semantic role and entity types
     semantic_roles = defaultdict(list)
     entity_types = set()
+    join_paths = []
 
     for col_name, col_data in data["columns"].items():
 
@@ -79,6 +112,17 @@ def metadata_to_documents(metadata_obj):
         if entity_type:
             entity_types.add(entity_type)
 
+        if isinstance(col_data, dict):
+            for relationship in col_data.get("relationships", []):
+                join_paths.append(
+                    {
+                        "column": col_name,
+                        "related_table": relationship.get("related_table"),
+                        "related_column": relationship.get("related_column"),
+                        "relationship_type": relationship.get("relationship_type"),
+                    }
+                )
+
     # Add analytical capability document
     docs.append(
         Document(
@@ -86,6 +130,8 @@ def metadata_to_documents(metadata_obj):
                 "time_columns": [c for c in semantic_roles.get("time", [])],
                 "measure_columns": [c for c in semantic_roles.get("measure", [])],
                 "entity_types": list(entity_types),
+                "join_paths": join_paths,
+                "table_relationships": data.get("table_relationships", []),
             }),
             metadata={
                 "project_id": project_id,

@@ -45,7 +45,14 @@ def generate_subsection_topics(
         k=50,
         filter={
             "project_id": project_id,
-            "type": ["table_description", "column", "analytical_capability", "confidence_note"],
+            "type": [
+                "table_description",
+                "table_relationship",
+                "column",
+                "column_relationship",
+                "analytical_capability",
+                "confidence_note",
+            ],
         },
     )
 

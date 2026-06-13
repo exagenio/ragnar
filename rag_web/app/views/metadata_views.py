@@ -123,7 +123,8 @@ def column_introspection(request, project_id):
         "column_introspection.html",
         {
             "project": project,
-            "schema_info": schema_info,
+            "schema_info": schema_info["tables"],
+            "relationships": schema_info["relationships"],
         },
     )
 
@@ -200,10 +201,40 @@ def review_metadata(request, project_id, table_name):
             table_description = request.POST.get("table_description")
 
             columns = {}
-            for key, value in request.POST.items():
-                if key.startswith("column__"):
-                    col_name = key.replace("column__", "")
-                    columns[col_name] = value
+            generated_columns = metadata_obj.generated_metadata.get("columns", {})
+            for col_name, col_data in generated_columns.items():
+                description = request.POST.get(f"column__{col_name}", "")
+
+                if isinstance(col_data, str):
+                    columns[col_name] = {
+                        "description": description,
+                        "semantic_role": "unknown",
+                        "entity_type": None,
+                        "relationships": [],
+                    }
+                    continue
+
+                columns[col_name] = {
+                    **col_data,
+                    "description": description,
+                }
+
+            table_relationships = []
+            generated_relationships = metadata_obj.generated_metadata.get(
+                "table_relationships",
+                [],
+            )
+            for index, relationship in enumerate(generated_relationships):
+                description = request.POST.get(
+                    f"relationship__{index}",
+                    relationship.get("description", ""),
+                )
+                table_relationships.append(
+                    {
+                        **relationship,
+                        "description": description,
+                    }
+                )
 
             confidence_notes_raw = request.POST.get("confidence_notes", "")
 
@@ -216,6 +247,7 @@ def review_metadata(request, project_id, table_name):
             manager.approve_table_metadata(
                 metadata_obj,
                 table_description,
+                table_relationships,
                 columns,
                 confidence_notes,
             )

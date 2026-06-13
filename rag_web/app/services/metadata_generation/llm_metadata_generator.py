@@ -50,6 +50,8 @@ def generate_table_metadata(
     table_name: str,
     columns: list,
     rows: list,
+    selected_tables_schema: list,
+    relationships: list,
     backend: LLMBackend | None = None,
 ):
     """Generate table metadata"""
@@ -67,6 +69,14 @@ def generate_table_metadata(
     prompt = prompt.replace("{{table_name}}", table_name)
     prompt = prompt.replace("{{columns}}", json.dumps(columns, indent=2))
     prompt = prompt.replace("{{rows}}", json.dumps(safe_rows, indent=2))
+    prompt = prompt.replace(
+        "{{selected_tables_schema}}",
+        json.dumps(selected_tables_schema, indent=2),
+    )
+    prompt = prompt.replace(
+        "{{relationships}}",
+        json.dumps(relationships, indent=2),
+    )
 
     # Initialize llm
     llm = get_llm(

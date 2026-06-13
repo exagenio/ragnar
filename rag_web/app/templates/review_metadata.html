@@ -25,13 +25,57 @@
 
         <div class="card">
             <div class="card__header">
+                <h2 class="card__title">Table Relationships</h2>
+            </div>
+            <div class="card__body stack stack--tight">
+                {% if metadata.generated_metadata.table_relationships %}
+                    {% for relationship in metadata.generated_metadata.table_relationships %}
+                    <div class="form__field">
+                        <label class="form__label">
+                            {{ relationship.relationship_type }} with {{ relationship.related_table }}
+                            {% if relationship.through_table %}
+                            via {{ relationship.through_table }}
+                            {% endif %}
+                        </label>
+                        <p class="form__hint">
+                            Local/related columns:
+                            {% for path in relationship.via_columns %}
+                                {{ path.column }} -> {{ path.related_column }}
+                            {% endfor %}
+                        </p>
+                        <textarea name="relationship__{{ forloop.counter0 }}" rows="3">{{ relationship.description }}</textarea>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state">No detected relationships for this table.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
                 <h2 class="card__title">Column Descriptions</h2>
             </div>
             <div class="card__body stack stack--tight">
                 {% for col, desc in metadata.generated_metadata.columns.items %}
                 <div class="form__field">
                     <label class="form__label">{{ col }}</label>
-                    <textarea name="column__{{ col }}" rows="2">{{ desc }}</textarea>
+                    {% if desc.semantic_role %}
+                    <p class="form__hint">
+                        Role: {{ desc.semantic_role }}
+                        {% if desc.entity_type %}
+                        | Entity type: {{ desc.entity_type }}
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                    {% if desc.relationships %}
+                    <p class="form__hint">
+                        {% for rel in desc.relationships %}
+                            {{ rel.relationship_type }}: {{ rel.related_table }}.{{ rel.related_column }}
+                        {% endfor %}
+                    </p>
+                    {% endif %}
+                    <textarea name="column__{{ col }}" rows="2">{% if desc.description %}{{ desc.description }}{% else %}{{ desc }}{% endif %}</textarea>
                 </div>
                 {% endfor %}
             </div>

@@ -26,6 +26,9 @@
                                 <th>Column Name</th>
                                 <th>Data Type</th>
                                 <th>Nullable</th>
+                                <th>Primary Key</th>
+                                <th>Unique</th>
+                                <th>Foreign Keys</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -34,6 +37,17 @@
                                 <td>{{ col.name }}</td>
                                 <td>{{ col.type }}</td>
                                 <td>{{ col.nullable }}</td>
+                                <td>{{ col.is_primary_key }}</td>
+                                <td>{{ col.is_unique }}</td>
+                                <td>
+                                    {% if col.foreign_keys %}
+                                        {% for fk in col.foreign_keys %}
+                                            <div>{{ fk.referenced_table }}.{{ fk.referenced_column }}</div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span>-</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -42,6 +56,42 @@
             </div>
         </div>
         {% endfor %}
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Detected Table Relationships</h2>
+            </div>
+            <div class="card__body">
+                {% if relationships %}
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>From Table</th>
+                                <th>To Table</th>
+                                <th>Relationship</th>
+                                <th>Columns</th>
+                                <th>Through Table</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for relation in relationships %}
+                            <tr>
+                                <td>{{ relation.from_table }}</td>
+                                <td>{{ relation.to_table }}</td>
+                                <td>{{ relation.relationship_type }}</td>
+                                <td>{{ relation.from_columns|join:", " }} -> {{ relation.to_columns|join:", " }}</td>
+                                <td>{{ relation.through_table|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">No relationships detected between the selected tables.</div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

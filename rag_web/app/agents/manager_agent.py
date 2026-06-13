@@ -75,12 +75,14 @@ class ManagerAgent:
         self,
         metadata_obj,
         table_description,
+        table_relationships,
         columns,
         confidence_notes,
     ):
         return self.metadata_agent.approve_metadata(
             metadata_obj,
             table_description,
+            table_relationships,
             columns,
             confidence_notes,
         )

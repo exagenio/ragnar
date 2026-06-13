@@ -1,4 +1,7 @@
-from app.services.metadata_generation.schema_introspector import get_tables
+from app.services.metadata_generation.schema_introspector import (
+    get_tables,
+    get_table_relationships,
+)
 from app.services.metadata_generation.column_introspector import get_table_columns
 from app.services.metadata_generation.row_sampler import sample_table_rows
 from app.services.metadata_generation.metadata_job import run_metadata_generation
@@ -39,6 +42,7 @@ class MetadataAgent:
 
         db_conn = project.db_connection
         selected_tables = SelectedTable.objects.filter(project=project)
+        selected_table_names = [table.table_name for table in selected_tables]
 
         schema_info = []
 
@@ -53,7 +57,12 @@ class MetadataAgent:
                 }
             )
 
-        return schema_info
+        relationships = get_table_relationships(db_conn, selected_table_names)
+
+        return {
+            "tables": schema_info,
+            "relationships": relationships,
+        }
     
     def sample_rows(self, project, limit=10):
         """Sample rows"""
@@ -105,6 +114,7 @@ class MetadataAgent:
         self,
         metadata_obj,
         table_description,
+        table_relationships,
         columns,
         confidence_notes,
     ):
@@ -113,6 +123,7 @@ class MetadataAgent:
         # Build approved metadata and save
         approved_metadata = {
             "table_description": table_description,
+            "table_relationships": table_relationships,
             "columns": columns,
             "confidence_notes": confidence_notes,
         }
