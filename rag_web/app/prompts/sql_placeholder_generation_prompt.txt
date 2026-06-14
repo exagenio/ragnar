@@ -61,6 +61,12 @@ Each placeholder must represent:
 
 one  required_element canbe requires one or multiple placeholders
 
+Each placeholder should behave like a compact SQL specification:
+
+- what metric to compute
+- what business logic must be preserved
+- what ordered steps the SQL query must follow
+
 ========================
 CALCULATION GUIDELINES
 ========================
@@ -100,6 +106,45 @@ If a metric involves aggregation across entities, you MUST specify:
 The description MUST reflect the same meaning precisely.
 
 ========================
+DERIVED SEGMENT AND COHORT LOGIC (CRITICAL)
+========================
+
+If a metric depends on a derived segment, cohort, or classification
+(for example: new vs. returning customers, active vs. inactive customers,
+high-value vs. low-value customers, first-time vs. repeat buyers),
+you MUST define that business logic explicitly.
+
+You MUST specify:
+
+- the entity being classified (customer, order, seller, product, etc.)
+- whether the classification is based on lifetime behavior, period behavior,
+  first-event logic, or per-record logic
+- whether the groups are mutually exclusive
+- whether the classification persists across all measures in the topic
+
+CRITICAL:
+
+- Do NOT let the same entity belong to multiple segments in a summary metric
+  unless the topic explicitly requires order-level or event-level classification
+- If the topic compares customer segments, prefer CUSTOMER-LEVEL mutually exclusive
+  cohort definitions unless the plan explicitly asks for order-level tagging
+- If a customer is classified as "returning" based on lifetime order count > 1,
+  that customer must not also be counted as "new" in the same customer-level summary
+- If the analysis is order-level, you MUST say so explicitly in the business logic
+
+Example:
+
+GOOD:
+"Classify each unique customer as 'New' if lifetime order_count = 1, otherwise 'Returning'.
+This customer-level classification is mutually exclusive and must be reused for sales, orders,
+and customer counts unless a requirement explicitly asks for first-order event tagging."
+
+BAD:
+"Use first order as New and later orders as Returning"
+
+because that mixes event-level tagging with customer-level segmentation and can double count entities
+
+========================
 SEMANTIC CONSISTENCY (MANDATORY)
 ========================
 
@@ -133,6 +178,51 @@ You MUST NOT:
 • Invent metrics not supported by the data  
 • Combine multiple analytical goals into one placeholder  
 • Introduce ambiguity in metric definition  
+
+========================
+QUERY CONSTRUCTION STEPS (MANDATORY)
+========================
+
+For each placeholder, you MUST provide explicit ordered steps
+that tell the SQL generator HOW to build the query.
+
+These steps should be implementation-oriented, but still written
+in clear analytical language.
+
+Good step patterns:
+
+1. identify the base grain
+2. derive cohort or segment labels
+3. aggregate facts to the required grain
+4. join derived data back to the stable cohort definition
+5. group by the requested dimensions
+6. calculate final ratios or summary metrics
+
+Each step MUST be:
+
+- atomic
+- ordered
+- necessary
+- consistent with the business logic
+
+You MUST include steps whenever the metric involves:
+
+- joins
+- cohorting
+- derived segments
+- multi-stage aggregation
+- ratios built from prior aggregates
+- time-based grouping
+
+Example:
+
+"query_steps": [
+  "Build a customer-level cohort table with one row per unique customer.",
+  "Classify each customer as New if lifetime order_count = 1, otherwise Returning.",
+  "Aggregate payment value to order level before joining to customer cohorts.",
+  "Join order-level sales back to the customer cohort table using the stable customer mapping.",
+  "Group results by customer_type and sum total sales value."
+]
 
 ========================
 TERMINOLOGY CONSTRAINT (CRITICAL)
@@ -170,6 +260,8 @@ MAPPING RULE
 Each placeholder MUST include:
 
 "data_requirement_ref": <index>
+"business_logic": "explicit cohort / derivation rule, or empty string if not needed"
+"query_steps": ["ordered SQL construction steps"]
 
 This must match the corresponding data_requirement position
 in the TOPIC ANALYSIS PLAN.
@@ -192,6 +284,8 @@ OUTPUT FORMAT
     {
       "calculation": "...",
       "description": "...",
+      "business_logic": "...",
+      "query_steps": ["...", "..."],
       "data_requirement_ref": 0
     }
   ]

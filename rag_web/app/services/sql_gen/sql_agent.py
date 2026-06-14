@@ -27,6 +27,8 @@ def _render_sql_agent_prompt(
     calculation_id: str,
     calculation_expression: str,
     calculation_description: str,
+    business_logic: str,
+    query_steps: list[str] | None,
     metadata_context: Dict,
     database_schema: Dict,
     query_intent: str,
@@ -45,6 +47,8 @@ def _render_sql_agent_prompt(
         "calculation_id": calculation_id,
         "calculation_expression": calculation_expression,
         "calculation_description": calculation_description,
+        "business_logic": business_logic,
+        "query_steps": json.dumps(query_steps or [], indent=2),
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
         "query_intent": query_intent,
@@ -133,6 +137,8 @@ def parse_precomputed_sql_placeholder(block: dict) -> dict:
         "id": content.get("id"),
         "calculation": content.get("calculation"),
         "description": content.get("description"),
+        "business_logic": content.get("business_logic", ""),
+        "query_steps": content.get("query_steps", []),
     }
 
 
@@ -163,6 +169,8 @@ def generate_sql_from_visual_plan(
         calculation_id="visual_query",
         calculation_expression=sql_request.get("calculation_expression", ""),
         calculation_description=sql_request.get("description", ""),
+        business_logic=sql_request.get("business_logic", ""),
+        query_steps=sql_request.get("query_steps", []),
         metadata_context=metadata_context,
         database_schema=database_schema,
         query_intent="visual",
@@ -263,6 +271,8 @@ def generate_sql_for_precomputed_placeholder(
         calculation_id=parsed["id"],
         calculation_expression=parsed["calculation"],
         calculation_description=parsed["description"],
+        business_logic=parsed.get("business_logic", ""),
+        query_steps=parsed.get("query_steps", []),
         metadata_context=metadata_context,
         database_schema=database_schema,
     )
@@ -284,6 +294,8 @@ def _render_precompute_sql_prompt(
     calculation_id: str,
     calculation_expression: str,
     calculation_description: str,
+    business_logic: str,
+    query_steps: list[str] | None,
     metadata_context: Dict,
     database_schema: Dict,
 ) -> str:
@@ -295,6 +307,8 @@ def _render_precompute_sql_prompt(
         "calculation_id": calculation_id,
         "calculation_expression": calculation_expression,
         "calculation_description": calculation_description,
+        "business_logic": business_logic,
+        "query_steps": json.dumps(query_steps or [], indent=2),
         "metadata_context_json": json.dumps(metadata_context, indent=2),
         "database_schema_json": json.dumps(database_schema, indent=2),
     }

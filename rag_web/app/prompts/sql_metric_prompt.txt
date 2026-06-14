@@ -19,6 +19,12 @@ Business Description:
 Business Expression:
 {{calculation_expression}}
 
+Business Logic:
+{{business_logic}}
+
+Query Construction Steps:
+{{query_steps}}
+
 ========================
 CORE PRINCIPLE
 ========================
@@ -32,6 +38,7 @@ Priority:
 
 If any mismatch exists:
 → FOLLOW calculation strictly
+
 
 ========================
 SQL CONSTRAINTS

@@ -698,6 +698,8 @@ class ManagerAgent:
                     "id": f"{topic_id}_{index}",
                     "calculation": placeholder["calculation"],
                     "description": placeholder["description"],
+                    "business_logic": placeholder.get("business_logic", ""),
+                    "query_steps": placeholder.get("query_steps", []),
                     "data_requirement_ref": placeholder["data_requirement_ref"],
                 },
             }
