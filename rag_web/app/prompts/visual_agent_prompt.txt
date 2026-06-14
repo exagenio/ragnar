@@ -53,6 +53,11 @@ DATABASE SCHEMA (AUTHORITATIVE)
 The following schema is the ONLY source of truth.
 You MUST use ONLY these tables and columns.
 
+The schema payload may include:
+- dataset_mode: single_table or multi_table
+- tables: selected tables and their columns
+- relationships: detected table relationships and join paths
+
 {{database_schema_json}}
 
 ========================

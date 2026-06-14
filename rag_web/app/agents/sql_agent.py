@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
-from app.models import SelectedTable
 
-from app.services.metadata_generation.column_introspector import get_table_columns
+from app.services.metadata_generation.schema_context_builder import build_schema_context
 from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
 
 from app.services.sql_gen.sql_agent import (
@@ -17,26 +16,7 @@ class SQLAgent:
 
     def build_schema_context(self, project):
         """Build schema context"""
-
-        tables = SelectedTable.objects.filter(project=project)
-
-        schema_context = []
-
-        # Build schema structure from selected tables
-        for t in tables:
-            columns = get_table_columns(project.db_connection, t.table_name)
-
-            schema_context.append(
-                {
-                    "table": t.table_name,
-                    "columns": [
-                        {"name": col["name"], "type": col["type"]}
-                        for col in columns
-                    ],
-                }
-            )
-
-        return schema_context
+        return build_schema_context(project)
 
 
     def _remove_sql_placeholder(

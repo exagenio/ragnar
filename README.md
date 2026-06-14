@@ -295,3 +295,213 @@ Open the app at:
 ```text
 http://127.0.0.1:8000/
 ```
+
+```sql
+-- ============================================================
+-- Enum Types
+-- ============================================================
+
+CREATE TYPE order_status_enum AS ENUM (
+    'delivered',
+    'shipped',
+    'processing',
+    'unavailable',
+    'canceled',
+    'invoiced'
+);
+
+
+-- ============================================================
+-- Sellers Table
+-- ============================================================
+
+CREATE TABLE sellers (
+    seller_id VARCHAR(50) PRIMARY KEY,
+    seller_zip_code_prefix VARCHAR(10),
+    seller_city VARCHAR(100),
+    seller_state CHAR(2)
+);
+
+
+-- ============================================================
+-- Product Category Translation Table
+-- ============================================================
+
+CREATE TABLE product_category_translation (
+    product_category_name VARCHAR(100) PRIMARY KEY,
+    product_category_name_english VARCHAR(100)
+);
+
+
+-- ============================================================
+-- Products Table
+-- ============================================================
+
+CREATE TABLE products (
+    product_id VARCHAR(50) PRIMARY KEY,
+    product_category_name VARCHAR(100),
+    product_name_lenght INTEGER,
+    product_description_lenght INTEGER,
+    product_photos_qty INTEGER,
+    product_weight_g INTEGER,
+    product_length_cm INTEGER,
+    product_height_cm INTEGER,
+    product_width_cm INTEGER
+);
+
+
+-- ============================================================
+-- Customers Table
+-- ============================================================
+
+CREATE TABLE customers (
+    customer_id VARCHAR(50) PRIMARY KEY,
+    customer_unique_id VARCHAR(50),
+    customer_zip_code_prefix VARCHAR(10),
+    customer_city TEXT,
+    customer_state CHAR(2),
+
+    CONSTRAINT chk_customer_state
+        CHECK (customer_state ~ '^[A-Z]{2}$')
+);
+
+
+-- ============================================================
+-- Orders Table
+-- ============================================================
+
+CREATE TABLE orders (
+    order_id VARCHAR(50) PRIMARY KEY,
+    customer_id VARCHAR(50),
+    order_status order_status_enum,
+    order_purchase_timestamp TIMESTAMP,
+    order_approved_at TIMESTAMP,
+    order_delivered_carrier_date TIMESTAMP,
+    order_delivered_customer_date TIMESTAMP,
+    order_estimated_delivery_date TIMESTAMP
+);
+
+
+-- ============================================================
+-- Order Reviews Table
+-- ============================================================
+
+CREATE TABLE order_reviews (
+    review_id TEXT,
+    order_id VARCHAR(50),
+    review_score INTEGER CHECK (review_score BETWEEN 1 AND 5),
+    review_comment_title TEXT,
+    review_comment_message TEXT,
+    review_creation_date TIMESTAMP,
+    review_answer_timestamp TIMESTAMP
+);
+
+
+-- ============================================================
+-- Order Payments Table
+-- ============================================================
+
+CREATE TABLE order_payments (
+    order_id VARCHAR(50),
+    payment_sequential INTEGER,
+    payment_type VARCHAR(50),
+    payment_installments INTEGER,
+    payment_value NUMERIC(10, 2),
+
+    CONSTRAINT chk_payment_value
+        CHECK (payment_value >= 0),
+
+    CONSTRAINT chk_payment_installments
+        CHECK (payment_installments >= 0)
+);
+
+
+-- ============================================================
+-- Order Items Table
+-- ============================================================
+
+CREATE TABLE order_items (
+    order_id VARCHAR(50),
+    order_item_id INTEGER,
+    product_id VARCHAR(50),
+    seller_id VARCHAR(50),
+    shipping_limit_date TIMESTAMP,
+    price NUMERIC(10, 2),
+    freight_value NUMERIC(10, 2),
+
+    CONSTRAINT chk_order_item_price
+        CHECK (price >= 0),
+
+    CONSTRAINT chk_order_item_freight
+        CHECK (freight_value >= 0),
+
+    CONSTRAINT order_items_pkey
+        PRIMARY KEY (order_id, order_item_id)
+);
+
+
+-- ============================================================
+-- Geolocation Table
+-- ============================================================
+
+CREATE TABLE geolocation (
+    geolocation_zip_code_prefix VARCHAR(10),
+    geolocation_lat NUMERIC(10, 8),
+    geolocation_lng NUMERIC(11, 8),
+    geolocation_city TEXT,
+    geolocation_state CHAR(2),
+
+    CONSTRAINT chk_geolocation_lat
+        CHECK (geolocation_lat BETWEEN -90 AND 90),
+
+    CONSTRAINT chk_geolocation_lng
+        CHECK (geolocation_lng BETWEEN -180 AND 180)
+);
+
+
+-- ============================================================
+-- Optional Foreign Key Constraints
+-- Add these after importing all CSV files successfully
+-- ============================================================
+
+ALTER TABLE orders
+ADD CONSTRAINT fk_orders_customer
+FOREIGN KEY (customer_id)
+REFERENCES customers(customer_id);
+
+
+ALTER TABLE products
+ADD CONSTRAINT fk_products_category
+FOREIGN KEY (product_category_name)
+REFERENCES product_category_translation(product_category_name);
+
+
+ALTER TABLE order_reviews
+ADD CONSTRAINT fk_order_reviews_order
+FOREIGN KEY (order_id)
+REFERENCES orders(order_id);
+
+
+ALTER TABLE order_payments
+ADD CONSTRAINT fk_order_payments_order
+FOREIGN KEY (order_id)
+REFERENCES orders(order_id);
+
+
+ALTER TABLE order_items
+ADD CONSTRAINT fk_order_items_order
+FOREIGN KEY (order_id)
+REFERENCES orders(order_id);
+
+
+ALTER TABLE order_items
+ADD CONSTRAINT fk_order_items_product
+FOREIGN KEY (product_id)
+REFERENCES products(product_id);
+
+
+ALTER TABLE order_items
+ADD CONSTRAINT fk_order_items_seller
+FOREIGN KEY (seller_id)
+REFERENCES sellers(seller_id);
+```

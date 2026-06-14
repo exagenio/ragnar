@@ -139,6 +139,11 @@ DATA SOURCES
 DATABASE SCHEMA (source of truth):
 {{database_schema_json}}
 
+The schema payload may include:
+- dataset_mode: single_table or multi_table
+- tables: selected tables and their columns
+- relationships: detected table relationships and join paths
+
 METADATA (business meaning support):
 {{metadata_context_json}}
 

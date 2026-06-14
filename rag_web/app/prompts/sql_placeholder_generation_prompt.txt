@@ -20,6 +20,11 @@ DATABASE SCHEMA:
 
 {{database_schema_json}}
 
+The schema payload may include:
+- dataset_mode: single_table or multi_table
+- tables: selected tables and their columns
+- relationships: detected foreign-key and bridge-table relationships
+
 METADATA CONTEXT:
 {{metadata_context_json}}
 

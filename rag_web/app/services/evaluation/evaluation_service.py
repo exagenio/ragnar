@@ -11,6 +11,7 @@ from app.models import Topic, TopicContent, TopicEvaluation, Report, Project, To
 from app.services.vector_db_config.vector_store import get_vector_store
 from app.services.llm_config.llm_provider import LLMBackend, ModelSize, get_llm
 from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
+from app.services.topic_gen.topic_analysis_plan_generator import normalize_topic_analysis_plan
 
 def get_judge_llm(project=None):
     """Get judge llm"""
@@ -60,7 +61,7 @@ def build_eval_input(topic, report):
     if not plan:
         return ""
 
-    plan_json = plan.plan_json or {}
+    plan_json = normalize_topic_analysis_plan(plan.plan_json or {})
 
     return f"""
 TOPIC: {plan_json.get("topic")}
@@ -108,7 +109,10 @@ def retrieve_metadata_for_topic(project, topic, vector_store, report):
     required_elements = []
 
     if plan and plan.plan_json:
-        required_elements = plan.plan_json.get("required_elements", [])
+        required_elements = normalize_topic_analysis_plan(plan.plan_json).get(
+            "required_elements",
+            [],
+        )
 
     query = f"""
     Section: {section_title}

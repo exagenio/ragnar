@@ -169,6 +169,11 @@ DATABASE SCHEMA (AUTHORITATIVE)
 
 {{database_schema_json}}
 
+The schema payload may include:
+- dataset_mode: single_table or multi_table
+- tables: selected tables and their columns
+- relationships: detected table relationships and join paths
+
 You MUST only use tables and columns listed here.
 
 ========================

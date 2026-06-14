@@ -12,7 +12,6 @@ from app.models import (
     Section,
     SubSection,
     Topic,
-    SelectedTable,
     TopicAnalysisPlan,
     SubSectionContent,
     SectionContent,
@@ -22,8 +21,9 @@ from app.services.document_generator import generate_report_document
 
 from app.services.outline_generation.report_outline_generator import generate_report_outline
 from app.services.sub_sec_gen.subsection_topic_generator import generate_subsection_topics
-from app.services.metadata_generation.column_introspector import get_table_columns
+from app.services.metadata_generation.schema_context_builder import build_schema_context
 from app.services.topic_gen.topic_analysis_plan_generator import generate_topic_analysis_plan
+from app.services.topic_gen.topic_analysis_plan_generator import normalize_topic_analysis_plan
 from app.services.topic_gen.topic_content_generator import generate_topic_content
 from app.services.sub_sec_gen.sub_section_content_generator import generate_subsection_content
 from app.services.section_content_generator import generate_section_content
@@ -172,26 +172,7 @@ class ContentAgent:
 
     def build_schema_context(self, project):
         """Build schema context"""
-
-        tables = SelectedTable.objects.filter(project=project)
-
-        schema_context = []
-
-        # Build schema structure from selected tables
-        for t in tables:
-            columns = get_table_columns(project.db_connection, t.table_name)
-
-            schema_context.append(
-                {
-                    "table": t.table_name,
-                    "columns": [
-                        {"name": col["name"], "type": col["type"]}
-                        for col in columns
-                    ],
-                }
-            )
-
-        return schema_context
+        return build_schema_context(project)
     
     def generate_topic_analysis_plan(self, project, report, topic):
         """Generate topic analysis plan"""
@@ -222,6 +203,7 @@ class ContentAgent:
             }
 
             plan = generate_topic_analysis_plan(context, project=project)
+            plan = normalize_topic_analysis_plan(plan)
 
             plan_obj.plan_json = plan
             plan_obj.save()
@@ -232,7 +214,7 @@ class ContentAgent:
         """Update topic analysis plan"""
 
 
-        plan = plan_obj.plan_json.copy()
+        plan = normalize_topic_analysis_plan(plan_obj.plan_json.copy())
 
         plan["intent"] = form_data.get("intent", "").strip()
 
@@ -298,6 +280,8 @@ class ContentAgent:
             "precomputed_sql_placeholders", []
         )
 
+        normalized_plan = normalize_topic_analysis_plan(topic.analysis_plan.plan_json or {})
+
         # Generate and normalize content
         result = generate_topic_content(
             project=project,
@@ -309,7 +293,7 @@ class ContentAgent:
             section_title=topic.subsection.section.title,
             subsection_title=topic.subsection.title,
             topic_title=topic.title,
-            topic_plan=topic.analysis_plan.plan_json,
+            topic_plan=normalized_plan,
             existing_content=content_obj.content_json or None,
             precomputed_sql_placeholders=precomputed, 
         )

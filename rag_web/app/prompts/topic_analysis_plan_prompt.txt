@@ -32,6 +32,11 @@ AVAILABLE DATABASE SCHEMA
 The following tables and columns are AVAILABLE.
 You MUST only use these.
 
+The schema payload may include:
+- dataset_mode: single_table or multi_table
+- tables: selected tables and their columns
+- relationships: detected table relationships and join paths
+
 {{database_schema}}
 
 ====================

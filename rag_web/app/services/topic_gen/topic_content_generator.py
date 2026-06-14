@@ -14,6 +14,7 @@ from app.services.metadata_generation.metadata_retriever import (
     format_metadata_context_json,
     retrieve_multi_table_metadata,
 )
+from app.services.topic_gen.topic_analysis_plan_generator import normalize_topic_analysis_plan
 
 
 # Load semantic model once
@@ -75,6 +76,7 @@ def generate_topic_content(
     else:
         content_state = default_state
 
+    topic_plan = normalize_topic_analysis_plan(topic_plan or {})
     required_elements = topic_plan.get("required_elements", [])
 
     # Iterate through required elements

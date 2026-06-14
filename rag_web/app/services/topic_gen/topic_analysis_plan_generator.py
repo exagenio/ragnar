@@ -86,13 +86,37 @@ def generate_topic_analysis_plan(
     # Parse json output
     try:
         plan = extract_json_from_text(raw_output)
+        plan = normalize_topic_analysis_plan(plan)
         return plan
     except Exception as e:
         raise ValueError(f"LLM returned invalid JSON: {e}")
 
 
 def normalize_topic_analysis_plan(plan: dict) -> dict:
-    """Normalize visual types"""
+    """Normalize topic analysis plan fields."""
+
+    required_elements = plan.get("required_elements", [])
+    normalized_required_elements = []
+
+    if isinstance(required_elements, list):
+        for element in required_elements:
+            if isinstance(element, str):
+                normalized = element.strip()
+            elif isinstance(element, dict):
+                normalized = (
+                    element.get("element")
+                    or element.get("title")
+                    or element.get("name")
+                    or element.get("description")
+                    or ""
+                ).strip()
+            else:
+                normalized = str(element).strip()
+
+            if normalized:
+                normalized_required_elements.append(normalized)
+
+    plan["required_elements"] = list(dict.fromkeys(normalized_required_elements))
 
     visuals = plan.get("visual_requirements", [])
 

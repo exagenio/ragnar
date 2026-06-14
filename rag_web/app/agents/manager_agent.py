@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.services.project_service import ProjectService
 from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
+from app.services.topic_gen.topic_analysis_plan_generator import normalize_topic_analysis_plan
 from app.services.task_tracker import (
     complete_background_task,
     create_background_task,
@@ -661,6 +662,8 @@ class ManagerAgent:
         return False
 
     def generate_precomputed_sql_placeholders(self, topic, plan):
+        plan = normalize_topic_analysis_plan(plan or {})
+
         content_obj, _ = TopicContent.objects.get_or_create(
             topic=topic,
             defaults={
