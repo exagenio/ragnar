@@ -31,6 +31,91 @@ def get_tables(db_connection):
     return tables
 
 
+def get_enums(db_connection):
+    """Get enum types in the schema together with values and usage columns."""
+
+    conn = psycopg2.connect(
+        host=db_connection.host,
+        port=db_connection.port,
+        dbname=db_connection.database_name,
+        user=db_connection.username,
+        password=db_connection.password,
+    )
+
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            t.typname AS enum_name,
+            e.enumlabel AS enum_value,
+            e.enumsortorder AS enum_order
+        FROM pg_type t
+        JOIN pg_enum e
+          ON t.oid = e.enumtypid
+        JOIN pg_namespace n
+          ON n.oid = t.typnamespace
+        WHERE n.nspname = %s
+        ORDER BY t.typname, e.enumsortorder;
+        """,
+        (db_connection.schema,),
+    )
+    enum_rows = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT
+            c.table_name,
+            c.column_name,
+            c.udt_name
+        FROM information_schema.columns c
+        JOIN pg_type t
+          ON t.typname = c.udt_name
+        JOIN pg_namespace n
+          ON n.oid = t.typnamespace
+         AND n.nspname = c.udt_schema
+        WHERE c.table_schema = %s
+          AND t.typtype = 'e'
+        ORDER BY c.udt_name, c.table_name, c.column_name;
+        """,
+        (db_connection.schema,),
+    )
+    usage_rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    enums_by_name = {}
+    for enum_name, enum_value, _enum_order in enum_rows:
+        enum_info = enums_by_name.setdefault(
+            enum_name,
+            {
+                "enum_name": enum_name,
+                "values": [],
+                "usages": [],
+            },
+        )
+        enum_info["values"].append(enum_value)
+
+    for table_name, column_name, enum_name in usage_rows:
+        enum_info = enums_by_name.setdefault(
+            enum_name,
+            {
+                "enum_name": enum_name,
+                "values": [],
+                "usages": [],
+            },
+        )
+        enum_info["usages"].append(
+            {
+                "table_name": table_name,
+                "column_name": column_name,
+            }
+        )
+
+    return [enums_by_name[name] for name in sorted(enums_by_name)]
+
+
 def get_table_relationships(db_connection, selected_tables=None):
     """Get foreign-key relationships for the selected tables."""
 

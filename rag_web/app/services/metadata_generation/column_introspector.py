@@ -20,7 +20,8 @@ def get_table_columns(db_connection, table_name):
         SELECT
             column_name,
             data_type,
-            is_nullable
+            is_nullable,
+            udt_name
         FROM information_schema.columns
         WHERE table_schema = %s
           AND table_name = %s
@@ -30,6 +31,33 @@ def get_table_columns(db_connection, table_name):
     )
 
     raw_columns = cursor.fetchall()
+
+    enum_names = [
+        udt_name
+        for _name, data_type, _is_nullable, udt_name in raw_columns
+        if data_type == "USER-DEFINED"
+    ]
+    enum_values_by_name = {}
+    if enum_names:
+        cursor.execute(
+            """
+            SELECT
+                t.typname AS enum_name,
+                e.enumlabel AS enum_value,
+                e.enumsortorder AS enum_order
+            FROM pg_type t
+            JOIN pg_enum e
+              ON t.oid = e.enumtypid
+            JOIN pg_namespace n
+              ON n.oid = t.typnamespace
+            WHERE n.nspname = %s
+              AND t.typname = ANY(%s)
+            ORDER BY t.typname, e.enumsortorder;
+            """,
+            (db_connection.schema, enum_names),
+        )
+        for enum_name, enum_value, _enum_order in cursor.fetchall():
+            enum_values_by_name.setdefault(enum_name, []).append(enum_value)
 
     cursor.execute(
         """
@@ -93,11 +121,19 @@ def get_table_columns(db_connection, table_name):
         )
 
     columns = []
-    for name, data_type, is_nullable in raw_columns:
+    for name, data_type, is_nullable, udt_name in raw_columns:
+        is_enum = data_type == "USER-DEFINED" and udt_name in enum_values_by_name
+        enum_values = enum_values_by_name.get(udt_name, [])
+        column_type = f"enum({udt_name})" if is_enum else data_type.strip('"')
         columns.append(
             {
                 "name": name,
-                "type": data_type.strip('"'),
+                "type": column_type,
+                "data_type": data_type.strip('"'),
+                "udt_name": udt_name,
+                "is_enum": is_enum,
+                "enum_name": udt_name if is_enum else None,
+                "accepted_values": enum_values,
                 "nullable": (is_nullable == "YES"),
                 "is_primary_key": name in primary_key_columns,
                 "is_unique": name in unique_columns or name in primary_key_columns,

@@ -28,6 +28,7 @@
                                 <th>Nullable</th>
                                 <th>Primary Key</th>
                                 <th>Unique</th>
+                                <th>Accepted Values</th>
                                 <th>Foreign Keys</th>
                             </tr>
                         </thead>
@@ -39,6 +40,13 @@
                                 <td>{{ col.nullable }}</td>
                                 <td>{{ col.is_primary_key }}</td>
                                 <td>{{ col.is_unique }}</td>
+                                <td>
+                                    {% if col.accepted_values %}
+                                        {{ col.accepted_values|join:", " }}
+                                    {% else %}
+                                        <span>-</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if col.foreign_keys %}
                                         {% for fk in col.foreign_keys %}
@@ -56,6 +64,44 @@
             </div>
         </div>
         {% endfor %}
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Detected Enums</h2>
+            </div>
+            <div class="card__body">
+                {% if enums %}
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Enum Name</th>
+                                <th>Values</th>
+                                <th>Used By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for enum in enums %}
+                            <tr>
+                                <td>{{ enum.enum_name }}</td>
+                                <td>{{ enum.values|join:", " }}</td>
+                                <td>
+                                    {% for usage in enum.usages %}
+                                        <div>{{ usage.table_name }}.{{ usage.column_name }}</div>
+                                    {% empty %}
+                                        <span>-</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">No enums detected for the selected schema objects.</div>
+                {% endif %}
+            </div>
+        </div>
 
         <div class="card">
             <div class="card__header">

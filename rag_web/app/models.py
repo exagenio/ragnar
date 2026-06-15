@@ -102,23 +102,62 @@ class DBConnection(models.Model):
 
 
 class SelectedTable(models.Model):
+    OBJECT_TYPE_CHOICES = [
+        ("table", "Table"),
+        ("enum", "Enum"),
+    ]
+
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="selected_tables"
     )
 
     table_name = models.CharField(max_length=255)
+    object_type = models.CharField(
+        max_length=16,
+        choices=OBJECT_TYPE_CHOICES,
+        default="table",
+    )
+    display_name = models.CharField(max_length=255, blank=True, default="")
+    source_table = models.CharField(max_length=255, blank=True, default="")
+    source_column = models.CharField(max_length=255, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def object_name(self):
+        return self.display_name or self.table_name
+
+    @property
+    def object_label(self):
+        if self.object_type == "enum":
+            usage = ""
+            if self.source_table and self.source_column:
+                usage = f" ({self.source_table}.{self.source_column})"
+            return f"Enum: {self.object_name}{usage}"
+        return f"Table: {self.object_name}"
+
     def __str__(self):
-        return f"{self.project.name} → {self.table_name}"
+        return f"{self.project.name} → {self.object_label}"
 
 
 class TableMetadata(models.Model):
+    OBJECT_TYPE_CHOICES = [
+        ("table", "Table"),
+        ("enum", "Enum"),
+    ]
+
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="metadata"
     )
     table_name = models.CharField(max_length=255)
+    object_type = models.CharField(
+        max_length=16,
+        choices=OBJECT_TYPE_CHOICES,
+        default="table",
+    )
+    display_name = models.CharField(max_length=255, blank=True, default="")
+    source_table = models.CharField(max_length=255, blank=True, default="")
+    source_column = models.CharField(max_length=255, blank=True, default="")
 
     # AI-generated draft
     generated_metadata = models.JSONField()
@@ -140,10 +179,23 @@ class TableMetadata(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("project", "table_name")
+        unique_together = ("project", "table_name", "object_type")
+
+    @property
+    def object_name(self):
+        return self.display_name or self.table_name
+
+    @property
+    def object_label(self):
+        if self.object_type == "enum":
+            usage = ""
+            if self.source_table and self.source_column:
+                usage = f" ({self.source_table}.{self.source_column})"
+            return f"Enum: {self.object_name}{usage}"
+        return f"Table: {self.object_name}"
 
     def __str__(self):
-        return f"{self.project.name} - {self.table_name} ({self.status})"
+        return f"{self.project.name} - {self.object_label} ({self.status})"
 
 class Report(models.Model):
     project = models.ForeignKey(

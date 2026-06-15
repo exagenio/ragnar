@@ -17,12 +17,17 @@
         <div class="card">
             <div class="card__body form__section">
                 <div class="section__header">
-                    <h2 class="section__title">Table Description</h2>
+                    <h2 class="section__title">{% if metadata.object_type == "enum" %}Enum Description{% else %}Table Description{% endif %}</h2>
                 </div>
+                {% if metadata.object_type == "enum" %}
+                <textarea name="enum_description" rows="3">{{ metadata.generated_metadata.enum_description }}</textarea>
+                {% else %}
                 <textarea name="table_description" rows="3">{{ metadata.generated_metadata.table_description }}</textarea>
+                {% endif %}
             </div>
         </div>
 
+        {% if metadata.object_type != "enum" %}
         <div class="card">
             <div class="card__header">
                 <h2 class="card__title">Table Relationships</h2>
@@ -51,7 +56,39 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
+        {% if metadata.object_type == "enum" %}
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Enum Values</h2>
+            </div>
+            <div class="card__body stack stack--tight">
+                {% for enum_value in metadata.generated_metadata.enum_values %}
+                <div class="form__field">
+                    <label class="form__label">{{ enum_value.value }}</label>
+                    <textarea name="enum_value__{{ forloop.counter0 }}" rows="2">{{ enum_value.description }}</textarea>
+                    <textarea name="enum_usage_hint__{{ forloop.counter0 }}" rows="2">{{ enum_value.usage_hint }}</textarea>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Enum Usage Contexts</h2>
+            </div>
+            <div class="card__body stack stack--tight">
+                {% for usage in metadata.generated_metadata.usage_contexts %}
+                <div class="form__field">
+                    <label class="form__label">{{ usage.table_name }}.{{ usage.column_name }}</label>
+                    <p class="form__hint">Column type: {{ usage.column_type|default:"unknown" }}</p>
+                    <textarea name="usage_context__{{ forloop.counter0 }}" rows="2">{{ usage.description }}</textarea>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
         <div class="card">
             <div class="card__header">
                 <h2 class="card__title">Column Descriptions</h2>
@@ -63,6 +100,12 @@
                     {% if desc.semantic_role %}
                     <p class="form__hint">
                         Role: {{ desc.semantic_role }}
+                        {% if desc.data_type %}
+                        | Data type: {{ desc.data_type }}
+                        {% endif %}
+                        {% if desc.enum_name %}
+                        | Enum: {{ desc.enum_name }}
+                        {% endif %}
                         {% if desc.entity_type %}
                         | Entity type: {{ desc.entity_type }}
                         {% endif %}
@@ -80,6 +123,7 @@
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
 
         <div class="card">
             <div class="card__body form__section">

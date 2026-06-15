@@ -80,7 +80,7 @@ def select_tables(request, project_id):
 
     tables = manager.discover_tables(db_conn)
 
-    table_choices = [(t, t) for t in tables]
+    table_choices = [(item["value"], item["label"]) for item in tables]
 
     if request.method == "POST":
 
@@ -125,6 +125,7 @@ def column_introspection(request, project_id):
             "project": project,
             "schema_info": schema_info["tables"],
             "relationships": schema_info["relationships"],
+            "enums": schema_info.get("enums", []),
         },
     )
 
@@ -197,60 +198,100 @@ def review_metadata(request, project_id, table_name):
             )
 
         if action == "approve":
-
-            table_description = request.POST.get("table_description")
-
-            columns = {}
-            generated_columns = metadata_obj.generated_metadata.get("columns", {})
-            for col_name, col_data in generated_columns.items():
-                description = request.POST.get(f"column__{col_name}", "")
-
-                if isinstance(col_data, str):
-                    columns[col_name] = {
-                        "description": description,
-                        "semantic_role": "unknown",
-                        "entity_type": None,
-                        "relationships": [],
-                    }
-                    continue
-
-                columns[col_name] = {
-                    **col_data,
-                    "description": description,
-                }
-
-            table_relationships = []
-            generated_relationships = metadata_obj.generated_metadata.get(
-                "table_relationships",
-                [],
-            )
-            for index, relationship in enumerate(generated_relationships):
-                description = request.POST.get(
-                    f"relationship__{index}",
-                    relationship.get("description", ""),
-                )
-                table_relationships.append(
-                    {
-                        **relationship,
-                        "description": description,
-                    }
-                )
-
             confidence_notes_raw = request.POST.get("confidence_notes", "")
-
             confidence_notes = [
                 line.strip("- ").strip()
                 for line in confidence_notes_raw.splitlines()
                 if line.strip()
             ]
 
-            manager.approve_table_metadata(
-                metadata_obj,
-                table_description,
-                table_relationships,
-                columns,
-                confidence_notes,
-            )
+            if metadata_obj.object_type == "enum":
+                enum_description = request.POST.get("enum_description", "")
+                enum_values = []
+                for index, enum_value in enumerate(
+                    metadata_obj.generated_metadata.get("enum_values", [])
+                ):
+                    enum_values.append(
+                        {
+                            **enum_value,
+                            "description": request.POST.get(
+                                f"enum_value__{index}",
+                                enum_value.get("description", ""),
+                            ),
+                            "usage_hint": request.POST.get(
+                                f"enum_usage_hint__{index}",
+                                enum_value.get("usage_hint", ""),
+                            ),
+                        }
+                    )
+
+                usage_contexts = []
+                for index, usage in enumerate(
+                    metadata_obj.generated_metadata.get("usage_contexts", [])
+                ):
+                    usage_contexts.append(
+                        {
+                            **usage,
+                            "description": request.POST.get(
+                                f"usage_context__{index}",
+                                usage.get("description", ""),
+                            ),
+                        }
+                    )
+
+                approved_metadata = {
+                    "enum_description": enum_description,
+                    "enum_values": enum_values,
+                    "usage_contexts": usage_contexts,
+                    "confidence_notes": confidence_notes,
+                }
+            else:
+                table_description = request.POST.get("table_description")
+
+                columns = {}
+                generated_columns = metadata_obj.generated_metadata.get("columns", {})
+                for col_name, col_data in generated_columns.items():
+                    description = request.POST.get(f"column__{col_name}", "")
+
+                    if isinstance(col_data, str):
+                        columns[col_name] = {
+                            "description": description,
+                            "semantic_role": "unknown",
+                            "entity_type": None,
+                            "relationships": [],
+                        }
+                        continue
+
+                    columns[col_name] = {
+                        **col_data,
+                        "description": description,
+                    }
+
+                table_relationships = []
+                generated_relationships = metadata_obj.generated_metadata.get(
+                    "table_relationships",
+                    [],
+                )
+                for index, relationship in enumerate(generated_relationships):
+                    description = request.POST.get(
+                        f"relationship__{index}",
+                        relationship.get("description", ""),
+                    )
+                    table_relationships.append(
+                        {
+                            **relationship,
+                            "description": description,
+                        }
+                    )
+
+                approved_metadata = {
+                    "table_description": table_description,
+                    "table_relationships": table_relationships,
+                    "columns": columns,
+                    "confidence_notes": confidence_notes,
+                }
+
+            manager.approve_table_metadata(metadata_obj, approved_metadata)
 
             return redirect("project_detail", project_id=project.id)
 

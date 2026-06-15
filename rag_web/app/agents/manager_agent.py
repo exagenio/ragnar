@@ -72,21 +72,8 @@ class ManagerAgent:
     def start_metadata_generation(self, project):
         return self.metadata_agent.start_metadata_generation(project)
 
-    def approve_table_metadata(
-        self,
-        metadata_obj,
-        table_description,
-        table_relationships,
-        columns,
-        confidence_notes,
-    ):
-        return self.metadata_agent.approve_metadata(
-            metadata_obj,
-            table_description,
-            table_relationships,
-            columns,
-            confidence_notes,
-        )
+    def approve_table_metadata(self, metadata_obj, approved_metadata):
+        return self.metadata_agent.approve_metadata(metadata_obj, approved_metadata)
 
     def start_report(self, project, data):
         return self.content_agent.start_report(project, data)

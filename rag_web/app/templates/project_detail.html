@@ -30,9 +30,9 @@
     {% if not project.is_initialized %}
     <div class="notice notice--brand">
         <p class="notice__title">Project setup is not complete.</p>
-        <p>Please select tables to continue.</p>
+        <p>Please select tables and enums to continue.</p>
         <div class="page-actions">
-            <a href="{% url 'select_tables' project.id %}" class="button button--primary">Select Tables for This Project</a>
+            <a href="{% url 'select_tables' project.id %}" class="button button--primary">Select Tables and Enums</a>
         </div>
     </div>
     {% else %}
@@ -72,8 +72,8 @@
                 <li class="list__item">
                     <div class="list__row">
                         <div>
-                            <p class="list__title">{{ item.table_name }}</p>
-                            <p class="list__meta">Status: {{ item.status }}</p>
+                            <p class="list__title">{{ item.object_label }}</p>
+                            <p class="list__meta">Status: {{ item.status }} | Type: {{ item.get_object_type_display }}</p>
                         </div>
                         <a href="{% url 'review_metadata' project.id item.table_name %}" class="button button--ghost">Review</a>
                     </div>

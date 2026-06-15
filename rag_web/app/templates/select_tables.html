@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Select Tables{% endblock %}
+{% block title %}Select Schema Objects{% endblock %}
 
 {% block content %}
 <div class="page page--narrow stack">
     <div class="page-header">
         <div class="page-header__body">
-            <h1 class="page-header__title">Select Tables</h1>
+            <h1 class="page-header__title">Select Tables and Enums</h1>
             <p class="page-header__subtitle">Project: {{ project.name }}</p>
         </div>
     </div>
@@ -18,7 +18,7 @@
                 {{ form.as_p }}
 
                 <div class="form__actions">
-                    <button type="submit" class="button button--primary">Save Selected Tables</button>
+                    <button type="submit" class="button button--primary">Save Selected Schema Objects</button>
                 </div>
             </form>
         </div>

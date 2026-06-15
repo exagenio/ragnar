@@ -10,6 +10,9 @@ DEFAULT_METADATA_TYPES = [
     "table_relationship",
     "column",
     "column_relationship",
+    "enum_description",
+    "enum_value",
+    "enum_usage",
     "analytical_capability",
     "confidence_note",
 ]
@@ -20,7 +23,10 @@ TYPE_PRIORITY = {
     "analytical_capability": 2,
     "table_description": 3,
     "column": 4,
-    "confidence_note": 5,
+    "enum_description": 5,
+    "enum_usage": 6,
+    "enum_value": 7,
+    "confidence_note": 8,
 }
 
 
@@ -28,16 +34,26 @@ def get_selected_table_names(project):
     """Return selected table names for the project."""
 
     return list(
-        SelectedTable.objects.filter(project=project)
-        .order_by("created_at", "table_name")
-        .values_list("table_name", flat=True)
+        SelectedTable.objects.filter(project=project, object_type="table")
+        .order_by("created_at", "display_name", "table_name")
+        .values_list("display_name", flat=True)
+    )
+
+
+def get_selected_enum_names(project):
+    """Return selected enum names for the project."""
+
+    return list(
+        SelectedTable.objects.filter(project=project, object_type="enum")
+        .order_by("created_at", "display_name", "table_name")
+        .values_list("display_name", flat=True)
     )
 
 
 def get_dataset_mode(project):
     """Return whether the project uses a single-table or multi-table dataset."""
 
-    table_count = SelectedTable.objects.filter(project=project).count()
+    table_count = SelectedTable.objects.filter(project=project, object_type="table").count()
     if table_count <= 1:
         return "single_table"
     return "multi_table"
@@ -60,33 +76,41 @@ def retrieve_multi_table_metadata(
 
     vector_store = get_vector_store(backend=backend)
     selected_tables = get_selected_table_names(project)
+    selected_enums = get_selected_enum_names(project)
     dataset_mode = get_dataset_mode(project)
     selected_tables_text = " ".join(selected_tables)
+    selected_enums_text = " ".join(selected_enums)
 
     if dataset_mode == "multi_table":
         mode_specific_query = (
             f"{primary_query}\n"
             f"Selected tables: {selected_tables_text}\n"
+            f"Selected enums: {selected_enums_text}\n"
             "Focus on joins, foreign keys, relationship types, entity links, "
-            "time dimensions, measures, and cross-table analytical paths."
+            "time dimensions, measures, cross-table analytical paths, enum meanings, "
+            "status categories, and controlled categorical values."
         ).strip()
         default_supporting_query = (
             f"{selected_tables_text}\n"
+            f"{selected_enums_text}\n"
             "database schema relationships joins foreign keys one-to-many "
-            "many-to-many one-to-one analytical capabilities"
+            "many-to-many one-to-one analytical capabilities enums categories statuses"
         ).strip()
     else:
         mode_specific_query = (
             f"{primary_query}\n"
             f"Selected table: {selected_tables_text}\n"
+            f"Selected enums: {selected_enums_text}\n"
             "Focus on the business meaning of this table, its measures, "
             "dimensions, time fields, identifiers, and analytical capabilities. "
-            "Do not force join logic when no related tables are selected."
+            "Do not force join logic when no related tables are selected. "
+            "Use enum metadata to understand valid statuses, stages, flags, and category meanings."
         ).strip()
         default_supporting_query = (
             f"{selected_tables_text}\n"
+            f"{selected_enums_text}\n"
             "single table dataset business entities measures dimensions "
-            "time columns identifiers analytical capabilities"
+            "time columns identifiers analytical capabilities enums categories statuses"
         ).strip()
 
     query_bundle = [
@@ -119,6 +143,8 @@ def retrieve_multi_table_metadata(
             metadata.get("column"),
             metadata.get("related_table"),
             metadata.get("related_column"),
+            metadata.get("enum_name"),
+            metadata.get("enum_value"),
             doc.page_content,
         )
         if key in seen:
@@ -129,7 +155,7 @@ def retrieve_multi_table_metadata(
     unique_docs.sort(
         key=lambda doc: (
             TYPE_PRIORITY.get(doc.metadata.get("type"), 99),
-            doc.metadata.get("table_name", ""),
+            doc.metadata.get("table_name", "") or doc.metadata.get("enum_name", ""),
             doc.metadata.get("column", ""),
         )
     )
@@ -150,17 +176,26 @@ def build_retrieved_context(metadata_context) -> str:
 
     for item in metadata_context:
         metadata = item.get("metadata", {})
-        table = metadata.get("table_name") or metadata.get("related_table") or "schema"
-        grouped.setdefault(table, []).append(item)
+        group_name = (
+            metadata.get("table_name")
+            or metadata.get("enum_name")
+            or metadata.get("related_table")
+            or "schema"
+        )
+        grouped.setdefault(group_name, []).append(item)
 
     output = []
-    for table, items in grouped.items():
-        output.append(f"### Table: {table}")
+    for group_name, items in grouped.items():
+        output.append(f"### Schema Object: {group_name}")
         for item in items:
             metadata = item.get("metadata", {})
             output.append(f"- Type: {metadata.get('type')}")
             if metadata.get("column"):
                 output.append(f"  Column: {metadata['column']}")
+            if metadata.get("enum_name"):
+                output.append(f"  Enum: {metadata['enum_name']}")
+            if metadata.get("enum_value"):
+                output.append(f"  Enum value: {metadata['enum_value']}")
             if metadata.get("related_table"):
                 relation_line = f"  Related table: {metadata['related_table']}"
                 if metadata.get("related_column"):

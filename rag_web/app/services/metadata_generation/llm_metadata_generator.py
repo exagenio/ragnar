@@ -18,6 +18,7 @@ from app.agents.rate_limiter import rate_limiter
 
 
 PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "table_metadata_prompt.txt"
+ENUM_PROMPT_PATH = settings.BASE_DIR / "app" / "prompts" / "enum_metadata_prompt.txt"
 
 
 def make_json_safe(value):
@@ -96,6 +97,60 @@ def generate_table_metadata(
     content = response.content
 
     # Handle structured and plain responses
+    if isinstance(content, list):
+        if isinstance(content[0], dict) and "text" in content[0]:
+            raw_output = content[0]["text"].strip()
+        else:
+            raw_output = str(content[0]).strip()
+    else:
+        raw_output = content.strip()
+
+    try:
+        return extract_json_from_text(raw_output)
+    except Exception as e:
+        return {
+            "error": "LLM output was not valid JSON",
+            "raw_output": raw_output,
+            "exception": str(e),
+        }
+
+
+def generate_enum_metadata(
+    *,
+    project=None,
+    enum_name: str,
+    enum_values: list,
+    usage_contexts: list,
+    selected_tables_schema: list,
+    backend: LLMBackend | None = None,
+):
+    """Generate enum metadata"""
+
+    backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
+    prompt_template = ENUM_PROMPT_PATH.read_text(encoding="utf-8")
+
+    prompt = prompt_template
+    prompt = prompt.replace("{{enum_name}}", enum_name)
+    prompt = prompt.replace("{{enum_values}}", json.dumps(enum_values, indent=2))
+    prompt = prompt.replace("{{usage_contexts}}", json.dumps(usage_contexts, indent=2))
+    prompt = prompt.replace(
+        "{{selected_tables_schema}}",
+        json.dumps(selected_tables_schema, indent=2),
+    )
+
+    llm = get_llm(
+        backend=backend,
+        model_size=ModelSize.SMALL,
+        temperature=0,
+        project=project,
+    )
+
+    estimated_tokens = len(prompt) // 4
+    rate_limiter.consume(estimated_tokens)
+
+    response = llm.invoke(prompt)
+    content = response.content
+
     if isinstance(content, list):
         if isinstance(content[0], dict) and "text" in content[0]:
             raw_output = content[0]["text"].strip()

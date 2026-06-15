@@ -244,7 +244,7 @@ class ProjectLLMSettingsForm(ProjectLLMSettingsBaseForm):
 class TableSelectionForm(forms.Form):
     tables = forms.MultipleChoiceField(
         widget=forms.CheckboxSelectMultiple,
-        label="Select Tables for This Project",
+        label="Select Tables and Enums for This Project",
     )
 
     def __init__(self, *args, **kwargs):
