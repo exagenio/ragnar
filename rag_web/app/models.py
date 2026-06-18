@@ -125,7 +125,12 @@ class SelectedTable(models.Model):
 
     @property
     def object_name(self):
-        return self.display_name or self.table_name
+        raw_name = self.display_name or self.table_name
+        if raw_name.startswith("table__"):
+            return raw_name.split("__", 1)[1]
+        if raw_name.startswith("enum__"):
+            return raw_name.split("__", 1)[1]
+        return raw_name
 
     @property
     def object_label(self):
@@ -183,7 +188,12 @@ class TableMetadata(models.Model):
 
     @property
     def object_name(self):
-        return self.display_name or self.table_name
+        raw_name = self.display_name or self.table_name
+        if raw_name.startswith("table__"):
+            return raw_name.split("__", 1)[1]
+        if raw_name.startswith("enum__"):
+            return raw_name.split("__", 1)[1]
+        return raw_name
 
     @property
     def object_label(self):

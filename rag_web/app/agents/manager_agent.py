@@ -227,12 +227,12 @@ class ManagerAgent:
 
     def _topic_pipeline_workers_for_project(self, project):
         if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 1
+            return 2
         return 2
 
     def _visual_pipeline_workers_for_project(self, project):
         if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 1
+            return 2
         return 2
 
     def _run_topic_pipeline_with_retry(

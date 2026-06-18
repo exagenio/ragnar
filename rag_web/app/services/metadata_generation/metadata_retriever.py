@@ -33,21 +33,21 @@ TYPE_PRIORITY = {
 def get_selected_table_names(project):
     """Return selected table names for the project."""
 
-    return list(
-        SelectedTable.objects.filter(project=project, object_type="table")
+    return [
+        selected.object_name
+        for selected in SelectedTable.objects.filter(project=project, object_type="table")
         .order_by("created_at", "display_name", "table_name")
-        .values_list("display_name", flat=True)
-    )
+    ]
 
 
 def get_selected_enum_names(project):
     """Return selected enum names for the project."""
 
-    return list(
-        SelectedTable.objects.filter(project=project, object_type="enum")
+    return [
+        selected.object_name
+        for selected in SelectedTable.objects.filter(project=project, object_type="enum")
         .order_by("created_at", "display_name", "table_name")
-        .values_list("display_name", flat=True)
-    )
+    ]
 
 
 def get_dataset_mode(project):
