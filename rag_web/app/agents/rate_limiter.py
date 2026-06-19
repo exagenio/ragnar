@@ -10,6 +10,10 @@ class TokenRateLimiter:
         """Initialize rate limiter"""
         self.max_tokens = max_tokens_per_minute
         self.max_requests = max_requests_per_minute
+        try:
+            self.poll_seconds = float(os.getenv("LLM_RATE_LIMIT_POLL_SECONDS", "0.05"))
+        except (TypeError, ValueError):
+            self.poll_seconds = 0.05
         self.tokens_used = 0
         self.requests_used = 0
         self.lock = threading.Lock()
@@ -35,7 +39,7 @@ class TokenRateLimiter:
                     self.requests_used += requests
                     return
 
-            time.sleep(0.2)
+            time.sleep(self.poll_seconds)
 
 
 rate_limiter = TokenRateLimiter(

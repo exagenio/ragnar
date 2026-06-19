@@ -10,6 +10,25 @@
             <p class="page-header__subtitle">{{ subsection.title }}</p>
         </div>
         <div class="button-group">
+            {% if has_auto_generated_topics and not subsection.is_generating %}
+            <form
+                method="post"
+                action="{% url 'trigger_auto_generate_subsection' project.id report.id subsection.id %}"
+                onsubmit="return confirm('This will delete the existing generated topics, analysis plans, topic content, visuals, and subsection content before starting auto generation again. Continue?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="re_auto_generate">
+                <button type="submit" class="button button--accent">Re Auto Generate</button>
+            </form>
+            {% elif subsection.is_generating %}
+            <button disabled class="button button--secondary">Generating</button>
+            {% else %}
+            <button
+                disabled
+                class="button button--secondary"
+                title="Available after this subsection has been generated with Auto Generate.">
+                Re Auto Generate
+            </button>
+            {% endif %}
             {% if all_topics_have_content %}
             <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="button button--primary">Generate Subsection Content</a>
             {% else %}

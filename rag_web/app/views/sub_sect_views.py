@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404
 from app.models import (
+    BackgroundTask,
     Project,
     Report,
     Section,
@@ -139,6 +140,13 @@ def view_topics(request, project_id, report_id, subsection_id):
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
 
     topics = subsection.topics.filter(is_approved=True)
+    has_auto_generated_topics = (
+        topics.exists()
+        and BackgroundTask.objects.filter(
+            topic__in=topics,
+            task_type="topic_pipeline",
+        ).exists()
+    )
 
     # Check if all topics have generated content
     all_topics_have_content = all(
@@ -155,5 +163,6 @@ def view_topics(request, project_id, report_id, subsection_id):
             "subsection": subsection,
             "topics": topics,
             "all_topics_have_content": all_topics_have_content,
+            "has_auto_generated_topics": has_auto_generated_topics,
         },
     )

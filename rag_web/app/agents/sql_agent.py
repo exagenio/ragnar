@@ -1,4 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
+import os
+
+from django.db import close_old_connections, connections
 
 from app.services.metadata_generation.schema_context_builder import build_schema_context
 from app.services.metadata_generation.metadata_retriever import retrieve_multi_table_metadata
@@ -13,6 +16,19 @@ from app.services.sql_gen.sql_result_interpreter import interpret_sql_result
 
 
 class SQLAgent:
+
+    def _read_worker_count(self, env_name, default):
+        try:
+            return max(1, int(os.getenv(env_name, str(default))))
+        except (TypeError, ValueError):
+            return default
+
+    def _run_with_db_connection_cleanup(self, func, *args, **kwargs):
+        close_old_connections()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            connections.close_all()
 
     def build_schema_context(self, project):
         """Build schema context"""
@@ -90,14 +106,12 @@ class SQLAgent:
 
         schema_context = self.build_schema_context(project)
 
-        results = []
-
-        max_workers = 2  
+        max_workers = self._read_worker_count("SQL_PLACEHOLDER_WORKERS", 3)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-
             futures = [
                 executor.submit(
+                    self._run_with_db_connection_cleanup,
                     self._process_single_placeholder,
                     project=project,
                     topic=topic,
@@ -106,40 +120,54 @@ class SQLAgent:
                 )
                 for p in placeholders
             ]
-
-        results = [future.result() for future in futures]
+            results = [future.result() for future in futures]
 
 
         # LLM insight generation for batched results
-        batch_size = 2
+        batch_size = self._read_worker_count("SQL_INSIGHT_BATCH_SIZE", 2)
+        insight_workers = self._read_worker_count("SQL_INSIGHT_WORKERS", 2)
         final_results = []
+        batches = [
+            results[i:i + batch_size]
+            for i in range(0, len(results), batch_size)
+        ]
+        ordered_batches = [None] * len(batches)
 
-        for i in range(0, len(results), batch_size):
-
-            batch = results[i:i+batch_size]
-
-            try:
-                interpreted = interpret_sql_result(
-                    project=project,
-                    placeholders=batch,
+        with ThreadPoolExecutor(max_workers=insight_workers) as executor:
+            futures = [
+                (
+                    index,
+                    batch,
+                    executor.submit(
+                        self._run_with_db_connection_cleanup,
+                        self._interpret_placeholder_batch,
+                        project=project,
+                        batch=batch,
+                    ),
                 )
+                for index, batch in enumerate(batches)
+            ]
 
-                mapping = {
-                    str(r["id"]).strip(): r["insights"]
-                    for r in interpreted.get("results", [])
-                }
+            for index, batch, future in futures:
+                try:
+                    mapping = future.result()
 
-                for p in batch:
-                    pid = str(p.get("content", {}).get("id")).strip()
+                    for p in batch:
+                        query_data = p.setdefault("content", {}).setdefault("query", {})
+                        pid = str(p.get("content", {}).get("id")).strip()
 
-                    if pid in mapping:
-                        p["content"]["query"]["insights"] = mapping[pid]
-                        p["content"]["query"].pop("result", None)
+                        if pid in mapping:
+                            query_data["insights"] = mapping[pid]
+                            query_data.pop("result", None)
 
-            except Exception as e:
-                print(f"[INSIGHT ERROR] {str(e)}")
+                except Exception as e:
+                    print(f"[INSIGHT ERROR] {str(e)}")
 
-            final_results.extend(batch)
+                ordered_batches[index] = batch
+
+        for batch in ordered_batches:
+            if batch:
+                final_results.extend(batch)
 
 
         # Save computed results back
@@ -149,6 +177,17 @@ class SQLAgent:
         topic_content_obj.save()
         print("[SQL Calculation ] generateda and computed all the numerical values for the content")
         return topic_content_obj
+
+    def _interpret_placeholder_batch(self, *, project, batch):
+        interpreted = interpret_sql_result(
+            project=project,
+            placeholders=batch,
+        )
+
+        return {
+            str(r["id"]).strip(): r["insights"]
+            for r in interpreted.get("results", [])
+        }
 
     def _process_single_placeholder(
         self,

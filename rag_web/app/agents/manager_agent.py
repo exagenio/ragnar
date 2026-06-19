@@ -1,8 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
+import os
 import threading
 import time
 import traceback
 
+from django.db import close_old_connections, connections
 from django.utils.timezone import now
 
 from app.agents.content_agent import ContentAgent
@@ -10,7 +12,9 @@ from app.agents.metadata_agent import MetadataAgent
 from app.agents.sql_agent import SQLAgent
 from app.agents.visual_Agent import VisualAgent
 from app.models import (
+    SectionContent,
     SubSectionGenerateTime,
+    SubSectionContent,
     TopicContent,
     TopicGenerateTime,
 )
@@ -178,6 +182,22 @@ class ManagerAgent:
         if task_id:
             log_background_task(task_id, message, level=level)
 
+    def _run_with_db_connection_cleanup(self, func, *args, **kwargs):
+        close_old_connections()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            connections.close_all()
+
+    def _run_subsection_pipeline_thread(self, project, report, subsection, task_id=None):
+        return self._run_with_db_connection_cleanup(
+            self._run_subsection_pipeline,
+            project,
+            report,
+            subsection,
+            task_id,
+        )
+
     def trigger_subsection_auto_generation(self, project, report, subsection):
         if subsection.is_generating:
             print("[AUTO] Subsection already generating")
@@ -201,12 +221,27 @@ class ManagerAgent:
         )
 
         thread = threading.Thread(
-            target=self._run_subsection_pipeline,
+            target=self._run_subsection_pipeline_thread,
             args=(project, report, subsection, task.id),
             daemon=True,
         )
         thread.start()
         return task
+
+    def reset_subsection_generated_data(self, subsection):
+        subsection.topics.all().delete()
+        SubSectionContent.objects.filter(subsection=subsection).delete()
+        SectionContent.objects.filter(section=subsection.section).delete()
+        subsection.is_topics_approved = False
+        subsection.is_generating = False
+        subsection.save(update_fields=["is_topics_approved", "is_generating"])
+
+    def re_auto_generate_subsection(self, project, report, subsection):
+        if subsection.is_generating:
+            return None
+
+        self.reset_subsection_generated_data(subsection)
+        return self.trigger_subsection_auto_generation(project, report, subsection)
 
     def delete_topic_with_dependencies(self, topic):
         return self.content_agent.delete_topic_with_dependencies(topic)
@@ -226,14 +261,22 @@ class ManagerAgent:
         return any(marker in message for marker in retry_markers)
 
     def _topic_pipeline_workers_for_project(self, project):
-        if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 2
-        return 2
+        default = 2 if getattr(project, "llm_provider", "") == "vertex_ai" else 3
+        return self._read_worker_count("TOPIC_PIPELINE_WORKERS", default)
 
     def _visual_pipeline_workers_for_project(self, project):
-        if getattr(project, "llm_provider", "") == "vertex_ai":
-            return 2
-        return 2
+        default = 2 if getattr(project, "llm_provider", "") == "vertex_ai" else 3
+        return self._read_worker_count("VISUAL_PIPELINE_WORKERS", default)
+
+    def _visual_repair_workers_for_project(self, project):
+        default = 2 if getattr(project, "llm_provider", "") == "vertex_ai" else 3
+        return self._read_worker_count("VISUAL_REPAIR_WORKERS", default)
+
+    def _read_worker_count(self, env_name, default):
+        try:
+            return max(1, int(os.getenv(env_name, str(default))))
+        except (TypeError, ValueError):
+            return default
 
     def _run_topic_pipeline_with_retry(
         self,
@@ -362,6 +405,7 @@ class ManagerAgent:
                     )
                     futures.append(
                         executor.submit(
+                            self._run_with_db_connection_cleanup,
                             self._run_topic_pipeline_with_retry,
                             project,
                             report,
@@ -577,6 +621,7 @@ class ManagerAgent:
 
                         tasks.append(
                             executor.submit(
+                                self._run_with_db_connection_cleanup,
                                 self._process_visual_block_pipeline,
                                 project,
                                 report,
@@ -711,21 +756,38 @@ class ManagerAgent:
             formatted_blocks = build_prompt_blocks(blocks, decode_sql_result)
             chunks = build_block_chunks(formatted_blocks, chunk_size=6)
             all_updates = []
+            ordered_updates = [None] * len(chunks)
 
-            for chunk in chunks:
-                try:
-                    updates = repair_content_chunk(
-                        project=project,
-                        blocks_chunk=chunk,
+            with ThreadPoolExecutor(
+                max_workers=self._visual_repair_workers_for_project(project)
+            ) as executor:
+                futures = [
+                    (
+                        index,
+                        executor.submit(
+                            self._run_with_db_connection_cleanup,
+                            repair_content_chunk,
+                            project=project,
+                            blocks_chunk=chunk,
+                        ),
                     )
+                    for index, chunk in enumerate(chunks)
+                ]
+
+                for index, future in futures:
+                    try:
+                        ordered_updates[index] = future.result()
+                    except Exception as exc:
+                        self._emit_task_log(
+                            task_id,
+                            f"[REPAIR ERROR] Topic {topic.id}: {exc}",
+                            level="warning",
+                        )
+                        traceback.print_exc()
+
+            for updates in ordered_updates:
+                if updates:
                     all_updates.extend(updates)
-                except Exception as exc:
-                    self._emit_task_log(
-                        task_id,
-                        f"[REPAIR ERROR] Topic {topic.id}: {exc}",
-                        level="warning",
-                    )
-                    traceback.print_exc()
 
             section["content_blocks"] = apply_repaired_blocks(blocks, all_updates)
 

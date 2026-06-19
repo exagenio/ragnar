@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404
 from app.models import (
+    BackgroundTask,
     Project,
     Report,
     Section,
@@ -189,7 +190,43 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
 
     project = get_object_or_404(Project, id=project_id)
     report = get_object_or_404(Report, id=report_id)
-    subsection = get_object_or_404(SubSection, id=subsection_id)
+    subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
+
+    if request.POST.get("action") == "re_auto_generate":
+        has_auto_generated_topics = (
+            subsection.topics.exists()
+            and BackgroundTask.objects.filter(
+                topic__subsection=subsection,
+                task_type="topic_pipeline",
+            ).exists()
+        )
+
+        if not has_auto_generated_topics:
+            messages.warning(
+                request,
+                "Re auto generation is available only after auto generation has created topics for this subsection.",
+            )
+            return redirect(
+                "view_topics",
+                project_id=project_id,
+                report_id=report_id,
+                subsection_id=subsection_id,
+            )
+
+        started = manager.re_auto_generate_subsection(project, report, subsection)
+        if started:
+            messages.success(
+                request,
+                "Existing generated data was reset. Re auto generation started in the background.",
+            )
+        else:
+            messages.info(request, "This subsection is already generating.")
+
+        return redirect(
+            "subtopic_dashboard",
+            project_id=project_id,
+            report_id=report_id,
+        )
 
     started = manager.trigger_subsection_auto_generation(
         project,
