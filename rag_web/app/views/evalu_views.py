@@ -6,6 +6,7 @@ from django.urls import reverse
 from app.models import (
     Project,
     Report,
+    Topic,
     TopicReadability,
     ReportEvaluation,
     TopicEvaluation
@@ -14,7 +15,10 @@ from app.services.evaluation.evaluation_service import evaluate_project
 from app.services.evaluation.readability_service import evaluate_project_readability
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
-from app.services.evaluation.geval_evaluation_service import evaluate_project_geval
+from app.services.evaluation.geval_evaluation_service import (
+    evaluate_and_save_topic_geval,
+    evaluate_project_geval,
+)
 from app.services.evaluation.evaluation_doc_generator import generate_evaluation_document
 
 def evaluation_dashboard_view(request, project_id):
@@ -53,6 +57,25 @@ def evaluation_dashboard_view(request, project_id):
 
                 return redirect(
                     f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
+                )
+
+            if action == "reevaluate_geval_topic":
+                topic_id = request.POST.get("topic_id")
+                topic = get_object_or_404(
+                    Topic,
+                    id=topic_id,
+                    subsection__section__report_id=report_id,
+                )
+                report = get_object_or_404(Report, id=report_id, project=project)
+                result = evaluate_and_save_topic_geval(project, report, topic)
+
+                if result:
+                    messages.success(request, f"GEval re-evaluated topic: {topic.title}")
+                else:
+                    messages.warning(request, f"GEval could not evaluate topic: {topic.title}")
+
+                return redirect(
+                    f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type=geval"
                 )
 
             # SWITCH ENGINE
@@ -95,10 +118,14 @@ def evaluation_dashboard_view(request, project_id):
 
             for eval_obj in topic_evals:
 
-                if eval_type == "g-eval":
+                if eval_type == "geval":
                     scores = eval_obj.geval_scores or {}
+                    summary = eval_obj.geval_summary
+                    issues = eval_obj.geval_issues or []
                 else:
                     scores = eval_obj.scores or {}
+                    summary = eval_obj.summary
+                    issues = eval_obj.issues or []
 
                 correctness = float(scores.get("correctness", 0))
                 relevance = float(scores.get("relevance", 0))
@@ -114,6 +141,8 @@ def evaluation_dashboard_view(request, project_id):
 
                 eval_obj.overall_score = round(overall, 2)
                 eval_obj.display_scores = scores
+                eval_obj.display_summary = summary
+                eval_obj.display_issues = issues
 
                 # collect for project aggregation
                 project_overall_scores.append(overall)

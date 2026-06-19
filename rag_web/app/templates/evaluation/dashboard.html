@@ -38,7 +38,7 @@
 
                 <select name="eval_type">
                     <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>OpenEval</option>
-                    <option value="geval" {% if eval_type == "g-eval" %}selected{% endif %}>GEval</option>
+                    <option value="geval" {% if eval_type == "geval" %}selected{% endif %}>GEval</option>
                 </select>
 
                 <button type="submit" class="button button--primary">Run Evaluation</button>
@@ -52,7 +52,7 @@
             <h2 class="section__title">Overall Report Score</h2>
         </div>
 
-        {% if eval_type == "g-eval" and geval_project_summary %}
+        {% if eval_type == "geval" and geval_project_summary %}
         <div class="card__body grid grid--3">
             <div class="metric-card">
                 <p class="metric-card__label">Overall</p>
@@ -110,6 +110,10 @@
                             <th>Correctness</th>
                             <th>Relevance</th>
                             <th>Conciseness</th>
+                            <th>Summary</th>
+                            {% if eval_type == "geval" %}
+                            <th>Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -121,10 +125,23 @@
                             <td>{{ eval.display_scores.correctness|default:"-" }}</td>
                             <td>{{ eval.display_scores.relevance|default:"-" }}</td>
                             <td>{{ eval.display_scores.conciseness|default:"-" }}</td>
+                            <td>{{ eval.display_summary|default:"-" }}</td>
+                            {% if eval_type == "geval" %}
+                            <td>
+                                <form method="post" class="form__actions">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="report_id" value="{{ selected_report.id }}">
+                                    <input type="hidden" name="eval_type" value="geval">
+                                    <input type="hidden" name="action" value="reevaluate_geval_topic">
+                                    <input type="hidden" name="topic_id" value="{{ eval.topic.id }}">
+                                    <button type="submit" class="button button--secondary">Reevaluate</button>
+                                </form>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6">No data</td>
+                            <td colspan="{% if eval_type == 'geval' %}8{% else %}7{% endif %}">No data</td>
                         </tr>
                         {% endfor %}
                     </tbody>
