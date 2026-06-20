@@ -272,18 +272,28 @@ The example file at `rag_web/.env.example` includes:
 
 Ragnar can use Ollama as a local model provider if Ollama is installed and running on your machine.
 
-Install Ollama from:
+### 1. Install Ollama
+
+Download and install Ollama from the official website:
 
 ```text
 https://ollama.com/download
 ```
 
-Start Ollama, then pull the local models you want to use. For example:
+After installation, verify that Ollama is available:
 
 ```bash
-ollama pull llama3.1:8b
-ollama pull llama3.2:3b
-ollama pull nomic-embed-text
+ollama --version
+```
+
+### 2. Start the Ollama Server
+
+On Windows and macOS, the Ollama desktop app usually starts the local server automatically.
+
+If you need to start it manually, run:
+
+```bash
+ollama serve
 ```
 
 The default local Ollama server URL is:
@@ -292,7 +302,75 @@ The default local Ollama server URL is:
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-When creating or editing a project, choose **Ollama (Local)** as the model provider, then select one of the available Llama chat models and an Ollama embedding model.
+Keep this value in `rag_web/.env` unless your Ollama server runs at a different address.
+
+### 3. Pull the Required Chat Models
+
+Ragnar's Ollama provider includes these Llama chat model options:
+
+- `llama3.1:8b`
+- `llama3.1:70b`
+- `llama3.2:1b`
+- `llama3.2:3b`
+- `llama3.3:70b`
+
+Pull the models you want to use. For a lightweight local setup, start with:
+
+```bash
+ollama pull llama3.1:8b
+ollama pull llama3.2:3b
+```
+
+If your machine has enough memory, you can also pull the larger models:
+
+```bash
+ollama pull llama3.1:70b
+ollama pull llama3.3:70b
+```
+
+### 4. Pull an Embedding Model
+
+Ragnar also needs an embedding model for metadata vector storage and retrieval when using Ollama.
+
+Recommended:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Other supported embedding model options:
+
+```bash
+ollama pull mxbai-embed-large
+ollama pull all-minilm
+```
+
+### 5. Test Ollama Locally
+
+Test a chat model:
+
+```bash
+ollama run llama3.1:8b
+```
+
+Then type a short prompt, confirm it responds, and exit with `/bye`.
+
+List installed models:
+
+```bash
+ollama list
+```
+
+### 6. Select Ollama in Ragnar
+
+When creating or editing a project:
+
+1. Set **Model Provider** to **Ollama (Local)**.
+2. Select a primary Llama model.
+3. Select a secondary Llama model.
+4. Select an Ollama embedding model such as `nomic-embed-text`.
+
+If you change the embedding model after metadata has already been generated, regenerate or re-approve metadata so the stored vector embeddings match the selected embedding model.
 
 ## Run Database Migrations
 
