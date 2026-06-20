@@ -5,7 +5,7 @@ Ragnar is a Django-based RAG report generation project. It uses PostgreSQL for t
 ## Prerequisites
 
 - Git
-- Python 3.11 or newer
+- Python 3.12 or newer
 - Docker
 - PostgreSQL client tools are optional, but useful for checking databases manually
 
@@ -13,7 +13,7 @@ Ragnar is a Django-based RAG report generation project. It uses PostgreSQL for t
 
 ```bash
 git clone https://github.com/exagenio/ragnar.git
-cd ragnar_web
+cd ragnar
 ```
 
 ## Create and Activate a Virtual Environment
@@ -34,23 +34,14 @@ source .venv/bin/activate
 
 ## Install Required Packages
 
-This repository currently does not include a `requirements.txt`, so install the packages used by the project directly:
+Install the Python dependencies from the project requirements file:
 
 ```bash
-pip install django psycopg psycopg2-binary python-dotenv cryptography python-docx plotly pandas textstat sentence-transformers deepeval openevals langchain-core langchain-postgres langchain-google-vertexai langchain-google-genai langchain-ollama langchain-openrouter
-```
-
-After the dependencies are finalized, you can save them with:
-
-```bash
-pip freeze > requirements.txt
-```
-
-Future setup can then use:
-
-```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+If new packages are added during development, update `requirements.txt` so future setups install the same dependencies.
 
 ## Main Project Database Setup
 
@@ -102,81 +93,94 @@ Enable the vector extension:
 docker exec -it ragnar-vector-db psql -U vector_user -d rag_vector_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-## Vertex AI Setup Without API Keys
+## Vertex AI Setup With Google Cloud CLI
 
-This project can use Vertex AI for LLM and embedding models through Google Cloud Application Default Credentials (ADC). With ADC, your local machine authenticates through Google Cloud credentials, so the Vertex AI libraries can access models without storing a Google API key in the project.
+This project can use Vertex AI for LLM and embedding models through Google Cloud Application Default Credentials (ADC). ADC lets the Python client libraries authenticate with your local Google Cloud credentials, so you do not need to store a Vertex AI API key in the project.
 
-### 1. Create or Select a Google Cloud Project
+Use this flow for local development.
 
-1. Open the Google Cloud Console.
-2. Use the project selector at the top of the dashboard.
-3. Create a new project or select an existing project.
-4. Make sure billing is enabled for the selected project.
-5. Copy the project ID. You will use it as `VERTEX_AI_PROJECT`.
+### 1. Install the Google Cloud CLI
 
-### 2. Enable the Vertex AI API
-
-From the Google Cloud Console:
-
-1. Go to **APIs & Services**.
-2. Open **Library**.
-3. Search for **Vertex AI API**.
-4. Open the Vertex AI API page.
-5. Click **Enable**.
-
-Or enable it from the terminal:
-
-```bash
-gcloud services enable aiplatform.googleapis.com --project YOUR_PROJECT_ID
-```
-
-### 3. Configure IAM Permissions
-
-The Google account you use locally must have permission to call Vertex AI in the selected project.
-
-For local development, add this role:
-
-```text
-Vertex AI User
-```
-
-From the Google Cloud Console:
-
-1. Go to **IAM & Admin**.
-2. Open **IAM**.
-3. Find your Google account, or click **Grant access**.
-4. Add the **Vertex AI User** role.
-5. Save the change.
-
-If your account also needs to manage APIs, IAM, or billing, your Google Cloud administrator may need to grant additional permissions.
-
-### 4. Install and Initialize Google Cloud CLI
-
-Install the Google Cloud CLI:
+Install the Google Cloud CLI from the official Google documentation:
 
 ```text
 https://cloud.google.com/sdk/docs/install
 ```
 
-Initialize it:
+After installation, confirm that `gcloud` is available:
+
+```bash
+gcloud --version
+```
+
+### 2. Initialize gcloud and Select a Project
+
+Run:
 
 ```bash
 gcloud init
 ```
 
-During initialization:
+During the prompts:
 
-1. Sign in with the Google account that has Vertex AI access.
-2. Select the Google Cloud project you created or selected.
-3. Set the default region if prompted.
+1. Sign in with the Google account you want to use for Vertex AI.
+2. Select an existing Google Cloud project, or create one if needed.
+3. Make sure billing is enabled for the selected project.
 
-You can manually set the project later:
+If you already know your project ID, you can set it directly:
 
 ```bash
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-### 5. Authenticate Locally With Application Default Credentials
+Verify the active project:
+
+```bash
+gcloud config get-value project
+```
+
+### 3. Enable the Vertex AI API
+
+Enable Vertex AI for the selected project:
+
+```bash
+gcloud services enable aiplatform.googleapis.com --project YOUR_PROJECT_ID
+```
+
+Verify that the API is enabled:
+
+```bash
+gcloud services list --enabled --project YOUR_PROJECT_ID --filter="aiplatform.googleapis.com"
+```
+
+If this command fails with a permission error, ask a Google Cloud administrator to enable the API or grant you a role that can enable services, such as Service Usage Admin.
+
+### 4. Grant Local Development IAM Roles
+
+The Google account used locally must be allowed to call Vertex AI and use the project for client-library quota and billing.
+
+If you have permission to manage IAM, grant these roles to your user:
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="user:YOUR_EMAIL_ADDRESS" \
+  --role="roles/aiplatform.user"
+```
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="user:YOUR_EMAIL_ADDRESS" \
+  --role="roles/serviceusage.serviceUsageConsumer"
+```
+
+If you do not have permission to change IAM, ask your Google Cloud administrator to grant:
+
+- `Vertex AI User`
+- `Service Usage Consumer`
+
+### 5. Create Application Default Credentials
+
+`gcloud init` authenticates the CLI itself. Python client libraries also need Application Default Credentials.
 
 Run:
 
@@ -184,7 +188,7 @@ Run:
 gcloud auth application-default login
 ```
 
-This opens a browser sign-in flow and stores local ADC credentials on your machine. Python packages such as `langchain-google-vertexai` can then find those credentials automatically.
+This opens a browser sign-in flow and stores ADC credentials on your machine.
 
 Set the ADC quota project:
 
@@ -192,18 +196,20 @@ Set the ADC quota project:
 gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 ```
 
-Verify your active Google Cloud account:
+The quota project is used by Google client libraries for billing and quota. The account must have `serviceusage.services.use` permission on the project, which is provided by the `Service Usage Consumer` role.
+
+Verify ADC can produce an access token:
 
 ```bash
-gcloud auth list
+gcloud auth application-default print-access-token
 ```
 
-### 6. Configure This Project for Vertex AI
+### 6. Configure Ragnar
 
 In `rag_web/.env`, set:
 
 ```env
-VERTEX_AI_PROJECT=your_google_cloud_project_id
+VERTEX_AI_PROJECT=YOUR_PROJECT_ID
 VERTEX_AI_LOCATION=us-central1
 ```
 
@@ -215,17 +221,11 @@ If you want the app to use the cloud LLM backend by default, keep this setting i
 DEFAULT_LLM_BACKEND = "cloud"
 ```
 
-### 7. Google Cloud Policy Rule Notes
+### 7. Optional: Service Account Impersonation
 
-Some Google Cloud organizations enforce security policies that can affect setup:
+Some Google Cloud organizations block service account key creation. That is fine for this setup because local ADC does not require downloading service account JSON keys.
 
-- `iam.disableServiceAccountKeyCreation`: prevents creating downloadable service account JSON keys.
-- `iam.disableServiceAccountCreation`: prevents creating new service accounts.
-- Newer Google Cloud organizations may have service account key creation disabled by default.
-
-For this local development setup, avoid service account JSON keys unless your organization specifically requires them. Application Default Credentials with `gcloud auth application-default login` is the preferred local approach because it does not require creating or downloading a service account key.
-
-If your organization requires service account impersonation instead of direct user ADC, ask your Google Cloud administrator for:
+If your organization requires service account impersonation, ask your Google Cloud administrator to grant your user:
 
 ```text
 Service Account Token Creator
@@ -237,42 +237,36 @@ Then authenticate ADC through impersonation:
 gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
 ```
 
-If a policy blocks service account creation or key creation, do not disable the policy casually. Ask an organization policy administrator to approve ADC/user-based development, configure service account impersonation, or create a narrowly scoped project or folder exemption.
+Then set the quota project again:
+
+```bash
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+```
 
 ## Environment Variables
 
-Create a `.env` file inside the `rag_web` folder:
+Create a local `.env` file from the example file:
+
+Windows PowerShell:
+
+```powershell
+Copy-Item rag_web\.env.example rag_web\.env
+```
+
+macOS/Linux:
 
 ```bash
-cd rag_web
+cp rag_web/.env.example rag_web/.env
 ```
 
-Example `rag_web/.env`:
+Then open `rag_web/.env` and replace the placeholder values with your local database credentials and API configuration.
 
-```env
-# Django project database
-DB_NAME=rag_app_db
-DB_USER=rag_user
-DB_PASSWORD=strongpassword
-DB_HOST=localhost
-DB_PORT=5432
+The example file at `rag_web/.env.example` includes:
 
-# Vector database
-VECTOR_DB_NAME=rag_vector_db
-VECTOR_DB_USER=vector_user
-VECTOR_DB_PASSWORD=vectorpassword
-VECTOR_DB_HOST=localhost
-VECTOR_DB_PORT=5433
-
-# LLM/API configuration
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-VERTEX_AI_PROJECT=your_google_cloud_project_id
-VERTEX_AI_LOCATION=us-central1
-
-# Optional rate limits
-MAX_LLM_TOKENS_PER_MINUTE=1200000
-MAX_LLM_REQUESTS_PER_MINUTE=45
-```
+- `DB_*` variables for the main Django application database.
+- `VECTOR_DB_*` variables for the PostgreSQL/pgvector vector database.
+- `OPENROUTER_API_KEY`, `VERTEX_AI_PROJECT`, `VERTEX_AI_LOCATION`, and optional `GOOGLE_API_KEY` values for LLM providers.
+- `MAX_LLM_*`, `TOPIC_PIPELINE_WORKERS`, `VISUAL_PIPELINE_WORKERS`, and SQL worker settings for rate limits and auto-generation concurrency.
 
 ## Run Database Migrations
 
@@ -295,6 +289,92 @@ Open the app at:
 ```text
 http://127.0.0.1:8000/
 ```
+
+## Example Multi-Table Dataset Setup: Olist Brazilian E-Commerce
+
+You can use the Olist Brazilian E-Commerce dataset to test Ragnar with a real multi-table relational dataset.
+
+### 1. Download the Dataset
+
+Download the dataset from Kaggle:
+
+```text
+https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
+```
+
+After downloading, extract the ZIP file. The dataset includes CSV files such as:
+
+- `olist_customers_dataset.csv`
+- `olist_geolocation_dataset.csv`
+- `olist_order_items_dataset.csv`
+- `olist_order_payments_dataset.csv`
+- `olist_order_reviews_dataset.csv`
+- `olist_orders_dataset.csv`
+- `olist_products_dataset.csv`
+- `olist_sellers_dataset.csv`
+- `product_category_name_translation.csv`
+
+### 2. Create a PostgreSQL Database for the Dataset
+
+Run a separate PostgreSQL container for the Olist dataset:
+
+```bash
+docker run --name ragnar-olist-postgres \
+  -e POSTGRES_DB=olist_ecommerce \
+  -e POSTGRES_USER=olist_user \
+  -e POSTGRES_PASSWORD=olist_password \
+  -p 5434:5432 \
+  -v ragnar_olist_data:/var/lib/postgresql/data \
+  -d postgres:16
+```
+
+Windows PowerShell single-line version:
+
+```powershell
+docker run --name ragnar-olist-postgres -e POSTGRES_DB=olist_ecommerce -e POSTGRES_USER=olist_user -e POSTGRES_PASSWORD=olist_password -p 5434:5432 -v ragnar_olist_data:/var/lib/postgresql/data -d postgres:16
+```
+
+Connection details:
+
+- Host: `localhost`
+- Port: `5434`
+- Database: `olist_ecommerce`
+- User: `olist_user`
+- Password: `olist_password`
+
+### 3. Install pgAdmin or Another PostgreSQL Client
+
+You can import the CSV files using pgAdmin. If pgAdmin is not installed, download the latest version from the official pgAdmin download page:
+
+```text
+https://www.pgadmin.org/download/
+```
+
+You can also use another PostgreSQL client such as DBeaver, DataGrip, or the `psql` command-line tool.
+
+### 4. Create the Tables
+
+Open pgAdmin, connect to the `olist_ecommerce` database, open the Query Tool, and run the table creation script below.
+
+Recommended import flow:
+
+1. Run the enum and `CREATE TABLE` statements first.
+2. Import the CSV files into their matching tables.
+3. Run the `ALTER TABLE ... ADD CONSTRAINT` foreign key statements after all CSV files are imported.
+
+CSV-to-table mapping:
+
+- `olist_customers_dataset.csv` -> `customers`
+- `olist_geolocation_dataset.csv` -> `geolocation`
+- `olist_order_items_dataset.csv` -> `order_items`
+- `olist_order_payments_dataset.csv` -> `order_payments`
+- `olist_order_reviews_dataset.csv` -> `order_reviews`
+- `olist_orders_dataset.csv` -> `orders`
+- `olist_products_dataset.csv` -> `products`
+- `olist_sellers_dataset.csv` -> `sellers`
+- `product_category_name_translation.csv` -> `product_category_translation`
+
+In pgAdmin, right-click a table, select **Import/Export Data**, choose the matching CSV file, enable **Header**, set the format to **CSV**, and import the data.
 
 ```sql
 -- ============================================================
@@ -505,3 +585,68 @@ ADD CONSTRAINT fk_order_items_seller
 FOREIGN KEY (seller_id)
 REFERENCES sellers(seller_id);
 ```
+
+## Example Single-Table Dataset Setup: Retail Store Sales Transactions
+
+You can use the Retail Store Sales Transactions dataset to test Ragnar with a single-table dataset.
+
+### 1. Download the Dataset
+
+Download the dataset from Kaggle:
+
+```text
+https://www.kaggle.com/datasets/marian447/retail-store-sales-transactions
+```
+
+After downloading, extract the ZIP file and locate the retail transactions CSV file.
+
+### 2. Create a PostgreSQL Database for the Dataset
+
+Run a separate PostgreSQL container for the retail transactions dataset:
+
+```bash
+docker run --name ragnar-retail-postgres \
+  -e POSTGRES_DB=retail_sales \
+  -e POSTGRES_USER=retail_user \
+  -e POSTGRES_PASSWORD=retail_password \
+  -p 5435:5432 \
+  -v ragnar_retail_data:/var/lib/postgresql/data \
+  -d postgres:16
+```
+
+Windows PowerShell single-line version:
+
+```powershell
+docker run --name ragnar-retail-postgres -e POSTGRES_DB=retail_sales -e POSTGRES_USER=retail_user -e POSTGRES_PASSWORD=retail_password -p 5435:5432 -v ragnar_retail_data:/var/lib/postgresql/data -d postgres:16
+```
+
+Connection details:
+
+- Host: `localhost`
+- Port: `5435`
+- Database: `retail_sales`
+- User: `retail_user`
+- Password: `retail_password`
+
+### 3. Create the Single Table
+
+Open pgAdmin, connect to the `retail_sales` database, open the Query Tool, and run this table creation script:
+
+```sql
+CREATE TABLE retail_transactions (
+    "Id" BIGINT PRIMARY KEY,
+    "Date" DATE,
+    "Customer_ID" INTEGER,
+    "Transaction_ID" INTEGER,
+    "SKU_Category" VARCHAR(255),
+    "SKU" VARCHAR(255),
+    "Quantity" NUMERIC,
+    "Sales_Amount" NUMERIC
+);
+```
+
+### 4. Import the CSV Data
+
+In pgAdmin, right-click `retail_transactions`, select **Import/Export Data**, choose the downloaded CSV file, enable **Header**, set the format to **CSV**, and import the data.
+
+After importing, use these connection details in Ragnar when creating a project for this dataset. Since this is a single-table dataset, select only the `retail_transactions` table during metadata generation.
