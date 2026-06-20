@@ -11,14 +11,14 @@ from .vector_db_config import VECTOR_DB_CONNECTION_STRING
 COLLECTION_NAME = "metadata_embeddings"
 
 
-def get_vector_store(backend: LLMBackend | None = None):
+def get_vector_store(backend: LLMBackend | None = None, project=None):
     """
     Returns a PGVector store using embeddings from the unified LLM provider.
     """
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
-    embeddings = get_embeddings(backend=backend)
+    embeddings = get_embeddings(backend=backend, project=project)
 
     return PGVector(
         connection=VECTOR_DB_CONNECTION_STRING,

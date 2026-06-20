@@ -28,6 +28,7 @@ class ProjectService:
             llm_provider=data["llm_provider"],
             primary_llm_model=data["resolved_primary_model"],
             secondary_llm_model=data["resolved_secondary_model"],
+            embedding_model=data["resolved_embedding_model"],
         )
 
         if data.get("resolved_openrouter_api_key"):
@@ -55,6 +56,7 @@ class ProjectService:
         project.llm_provider = data["llm_provider"]
         project.primary_llm_model = data["resolved_primary_model"]
         project.secondary_llm_model = data["resolved_secondary_model"]
+        project.embedding_model = data["resolved_embedding_model"]
 
         if data.get("clear_openrouter_api_key"):
             project.set_openrouter_api_key("")

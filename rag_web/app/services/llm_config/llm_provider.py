@@ -16,6 +16,7 @@ class LLMBackend(str, Enum):
 class LLMProvider(str, Enum):
     VERTEX_AI = "vertex_ai"
     OPENROUTER = "openrouter"
+    OLLAMA = "ollama"
 
 
 class ModelSize(str, Enum):
@@ -26,6 +27,7 @@ class ModelSize(str, Enum):
 LLM_PROVIDER_CHOICES = [
     (LLMProvider.VERTEX_AI.value, "Vertex AI"),
     (LLMProvider.OPENROUTER.value, "OpenRouter"),
+    (LLMProvider.OLLAMA.value, "Ollama (Local)"),
 ]
 
 CUSTOM_MODEL_CHOICE = "__custom__"
@@ -40,6 +42,11 @@ PROVIDER_MODEL_CHOICES = {
             "gemini-2.5-pro",
             "gemini-2.5-flash",
         ],
+        "embedding": [
+            "gemini-embedding-001",
+            "text-embedding-005",
+            "text-multilingual-embedding-002",
+        ],
     },
     LLMProvider.OPENROUTER.value: {
         "primary": [
@@ -50,15 +57,51 @@ PROVIDER_MODEL_CHOICES = {
             "openai/gpt-4.1",
             "openai/gpt-5.4-mini",
         ],
+        "embedding": [
+            "gemini-embedding-001",
+            "text-embedding-005",
+            "text-multilingual-embedding-002",
+        ],
+    },
+    LLMProvider.OLLAMA.value: {
+        "primary": [
+            "llama3.1:8b",
+            "llama3.1:70b",
+            "llama3.2:1b",
+            "llama3.2:3b",
+            "llama3.3:70b",
+        ],
+        "secondary": [
+            "llama3.2:3b",
+            "llama3.2:1b",
+            "llama3.1:8b",
+            "llama3.1:70b",
+            "llama3.3:70b",
+        ],
+        "embedding": [
+            "nomic-embed-text",
+            "mxbai-embed-large",
+            "all-minilm",
+        ],
     },
 }
+
+EMBEDDING_MODEL_CHOICES = list(
+    dict.fromkeys(
+        model
+        for provider_choices in PROVIDER_MODEL_CHOICES.values()
+        for model in provider_choices["embedding"]
+    )
+)
 
 DEFAULT_PROVIDER = LLMProvider.VERTEX_AI.value
 DEFAULT_MODELS = {
     ModelSize.PRIMARY: PROVIDER_MODEL_CHOICES[DEFAULT_PROVIDER]["primary"][0],
     ModelSize.SMALL: PROVIDER_MODEL_CHOICES[DEFAULT_PROVIDER]["secondary"][0],
 }
+DEFAULT_EMBEDDING_MODEL = EMBEDDING_MODEL_CHOICES[0]
 LOCAL_MODEL = "llama3.1:8b"
+LOCAL_EMBEDDING_MODEL = PROVIDER_MODEL_CHOICES[LLMProvider.OLLAMA.value]["embedding"][0]
 
 
 def _get_vertex_project():
@@ -67,6 +110,10 @@ def _get_vertex_project():
 
 def _get_vertex_location():
     return getattr(settings, "VERTEX_AI_LOCATION", "us-central1")
+
+
+def _get_ollama_base_url():
+    return getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 def _resolve_provider(project=None, provider=None):
@@ -103,8 +150,8 @@ def get_llm(
 ) -> BaseChatModel:
     if backend == LLMBackend.LOCAL:
         return ChatOllama(
-            model=LOCAL_MODEL,
-            base_url="http://localhost:11434",
+            model=model or getattr(project, "primary_llm_model", None) or LOCAL_MODEL,
+            base_url=_get_ollama_base_url(),
             temperature=temperature,
         )
 
@@ -118,6 +165,13 @@ def get_llm(
         provider=effective_provider.value,
         model=model,
     )
+
+    if effective_provider == LLMProvider.OLLAMA:
+        return ChatOllama(
+            model=model_name,
+            base_url=_get_ollama_base_url(),
+            temperature=temperature,
+        )
 
     if effective_provider == LLMProvider.OPENROUTER:
         effective_api_key = api_key
@@ -153,16 +207,28 @@ def get_embeddings(
     *,
     backend: LLMBackend,
     project=None,
+    model: str | None = None,
 ) -> Embeddings:
-    if backend == LLMBackend.LOCAL:
+    effective_provider = _resolve_provider(project=project)
+
+    if backend == LLMBackend.LOCAL or effective_provider == LLMProvider.OLLAMA:
         return OllamaEmbeddings(
-            model=LOCAL_MODEL,
-            base_url="http://localhost:11434",
+            model=(
+                model
+                or getattr(project, "embedding_model", None)
+                or LOCAL_EMBEDDING_MODEL
+            ),
+            base_url=_get_ollama_base_url(),
         )
 
     if backend == LLMBackend.CLOUD:
+        embedding_model = (
+            model
+            or getattr(project, "embedding_model", None)
+            or DEFAULT_EMBEDDING_MODEL
+        )
         return VertexAIEmbeddings(
-            model_name="gemini-embedding-001",
+            model_name=embedding_model,
             project=_get_vertex_project(),
             location=_get_vertex_location(),
         )

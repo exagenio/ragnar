@@ -8,10 +8,8 @@ from app.models import (
     Report,
     Topic,
     TopicReadability,
-    ReportEvaluation,
     TopicEvaluation
 )
-from app.services.evaluation.evaluation_service import evaluate_project
 from app.services.evaluation.readability_service import evaluate_project_readability
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
@@ -26,11 +24,9 @@ def evaluation_dashboard_view(request, project_id):
     reports = Report.objects.filter(project=project)
 
     selected_report = None
-    report_eval = None
     topic_evals = None
 
-    # GET eval_type
-    eval_type = request.GET.get("eval_type", "openeval")
+    eval_type = "geval"
 
     try:
         report_id = request.GET.get("report_id")
@@ -43,7 +39,7 @@ def evaluation_dashboard_view(request, project_id):
 
             report_id = request.POST.get("report_id")
             action = request.POST.get("action")
-            eval_type_post = request.POST.get("eval_type", "openeval")
+            eval_type_post = "geval"
 
             if not report_id:
                 messages.error(request, "Please select a report.")
@@ -85,13 +81,8 @@ def evaluation_dashboard_view(request, project_id):
                     f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type=geval"
                 )
 
-            # SWITCH ENGINE
-            if eval_type_post == "geval":
-                evaluate_project_geval(project.id, report_id)
-                messages.success(request, "GEval evaluation completed.")
-            else:
-                evaluate_project(project.id, report_id)
-                messages.success(request, "OpenEval evaluation completed.")
+            evaluate_project_geval(project.id, report_id)
+            messages.success(request, "GEval evaluation completed.")
 
             return redirect(
                 f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
@@ -104,10 +95,6 @@ def evaluation_dashboard_view(request, project_id):
         has_geval_results = False
 
         if selected_report:
-
-            report_eval = ReportEvaluation.objects.filter(
-                report=selected_report
-            ).first()
 
             topic_evals = TopicEvaluation.objects.filter(
                 topic__subsection__section__report=selected_report
@@ -142,14 +129,9 @@ def evaluation_dashboard_view(request, project_id):
 
             for eval_obj in topic_evals:
 
-                if eval_type == "geval":
-                    scores = eval_obj.geval_scores or {}
-                    summary = eval_obj.geval_summary
-                    issues = eval_obj.geval_issues or []
-                else:
-                    scores = eval_obj.scores or {}
-                    summary = eval_obj.summary
-                    issues = eval_obj.issues or []
+                scores = eval_obj.geval_scores or {}
+                summary = eval_obj.geval_summary
+                issues = eval_obj.geval_issues or []
 
                 correctness = float(scores.get("correctness", 0))
                 relevance = float(scores.get("relevance", 0))
@@ -191,7 +173,6 @@ def evaluation_dashboard_view(request, project_id):
             "project": project,
             "reports": reports,
             "selected_report": selected_report,
-            "report_eval": report_eval,
             "topic_evals": topic_evals,
             "readability_scores": readability_scores,
             "readability_summary": readability_summary,

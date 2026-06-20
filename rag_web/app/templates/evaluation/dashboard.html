@@ -23,7 +23,7 @@
                     {% endfor %}
                 </select>
 
-                <input type="hidden" name="eval_type" value="{{ eval_type }}">
+                <input type="hidden" name="eval_type" value="geval">
                 <button type="submit" class="button button--secondary">Load</button>
             </form>
         </div>
@@ -36,12 +36,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="report_id" value="{{ selected_report.id }}">
 
-                <select name="eval_type">
-                    <option value="openeval" {% if eval_type == "openeval" %}selected{% endif %}>OpenEval</option>
-                    <option value="geval" {% if eval_type == "geval" %}selected{% endif %}>GEval</option>
-                </select>
+                <input type="hidden" name="eval_type" value="geval">
 
-                <button type="submit" class="button button--primary">Run Evaluation</button>
+                <button type="submit" class="button button--primary">Run GEval Evaluation</button>
                 <button type="submit" name="action" value="readability" class="button button--secondary">Readability</button>
             </form>
         </div>
@@ -52,7 +49,7 @@
             <h2 class="section__title">Overall Report Score</h2>
         </div>
 
-        {% if eval_type == "geval" and geval_project_summary %}
+        {% if geval_project_summary %}
         <div class="card__body grid grid--3">
             <div class="metric-card">
                 <p class="metric-card__label">Overall</p>
@@ -84,19 +81,6 @@
             </a>
         </div>
         {% endif %}
-        {% elif report_eval %}
-        <div class="card__body grid grid--3">
-            <div class="metric-card">
-                <p class="metric-card__label">Overall</p>
-                <p class="metric-card__value">{{ report_eval.overall_score|floatformat:2 }}</p>
-            </div>
-            {% for key, value in report_eval.average_scores.items %}
-            <div class="metric-card">
-                <p class="metric-card__label">{{ key }}</p>
-                <p class="metric-card__value">{{ value|floatformat:2 }}</p>
-            </div>
-            {% endfor %}
-        </div>
         {% else %}
         <div class="card__body">
             <div class="empty-state">No evaluation results yet.</div>
@@ -120,9 +104,7 @@
                             <th>Relevance</th>
                             <th>Conciseness</th>
                             <th>Summary</th>
-                            {% if eval_type == "geval" %}
                             <th>Actions</th>
-                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -135,7 +117,6 @@
                             <td>{{ eval.display_scores.relevance|default:"-" }}</td>
                             <td>{{ eval.display_scores.conciseness|default:"-" }}</td>
                             <td>{{ eval.display_summary|default:"-" }}</td>
-                            {% if eval_type == "geval" %}
                             <td>
                                 <form method="post" class="form__actions">
                                     {% csrf_token %}
@@ -146,11 +127,10 @@
                                     <button type="submit" class="button button--secondary">Reevaluate</button>
                                 </form>
                             </td>
-                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="{% if eval_type == 'geval' %}8{% else %}7{% endif %}">No data</td>
+                            <td colspan="8">No data</td>
                         </tr>
                         {% endfor %}
                     </tbody>

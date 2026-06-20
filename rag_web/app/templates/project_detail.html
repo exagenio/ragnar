@@ -25,6 +25,10 @@
             <p class="metric-card__label">Secondary Model</p>
             <p class="metric-card__value">{{ project.secondary_llm_model }}</p>
         </div>
+        <div class="metric-card">
+            <p class="metric-card__label">Embedding Model</p>
+            <p class="metric-card__value">{{ project.embedding_model }}</p>
+        </div>
     </div>
 
     {% if not project.is_initialized %}

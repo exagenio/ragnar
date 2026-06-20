@@ -165,6 +165,6 @@ class MetadataAgent:
         metadata_obj.status = "approved"
         metadata_obj.save()
 
-        vector_store = get_vector_store()
+        vector_store = get_vector_store(project=metadata_obj.project)
         docs = metadata_to_documents(metadata_obj)
         vector_store.add_documents(docs)

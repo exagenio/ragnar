@@ -2,7 +2,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from deepeval.metrics import GEval
-from deepeval.models import GeminiModel, OpenRouterModel
+from deepeval.models import GeminiModel, OllamaModel, OpenRouterModel
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from django.conf import settings
 from django.db import close_old_connections, connections
@@ -342,6 +342,13 @@ def build_geval_model(project):
         return OpenRouterModel(
             model=project.primary_llm_model,
             api_key=api_key,
+        )
+
+    if project.llm_provider == LLMProvider.OLLAMA.value:
+        return OllamaModel(
+            model=project.primary_llm_model,
+            base_url=getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434"),
+            temperature=0,
         )
 
     return GeminiModel(

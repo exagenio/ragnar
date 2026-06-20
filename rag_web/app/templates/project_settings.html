@@ -30,6 +30,8 @@
                 <div id="primary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.primary_model_custom %}</div>
                 {% include "partials/form_field.html" with field=form.secondary_model_selection %}
                 <div id="secondary-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.secondary_model_custom %}</div>
+                {% include "partials/form_field.html" with field=form.embedding_model_selection %}
+                <div id="embedding-model-custom-wrap" class="form__field" hidden>{% include "partials/form_field.html" with field=form.embedding_model_custom %}</div>
                 <div class="form__field form__field--full" id="custom-openrouter-key-toggle" hidden>
                     <label class="form__checkbox">
                     {{ form.use_custom_openrouter_api_key }}
@@ -44,6 +46,7 @@
 
             <div class="notice">
                 Uncheck the custom key option to switch this project back to the environment-level OpenRouter key.
+                If you change the embedding model after metadata has already been approved, regenerate or re-approve metadata so stored vectors match the selected model.
             </div>
         </div>
 
@@ -62,8 +65,10 @@
         const providerField = document.getElementById("id_llm_provider");
         const primarySelect = document.getElementById("id_primary_model_selection");
         const secondarySelect = document.getElementById("id_secondary_model_selection");
+        const embeddingSelect = document.getElementById("id_embedding_model_selection");
         const primaryCustomWrap = document.getElementById("primary-model-custom-wrap");
         const secondaryCustomWrap = document.getElementById("secondary-model-custom-wrap");
+        const embeddingCustomWrap = document.getElementById("embedding-model-custom-wrap");
         const customKeyToggleWrap = document.getElementById("custom-openrouter-key-toggle");
         const useCustomKey = document.getElementById("id_use_custom_openrouter_api_key");
         const openRouterKeyWrap = document.getElementById("openrouter-key-wrap");
@@ -95,9 +100,11 @@
             const provider = providerField.value;
             rebuildOptions(primarySelect, provider, "primary");
             rebuildOptions(secondarySelect, provider, "secondary");
+            rebuildOptions(embeddingSelect, provider, "embedding");
 
             primaryCustomWrap.hidden = primarySelect.value !== customChoice;
             secondaryCustomWrap.hidden = secondarySelect.value !== customChoice;
+            embeddingCustomWrap.hidden = embeddingSelect.value !== customChoice;
 
             const showOpenRouterFields = provider === "openrouter";
             const showKeyInput = showOpenRouterFields && useCustomKey.checked;
@@ -109,6 +116,7 @@
         providerField.addEventListener("change", syncModelVisibility);
         primarySelect.addEventListener("change", syncModelVisibility);
         secondarySelect.addEventListener("change", syncModelVisibility);
+        embeddingSelect.addEventListener("change", syncModelVisibility);
         useCustomKey.addEventListener("change", syncModelVisibility);
 
         syncModelVisibility();

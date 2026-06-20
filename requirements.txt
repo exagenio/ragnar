@@ -10,7 +10,6 @@ pandas
 textstat
 sentence-transformers
 deepeval
-openevals
 langchain-core
 langchain-postgres
 langchain-google-vertexai

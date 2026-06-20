@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from app.services.llm_config.llm_provider import (
     CUSTOM_MODEL_CHOICE,
     DEFAULT_PROVIDER,
+    DEFAULT_EMBEDDING_MODEL,
+    EMBEDDING_MODEL_CHOICES,
     LLM_PROVIDER_CHOICES,
     PROVIDER_MODEL_CHOICES,
 )
@@ -24,6 +26,9 @@ def _build_model_choice_list():
 
 
 ALL_MODEL_CHOICES = _build_model_choice_list()
+ALL_EMBEDDING_MODEL_CHOICES = [
+    (value, value) for value in EMBEDDING_MODEL_CHOICES
+] + [(CUSTOM_MODEL_CHOICE, "Custom embedding model code")]
 
 
 class RegisterForm(UserCreationForm):
@@ -61,6 +66,20 @@ class ProjectLLMSettingsBaseForm(forms.Form):
         label="Secondary Custom Model Code",
         help_text="Use this only when the secondary model is set to custom.",
     )
+    embedding_model_selection = forms.ChoiceField(
+        choices=ALL_EMBEDDING_MODEL_CHOICES,
+        initial=DEFAULT_EMBEDDING_MODEL,
+        label="Embedding Model",
+        help_text=(
+            "Used for metadata vector storage and retrieval. If this is changed "
+            "after metadata approval, regenerate or re-approve metadata embeddings."
+        ),
+    )
+    embedding_model_custom = forms.CharField(
+        required=False,
+        label="Embedding Custom Model Code",
+        help_text="Use this only when the embedding model is set to custom.",
+    )
     use_custom_openrouter_api_key = forms.BooleanField(
         required=False,
         label="Use a custom OpenRouter API key",
@@ -93,11 +112,13 @@ class ProjectLLMSettingsBaseForm(forms.Form):
                 project.llm_provider,
                 project.secondary_llm_model,
             )
+            self._set_embedding_model_initial(project.embedding_model)
             self.fields["use_custom_openrouter_api_key"].initial = (
                 project.has_custom_openrouter_api_key
             )
         else:
             self._set_default_model_initials(DEFAULT_PROVIDER)
+            self._set_embedding_model_initial(DEFAULT_EMBEDDING_MODEL)
 
     def _get_requested_provider(self):
         if self.is_bound:
@@ -121,6 +142,11 @@ class ProjectLLMSettingsBaseForm(forms.Form):
             for value in PROVIDER_MODEL_CHOICES[provider]["secondary"]
         ] + [(CUSTOM_MODEL_CHOICE, "Custom model code")]
 
+        self.fields["embedding_model_selection"].choices = [
+            (value, value)
+            for value in PROVIDER_MODEL_CHOICES[provider]["embedding"]
+        ] + [(CUSTOM_MODEL_CHOICE, "Custom embedding model code")]
+
     def _set_default_model_initials(self, provider):
         self.fields["primary_model_selection"].initial = PROVIDER_MODEL_CHOICES[
             provider
@@ -140,6 +166,20 @@ class ProjectLLMSettingsBaseForm(forms.Form):
         else:
             self.fields[selection_field].initial = CUSTOM_MODEL_CHOICE
             self.fields[custom_field].initial = current_value
+
+    def _set_embedding_model_initial(self, current_value):
+        provider = self._get_requested_provider()
+        preset_values = PROVIDER_MODEL_CHOICES.get(provider, {}).get(
+            "embedding",
+            [],
+        )
+
+        if current_value in preset_values:
+            self.fields["embedding_model_selection"].initial = current_value
+            self.fields["embedding_model_custom"].initial = ""
+        else:
+            self.fields["embedding_model_selection"].initial = CUSTOM_MODEL_CHOICE
+            self.fields["embedding_model_custom"].initial = current_value
 
     def _resolve_model_value(self, provider, slot, cleaned_data):
         selection = cleaned_data.get(f"{slot}_model_selection", "").strip()
@@ -164,6 +204,32 @@ class ProjectLLMSettingsBaseForm(forms.Form):
 
         return selection
 
+    def _resolve_embedding_model_value(self, provider, cleaned_data):
+        selection = cleaned_data.get("embedding_model_selection", "").strip()
+        custom_value = cleaned_data.get("embedding_model_custom", "").strip()
+        preset_values = PROVIDER_MODEL_CHOICES.get(provider, {}).get(
+            "embedding",
+            [],
+        )
+
+        if selection == CUSTOM_MODEL_CHOICE:
+            if not custom_value:
+                self.add_error(
+                    "embedding_model_custom",
+                    "Enter a custom embedding model code.",
+                )
+                return ""
+            return custom_value
+
+        if selection not in preset_values:
+            self.add_error(
+                "embedding_model_selection",
+                "Select a valid embedding model, or choose custom.",
+            )
+            return ""
+
+        return selection
+
     def clean(self):
         cleaned_data = super().clean()
 
@@ -180,6 +246,9 @@ class ProjectLLMSettingsBaseForm(forms.Form):
             provider,
             "secondary",
             cleaned_data,
+        )
+        cleaned_data["resolved_embedding_model"] = (
+            self._resolve_embedding_model_value(provider, cleaned_data)
         )
 
         use_custom_key = cleaned_data.get("use_custom_openrouter_api_key")

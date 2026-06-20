@@ -265,8 +265,34 @@ The example file at `rag_web/.env.example` includes:
 
 - `DB_*` variables for the main Django application database.
 - `VECTOR_DB_*` variables for the PostgreSQL/pgvector vector database.
-- `OPENROUTER_API_KEY`, `VERTEX_AI_PROJECT`, `VERTEX_AI_LOCATION`, and optional `GOOGLE_API_KEY` values for LLM providers.
+- `OPENROUTER_API_KEY`, `VERTEX_AI_PROJECT`, `VERTEX_AI_LOCATION`, optional `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` values for LLM providers.
 - `MAX_LLM_*`, `TOPIC_PIPELINE_WORKERS`, `VISUAL_PIPELINE_WORKERS`, and SQL worker settings for rate limits and auto-generation concurrency.
+
+## Optional Ollama Local Model Setup
+
+Ragnar can use Ollama as a local model provider if Ollama is installed and running on your machine.
+
+Install Ollama from:
+
+```text
+https://ollama.com/download
+```
+
+Start Ollama, then pull the local models you want to use. For example:
+
+```bash
+ollama pull llama3.1:8b
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
+```
+
+The default local Ollama server URL is:
+
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+When creating or editing a project, choose **Ollama (Local)** as the model provider, then select one of the available Llama chat models and an Ollama embedding model.
 
 ## Run Database Migrations
 

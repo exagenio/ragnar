@@ -74,7 +74,7 @@ def retrieve_multi_table_metadata(
     metadata_types = metadata_types or DEFAULT_METADATA_TYPES
     secondary_queries = secondary_queries or []
 
-    vector_store = get_vector_store(backend=backend)
+    vector_store = get_vector_store(backend=backend, project=project)
     selected_tables = get_selected_table_names(project)
     selected_enums = get_selected_enum_names(project)
     dataset_mode = get_dataset_mode(project)

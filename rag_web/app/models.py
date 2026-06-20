@@ -10,6 +10,7 @@ class Project(models.Model):
     LLM_PROVIDER_CHOICES = [
         ("vertex_ai", "Vertex AI"),
         ("openrouter", "OpenRouter"),
+        ("ollama", "Ollama (Local)"),
     ]
 
     name = models.CharField(max_length=255)
@@ -27,6 +28,10 @@ class Project(models.Model):
     secondary_llm_model = models.CharField(
         max_length=255,
         default="openai/gpt-5.4-mini",
+    )
+    embedding_model = models.CharField(
+        max_length=255,
+        default="gemini-embedding-001",
     )
     openrouter_api_key_encrypted = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

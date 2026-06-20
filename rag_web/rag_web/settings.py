@@ -144,6 +144,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 VERTEX_AI_PROJECT = os.getenv("VERTEX_AI_PROJECT", "project-08491770-bd93-473e-a10")
 VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
