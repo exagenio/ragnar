@@ -92,7 +92,7 @@
             });
 
             if (![...values].includes(currentValue)) {
-                selectEl.value = customChoice;
+                selectEl.value = providerOptions[0] || customChoice;
             }
         }
 

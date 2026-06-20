@@ -50,12 +50,12 @@ PROVIDER_MODEL_CHOICES = {
     },
     LLMProvider.OPENROUTER.value: {
         "primary": [
-            "openai/gpt-4.1",
             "openai/gpt-5.4",
+            "openai/gpt-4.1",
         ],
         "secondary": [
-            "openai/gpt-4.1",
             "openai/gpt-5.4-mini",
+            "openai/gpt-4.1",
         ],
         "embedding": [
             "gemini-embedding-001",
