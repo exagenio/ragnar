@@ -75,6 +75,15 @@
                 <p class="metric-card__value">{{ geval_project_summary.conciseness }}</p>
             </div>
         </div>
+        {% if has_geval_results %}
+        <div class="card__body">
+            <a
+                href="{% url 'export_evaluation_doc' project.id %}?report_id={{ selected_report.id }}"
+                class="button button--primary">
+                Export GEval Report
+            </a>
+        </div>
+        {% endif %}
         {% elif report_eval %}
         <div class="card__body grid grid--3">
             <div class="metric-card">
@@ -155,6 +164,18 @@
             <h2 class="section__title">Readability</h2>
         </div>
         <div class="card__body">
+            {% if readability_summary and readability_summary.topics_evaluated %}
+            <div class="grid grid--3">
+                <div class="metric-card">
+                    <p class="metric-card__label">Average Grade Level</p>
+                    <p class="metric-card__value">{{ readability_summary.average_grade|floatformat:2 }}</p>
+                </div>
+                <div class="metric-card">
+                    <p class="metric-card__label">Topics Evaluated</p>
+                    <p class="metric-card__value">{{ readability_summary.topics_evaluated }}</p>
+                </div>
+            </div>
+            {% endif %}
             <div class="table-wrap">
                 <table class="data-table">
                     <thead>

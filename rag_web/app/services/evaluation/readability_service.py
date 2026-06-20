@@ -15,12 +15,14 @@ def extract_readable_text(content_json):
             block_type = block.get("type")
 
             if block_type == "paragraph":
-                text = block.get("text", "")
+                text = block.get("content") or block.get("text", "")
                 if text:
                     texts.append(str(text))
 
             elif block_type == "bullet_list":
-                items = block.get("items", [])
+                items = block.get("content") or block.get("items", [])
+                if isinstance(items, str):
+                    items = [items]
                 for item in items:
                     if item:
                         texts.append(str(item))
@@ -96,3 +98,9 @@ def evaluate_project_readability(project_id, report_id):
     print(
         f"[READABILITY COMPLETE] Processed: {processed}, Skipped: {skipped}"
     )
+
+    return {
+        "processed": processed,
+        "skipped": skipped,
+        "total": topics.count(),
+    }

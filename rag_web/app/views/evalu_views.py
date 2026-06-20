@@ -51,9 +51,16 @@ def evaluation_dashboard_view(request, project_id):
 
             # READABILITY
             if action == "readability":
-                evaluate_project_readability(project.id, report_id)
+                readability_result = evaluate_project_readability(project.id, report_id)
 
-                messages.success(request, "Flesch-Kincaid readability computed.")
+                messages.success(
+                    request,
+                    (
+                        "Flesch-Kincaid readability computed. "
+                        f"Processed {readability_result['processed']} topic(s), "
+                        f"skipped {readability_result['skipped']}."
+                    ),
+                )
 
                 return redirect(
                     f"{reverse('evaluation_dashboard_view', kwargs={'project_id': project.id})}?report_id={report_id}&eval_type={eval_type_post}"
@@ -92,7 +99,9 @@ def evaluation_dashboard_view(request, project_id):
 
         # LOAD RESULTS
         readability_scores = None
+        readability_summary = None
         geval_project_summary = None
+        has_geval_results = False
 
         if selected_report:
 
@@ -103,10 +112,25 @@ def evaluation_dashboard_view(request, project_id):
             topic_evals = TopicEvaluation.objects.filter(
                 topic__subsection__section__report=selected_report
             ).select_related("topic")
+            has_geval_results = topic_evals.filter(geval_scores__isnull=False).exists()
 
             readability_scores = TopicReadability.objects.filter(
                 report=selected_report
-            ).select_related("topic")
+            ).select_related("topic").order_by("topic__created_at", "topic__id")
+
+            readability_values = [
+                item.flesch_kincaid_grade
+                for item in readability_scores
+                if item.flesch_kincaid_grade is not None
+            ]
+            readability_summary = {
+                "average_grade": (
+                    round(sum(readability_values) / len(readability_values), 2)
+                    if readability_values
+                    else 0
+                ),
+                "topics_evaluated": len(readability_values),
+            }
 
             # GEVAL CALCULATION
             project_overall_scores = []
@@ -170,7 +194,9 @@ def evaluation_dashboard_view(request, project_id):
             "report_eval": report_eval,
             "topic_evals": topic_evals,
             "readability_scores": readability_scores,
+            "readability_summary": readability_summary,
             "geval_project_summary": geval_project_summary,
+            "has_geval_results": has_geval_results,
             "eval_type": eval_type,
         }
 

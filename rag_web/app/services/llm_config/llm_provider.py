@@ -43,9 +43,11 @@ PROVIDER_MODEL_CHOICES = {
     },
     LLMProvider.OPENROUTER.value: {
         "primary": [
+            "openai/gpt-4.1",
             "openai/gpt-5.4",
         ],
         "secondary": [
+            "openai/gpt-4.1",
             "openai/gpt-5.4-mini",
         ],
     },
