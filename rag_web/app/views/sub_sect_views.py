@@ -1,6 +1,6 @@
-from django.shortcuts import render, redirect
+from app.agents.manager_agent import ManagerAgent
 from django.contrib import messages
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from app.models import (
     BackgroundTask,
     Project,
@@ -10,7 +10,6 @@ from app.models import (
 )
 
 def get_manager():
-    from app.agents.manager_agent import ManagerAgent
     return ManagerAgent()
 
 
@@ -166,3 +165,4 @@ def view_topics(request, project_id, report_id, subsection_id):
             "has_auto_generated_topics": has_auto_generated_topics,
         },
     )
+

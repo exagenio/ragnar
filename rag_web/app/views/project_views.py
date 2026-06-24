@@ -1,11 +1,10 @@
-from django.shortcuts import render, redirect
+from app.agents.manager_agent import ManagerAgent
 from django.contrib import messages
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from app.forms import ProjectLLMSettingsForm, ReportIntentForm
-from ..models import (Report, Project)
+from app.models import Project, Report
 
 def get_manager():
-    from app.agents.manager_agent import ManagerAgent
     return ManagerAgent()
 
 def start_report(request, project_id):
@@ -147,3 +146,4 @@ def review_outline(request, report_id):
             "outline": outline,
         },
     )
+

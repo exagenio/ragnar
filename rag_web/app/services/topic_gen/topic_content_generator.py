@@ -1,5 +1,7 @@
 import json
+import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List
 from django.conf import settings
@@ -17,9 +19,10 @@ from app.services.metadata_generation.metadata_retriever import (
 from app.services.topic_gen.topic_analysis_plan_generator import normalize_topic_analysis_plan
 
 
-# Load semantic model once
-semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
+logger = logging.getLogger(__name__)
+
 SIMILARITY_THRESHOLD = 0.8
+SEMANTIC_MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 MAX_ITERATIONS_PER_ELEMENT = 2
@@ -289,7 +292,7 @@ def extract_json_or_fail(raw_text: str):
     if array_match:
         try:
             return json.loads(array_match.group())
-        except Exception:
+        except json.JSONDecodeError:
             pass
 
     # Extract json object fallback
@@ -298,7 +301,7 @@ def extract_json_or_fail(raw_text: str):
     if obj_match:
         try:
             return json.loads(obj_match.group())
-        except Exception:
+        except json.JSONDecodeError:
             pass
 
     raise ValueError(f"Invalid JSON from LLM:\n{raw_text[:1000]}")
@@ -323,12 +326,20 @@ def _is_similar(text1: str, text2: str) -> bool:
     if not text1 or not text2:
         return False
 
+    semantic_model, similarity_util = _get_semantic_similarity_tools()
     emb1 = semantic_model.encode(text1, convert_to_tensor=True)
     emb2 = semantic_model.encode(text2, convert_to_tensor=True)
 
-    score = util.cos_sim(emb1, emb2)
+    score = similarity_util.cos_sim(emb1, emb2)
     score_value = float(score.max())
     return score_value >= SIMILARITY_THRESHOLD
+
+
+@lru_cache(maxsize=1)
+def _get_semantic_similarity_tools():
+    """Load sentence-transformers only when duplicate detection needs it."""
+
+    return SentenceTransformer(SEMANTIC_MODEL_NAME), util
 
 
 def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
@@ -348,8 +359,8 @@ def filter_similar_blocks(existing_blocks: List[Dict], new_block: Dict) -> bool:
             existing_text = block.get("content", "")
             existing_text = _normalize_bullet_content(existing_text)
             if _is_similar(new_text, existing_text):
-                print("[simiar text new]", new_text)
-                print("[simiar text exist]", existing_text)
+                logger.info("Similar generated text rejected: %s", new_text)
+                logger.debug("Existing similar text: %s", existing_text)
                 return True
 
     # Handle visual placeholders
@@ -375,3 +386,4 @@ def _normalize_bullet_content(content):
     if isinstance(content, list):
         return " ".join(content)
     return content
+

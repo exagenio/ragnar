@@ -38,7 +38,7 @@ from app.utils.data_decoder import decode_sql_result
 from app.utils.visual_utils import has_pending_visuals
 
 try:
-    from google.api_core.exceptions import ResourceExhausted
+    ResourceExhausted = import_module("google.api_core.exceptions").ResourceExhausted
 except Exception:  # pragma: no cover - optional runtime import
     ResourceExhausted = None
 
@@ -801,7 +801,6 @@ class ManagerAgent:
             return block
 
         if isinstance(raw, str) and "{{VISUAL" in raw:
-            import re
 
             def extract(field):
                 match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.DOTALL)
@@ -814,3 +813,4 @@ class ManagerAgent:
             }
 
         return block
+

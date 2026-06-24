@@ -1,18 +1,12 @@
-
-from app.models import (
-    Report,
-    TopicAnalysisPlan,
-    Project,
-    Report,
-    Topic,
-)
-from app.utils.text import normalize_title
-from django.shortcuts import get_object_or_404, render, redirect
+from app.agents.manager_agent import ManagerAgent
+from app.models import Project, Report, Topic, TopicAnalysisPlan
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 import json
 
+from app.utils.text import normalize_title
+
 def get_manager():
-    from app.agents.manager_agent import ManagerAgent
     return ManagerAgent()
 
 def generate_topic_analysis_plan_view(
@@ -234,3 +228,4 @@ def generate_topic_content_view(
             "limitations": limitations,
         },
     )
+

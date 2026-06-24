@@ -1,19 +1,12 @@
-from django.shortcuts import render, redirect
+from app.agents.manager_agent import ManagerAgent
 from django.contrib import messages
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from ..models import (
-    Project,
-)
-from ..forms import ProjectDBConnectionForm
-from ..forms import TableSelectionForm
-from ..models import (
-    TableMetadata,
-)
+from app.forms import ProjectDBConnectionForm, TableSelectionForm
+from app.models import Project, TableMetadata
 
 
 def get_manager():
-    from app.agents.manager_agent import ManagerAgent
     return ManagerAgent()
 
 
@@ -304,3 +297,4 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
+

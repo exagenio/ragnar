@@ -1,7 +1,7 @@
-from django.shortcuts import render, redirect
+from app.agents.manager_agent import ManagerAgent
 from django.contrib import messages
-from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from app.models import (
     BackgroundTask,
     Project,
@@ -9,13 +9,9 @@ from app.models import (
     Section,
     SubSection,
 )
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render, redirect
-from django.contrib import messages
 from app.services.document_export_job import create_document_export_task
 
 def get_manager():
-    from app.agents.manager_agent import ManagerAgent
     return ManagerAgent()
 
 def generate_subsection_content_view(
@@ -240,3 +236,4 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
             "task_id": started.id if started else None,
         }
     )
+

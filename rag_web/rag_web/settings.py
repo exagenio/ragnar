@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,22 +21,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
-from pathlib import Path
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+def env_csv(name, default):
+    value = os.getenv(name)
+    if not value:
+        return default
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-r5htzp$-@o$8vv)0kf6ts%(=mgv4=a=(&g!l)6jez@43*#nc)k'
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "django-insecure-r5htzp$-@o$8vv)0kf6ts%(=mgv4=a=(&g!l)6jez@43*#nc)k",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = ['192.168.1.13',"127.0.0.1"]
+ALLOWED_HOSTS = env_csv("ALLOWED_HOSTS", ["192.168.1.13", "127.0.0.1"])
 
 
 # Application definition
@@ -82,8 +94,6 @@ WSGI_APPLICATION = 'rag_web.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
-import os
 
 DATABASES = {
     'default': {
@@ -145,8 +155,6 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 VERTEX_AI_PROJECT = os.getenv("VERTEX_AI_PROJECT", "project-08491770-bd93-473e-a10")
 VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"

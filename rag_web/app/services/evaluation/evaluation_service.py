@@ -125,7 +125,6 @@ def normalize_visual_block(block):
         return block
 
     if isinstance(raw, str) and "{{VISUAL" in raw:
-        import re
 
         def extract(field):
             match = re.search(rf"{field}\s*:\s*(.*?);", raw, re.DOTALL)
@@ -138,3 +137,4 @@ def normalize_visual_block(block):
         }
 
     return block
+

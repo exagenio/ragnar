@@ -26,8 +26,6 @@ def generate_visual_narrative(
     - block_index + 1
     """
 
-    import json
-
     # safe parse visual
     try:
         parsed = parse_visual_placeholder(visual_placeholder)
@@ -486,3 +484,4 @@ def repair_content_chunk(*, project=None, blocks_chunk):
         content = content[0].get("text", "")
 
     return extract_json_or_fail(content)
+

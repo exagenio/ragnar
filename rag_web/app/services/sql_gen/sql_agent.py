@@ -206,9 +206,7 @@ def generate_sql_placeholders_from_plan(
     backend=None,
 ):
     """Generate sql placeholders from plan"""
-
     # Build prompt and call llm
-    from app.services.llm_config.llm_provider import get_llm, LLMBackend, ModelSize
 
     backend = backend or LLMBackend(settings.DEFAULT_LLM_BACKEND)
 
@@ -331,3 +329,4 @@ def _extract_llm_text(response) -> str:
         return str(content[0]).strip()
 
     return content.strip()
+
