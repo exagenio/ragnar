@@ -13,7 +13,7 @@
 
     <div class="card">
         <div class="card__body">
-            <form method="post" class="form django-form">
+            <form method="post" class="form django-form" data-loading-overlay data-loading-overlay-message="Generating the report outline. This can take a moment.">
                 {% csrf_token %}
                 {{ form.as_p }}
 
@@ -25,3 +25,4 @@
     </div>
 </div>
 {% endblock %}
+

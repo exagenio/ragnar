@@ -3,7 +3,8 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from app.forms import ProjectDBConnectionForm, TableSelectionForm
-from app.models import Project, TableMetadata
+from app.models import TableMetadata
+from app.views.access import get_user_project
 
 
 def get_manager():
@@ -297,6 +298,8 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
+
+
 
 
 

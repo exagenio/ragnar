@@ -30,7 +30,7 @@
             </button>
             {% endif %}
             {% if all_topics_have_content %}
-            <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="button button--primary">Generate Subsection Content</a>
+            <a href="{% url 'generate_subsection_content' project.id report.id subsection.id %}" class="button button--primary" data-loading-overlay data-loading-overlay-message="Opening subsection content generation. Please wait.">Generate Subsection Content</a>
             {% else %}
             <button disabled class="button button--secondary">Generate Subsection Content</button>
             {% endif %}
@@ -47,7 +47,7 @@
                     <div class="list__row">
                         <p class="list__title">{{ topic.title }}</p>
                         <div class="button-group">
-                            <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}" class="button button--secondary">Open Analysis Plan</a>
+                            <a href="{% url 'topic_analysis_plan' project.id report.id topic.id %}" class="button button--secondary" data-loading-overlay data-loading-overlay-message="Generating or loading the topic analysis plan. Please wait.">Open Analysis Plan</a>
                             {% if topic.analysis_plan and topic.analysis_plan.is_approved %}
                             <a href="{% url 'topic_content' project.id report.id topic.id %}" class="button button--primary">Generate Content</a>
                             {% endif %}
@@ -65,3 +65,4 @@
     </div>
 </div>
 {% endblock %}
+

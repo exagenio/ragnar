@@ -81,7 +81,7 @@
     {% endif %}
 
     <div class="form__actions">
-        <form method="post">
+        <form method="post" data-loading-overlay data-loading-overlay-message="Generating subsection content. Please wait while the analysis is prepared.">
             {% csrf_token %}
             {% if content.status != "generated" %}
             <button type="submit" name="action" value="generate" class="button button--primary">Generate Subsection Content</button>
@@ -94,3 +94,4 @@
     </div>
 </div>
 {% endblock %}
+

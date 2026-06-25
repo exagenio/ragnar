@@ -37,7 +37,7 @@
         <div class="form__actions">
             <button type="submit" name="action" value="save" class="button button--secondary">Save Changes</button>
             <button type="submit" name="action" value="approve" class="button button--primary">Approve Topics</button>
-            <button type="submit" name="action" value="regenerate" class="button button--secondary">Regenerate</button>
+            <button type="submit" name="action" value="regenerate" class="button button--secondary" data-loading-overlay data-loading-overlay-message="Regenerating subsection topics. Please wait.">Regenerate</button>
         </div>
     </form>
 </div>
@@ -61,3 +61,4 @@ function addTopic() {
 }
 </script>
 {% endblock %}
+

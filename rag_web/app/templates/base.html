@@ -61,5 +61,110 @@
         </div>
     </main>
 </div>
+<div id="loading-overlay" class="loading-overlay" hidden aria-live="polite" aria-busy="true">
+    <div class="loading-overlay__panel" role="status">
+        <div class="loading-overlay__spinner" aria-hidden="true"></div>
+        <p class="loading-overlay__title">Wait...</p>
+        <p id="loading-overlay-message" class="loading-overlay__message">This may take a moment. Please keep this tab open.</p>
+    </div>
+</div>
+
+<script>
+(function () {
+    const defaultMessage = "This may take a moment. Please keep this tab open.";
+
+    function getOverlayTrigger(element) {
+        if (!element || !element.closest) {
+            return null;
+        }
+        return element.closest("[data-loading-overlay]");
+    }
+
+    function showLoadingOverlay(message) {
+        const overlay = document.getElementById("loading-overlay");
+        const messageEl = document.getElementById("loading-overlay-message");
+        if (!overlay || !messageEl) {
+            return;
+        }
+
+        messageEl.textContent = message || defaultMessage;
+        overlay.removeAttribute("hidden");
+        overlay.classList.add("loading-overlay--visible");
+        document.body.classList.add("is-loading-overlay-active");
+    }
+
+    function isSubmitControl(element) {
+        return Boolean(
+            element &&
+            element.matches &&
+            element.matches('button[type="submit"], input[type="submit"], button:not([type]), input[type="image"]')
+        );
+    }
+
+    document.addEventListener("click", function (event) {
+        if (event.defaultPrevented) {
+            return;
+        }
+
+        const link = event.target.closest("a[data-loading-overlay]");
+        if (link) {
+            showLoadingOverlay(link.dataset.loadingOverlayMessage);
+            return;
+        }
+
+        const submitControl = event.target.closest('button, input[type="submit"], input[type="image"]');
+        if (!isSubmitControl(submitControl)) {
+            return;
+        }
+
+        const trigger = getOverlayTrigger(submitControl) || getOverlayTrigger(submitControl.form);
+        if (!trigger) {
+            return;
+        }
+
+        showLoadingOverlay(trigger.dataset.loadingOverlayMessage);
+    }, true);
+
+    function preserveSubmitterValue(form, submitter) {
+        if (!submitter || !submitter.name || submitter.disabled) {
+            return;
+        }
+
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = submitter.name;
+        hidden.value = submitter.value;
+        form.appendChild(hidden);
+    }
+
+    document.addEventListener("submit", function (event) {
+        const form = event.target;
+        const submitter = event.submitter || document.activeElement;
+        const trigger = getOverlayTrigger(submitter) || getOverlayTrigger(form);
+
+        if (!trigger || event.defaultPrevented) {
+            return;
+        }
+
+        if (form.checkValidity && !form.checkValidity()) {
+            return;
+        }
+
+        preserveSubmitterValue(form, submitter);
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((button) => {
+            button.disabled = true;
+        });
+        showLoadingOverlay(trigger.dataset.loadingOverlayMessage);
+    }, true);
+
+    window.showLoadingOverlay = showLoadingOverlay;
+})();
+</script>
 </body>
 </html>
+
+
+
+
+
+

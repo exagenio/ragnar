@@ -31,7 +31,7 @@
                         <h2 class="section__title">{{ section.title }}</h2>
                     </div>
                     {% if section.all_subsections_have_content %}
-                    <a href="{% url 'generate_section_content' project.id report.id section.id %}" class="button button--primary">
+                    <a href="{% url 'generate_section_content' project.id report.id section.id %}" class="button button--primary" data-loading-overlay data-loading-overlay-message="Opening section content generation. Please wait.">
                         <i class="fa-solid fa-play" aria-hidden="true"></i>
                         <span>Generate Section Content</span>
                     </a>
@@ -52,7 +52,7 @@
                                     <span>View Topics ({{ subsection.topics.count }})</span>
                                 </a>
                                 {% else %}
-                                <a href="{% url 'generate_topics' project.id report.id subsection.id %}" class="button button--primary">
+                                <a href="{% url 'generate_topics' project.id report.id subsection.id %}" class="button button--primary" data-loading-overlay data-loading-overlay-message="Generating subsection topics. Please wait.">
                                     <i class="fa-solid fa-bolt" aria-hidden="true"></i>
                                     <span>Generate Topics</span>
                                 </a>
@@ -122,3 +122,4 @@ function showToast(message) {
 }
 </script>
 {% endblock %}
+

@@ -97,7 +97,7 @@
 
         <div class="form__actions">
             <button type="submit" name="action" value="save" class="button button--secondary">Save Changes</button>
-            <button type="submit" name="action" value="approve" class="button button--primary">Approve Plan</button>
+            <button type="submit" name="action" value="approve" class="button button--primary" data-loading-overlay data-loading-overlay-message="Approving the topic analysis plan. Please wait.">Approve Plan</button>
             <a href="{% url 'subtopic_dashboard' project.id report.id %}" class="button button--secondary">Cancel</a>
         </div>
     </form>
@@ -117,3 +117,4 @@ function addItem(listId) {
 }
 </script>
 {% endblock %}
+
