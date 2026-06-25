@@ -154,15 +154,17 @@ function decodeBData(bdata, dtype) {
             <span class="status-pill status-pill--success">Content generation complete</span>
             {% endif %}
         </form>
-
+        {% if content.status == "generated" or content.content_json.sections %}
         <form method="post" data-loading-overlay data-loading-overlay-message="Starting topic content regeneration. Please wait.">
             {% csrf_token %}
             <button type="submit" name="action" value="regenerate" class="button button--accent" {% if is_generating %}disabled{% endif %}>Regenerate Content</button>
         </form>
+        {% endif %}
 
         <a href="{% url 'view_topics' project.id report.id topic.subsection.id %}" class="button button--secondary">Back to Topics</a>
     </div>
 </div>
 {% endblock %}
+
 
 
