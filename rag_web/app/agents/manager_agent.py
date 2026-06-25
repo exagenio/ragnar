@@ -53,9 +53,9 @@ class ManagerAgent:
         self.sql_agent = SQLAgent()
         self.visual_agent = VisualAgent()
 
-    def create_project_with_database(self, data):
+    def create_project_with_database(self, data, owner):
         self.project_service.test_db_connection(data)
-        project = self.project_service.create_project_with_db(data)
+        project = self.project_service.create_project_with_db(data, owner)
         return project
 
     def update_project_llm_settings(self, project, data):
@@ -813,4 +813,7 @@ class ManagerAgent:
             }
 
         return block
+
+
+
 

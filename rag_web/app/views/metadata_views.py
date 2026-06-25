@@ -20,7 +20,7 @@ def create_project_and_connect_db(request):
             data = form.cleaned_data
 
             try:
-                project = manager.create_project_with_database(data)
+                project = manager.create_project_with_database(data, request.user)
 
                 messages.success(
                     request,
@@ -46,7 +46,7 @@ def create_project_and_connect_db(request):
 
 
 def project_detail(request, project_id):
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
     reports = project.reports.all()
     metadata_items = list(project.metadata.all())
     metadata_ready = bool(metadata_items) and all(
@@ -67,7 +67,7 @@ def project_detail(request, project_id):
 def select_tables(request, project_id):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
 
     db_conn = project.db_connection
 
@@ -103,7 +103,7 @@ def select_tables(request, project_id):
 def column_introspection(request, project_id):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
 
     try:
         schema_info = manager.get_schema_info(project)
@@ -126,7 +126,7 @@ def column_introspection(request, project_id):
 def row_sampling(request, project_id):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
 
     try:
         sampled_data = manager.sample_table_rows(project, limit=10)
@@ -147,7 +147,7 @@ def row_sampling(request, project_id):
 def metadata_generation(request, project_id):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
 
     try:
         result = manager.start_metadata_generation(project)
@@ -170,7 +170,7 @@ def metadata_generation(request, project_id):
 def review_metadata(request, project_id, table_name):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
 
     metadata_obj = get_object_or_404(
         TableMetadata,
@@ -297,4 +297,6 @@ def review_metadata(request, project_id, table_name):
             "metadata": metadata_obj,
         },
     )
+
+
 

@@ -10,6 +10,7 @@ from app.services.evaluation.geval_evaluation_service import (
     evaluate_project_geval,
 )
 from app.services.evaluation.readability_service import evaluate_project_readability
+from app.views.access import get_user_project, get_user_report
 
 EVAL_TYPE = "geval"
 
@@ -93,7 +94,7 @@ def _handle_topic_reevaluation(request, project, report_id):
         id=request.POST.get("topic_id"),
         subsection__section__report_id=report_id,
     )
-    report = get_object_or_404(Report, id=report_id, project=project)
+    report = get_user_report(request.user, report_id, project)
     result = evaluate_and_save_topic_geval(project, report, topic)
 
     if result:
@@ -105,7 +106,7 @@ def _handle_topic_reevaluation(request, project, report_id):
 
 
 def evaluation_dashboard_view(request, project_id):
-    project = get_object_or_404(Project, id=project_id)
+    project = get_user_project(request.user, project_id)
     reports = Report.objects.filter(project=project)
     report_id = request.GET.get("report_id") or request.POST.get("report_id")
     selected_report = None
@@ -116,7 +117,7 @@ def evaluation_dashboard_view(request, project_id):
     has_geval_results = False
 
     if report_id:
-        selected_report = get_object_or_404(Report, id=report_id, project=project)
+        selected_report = get_user_report(request.user, report_id, project)
 
     if request.method == "POST":
         if not report_id:
@@ -168,7 +169,8 @@ def export_evaluation_doc(request, project_id):
     if not report_id:
         return HttpResponse("Missing report_id", status=400)
 
-    report = get_object_or_404(Report, id=report_id, project_id=project_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     topic_evals = TopicEvaluation.objects.filter(
         topic__subsection__section__report=report
     ).select_related("topic")
@@ -181,4 +183,5 @@ def export_evaluation_doc(request, project_id):
         f'attachment; filename="evaluation_report_{report.id}.docx"'
     )
     return response
+
 

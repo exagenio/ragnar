@@ -1,5 +1,8 @@
 from app.agents.manager_agent import ManagerAgent
 from app.models import Project, Report, Topic, TopicAnalysisPlan
+from app.services.task_tracker import has_running_task
+from app.services.topic_content_job import create_topic_content_task
+from app.views.access import get_user_project, get_user_report
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 import json
@@ -17,8 +20,8 @@ def generate_topic_analysis_plan_view(
 ):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     topic = get_object_or_404(Topic, id=topic_id, report=report)
 
     if request.method == "POST":
@@ -46,9 +49,10 @@ def generate_topic_analysis_plan_view(
         if action == "approve":
             messages.success(request, "Topic analysis plan approved.")
             return redirect(
-                "subtopic_dashboard",
+                "topic_content",
                 project_id=project.id,
                 report_id=report.id,
+                topic_id=topic.id,
             )
 
         messages.success(request, "Topic analysis plan saved.")
@@ -79,8 +83,8 @@ def generate_topic_analysis_plan_view(
     )
 
 def topic_overview(request, project_id, report_id):
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
 
     outline = report.outline.outline_json
 
@@ -131,8 +135,8 @@ def generate_topic_content_view(
 ):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     topic = get_object_or_404(Topic, id=topic_id, report=report)
 
     try:
@@ -140,55 +144,29 @@ def generate_topic_content_view(
     except ValueError as e:
         return render(request, "error.html", {"message": str(e)})
 
+    is_generating = has_running_task(task_type="topic_pipeline", topic=topic)
+
     if request.method == "POST":
 
         action = request.POST.get("action")
 
-        if action == "generate":
-
-            content_obj = manager.generate_topic_content(
-                project,
-                report,
-                topic,
-                content_obj,
-            )
-
-            messages.success(
-                request,
-                f"Content generation iteration {content_obj.iteration_count} completed.",
-            )
-
-            return redirect(request.path)
-
-        if action == "regenerate":
-
-            existing_content = content_obj.content_json or {}
-
-            # Preserve SQL placeholders
-            preserved_sql = existing_content.get("precomputed_sql_placeholders", [])
-
-            # Reset content BUT keep SQL placeholders
-            content_obj.content_json = {
-                "sections": [],
-                "element_progress": {},
-                "completed_elements": [],
-                "limitations": [],
-                "status": "in_progress",
-                "precomputed_sql_placeholders": preserved_sql,
-            }
-            content_obj.iteration_count = 0
-            content_obj.status = "draft"
-            content_obj.save()
-
-            # Generate fresh content
-            content_obj = manager.generate_topic_content(
-                project,
-                report,
-                topic,
-                content_obj,
-            )
-
-            messages.success(request, "Topic content regenerated successfully.")
+        if action in {"generate", "regenerate"}:
+            if is_generating:
+                messages.warning(
+                    request,
+                    "Topic content generation is already running.",
+                )
+            else:
+                create_topic_content_task(
+                    project,
+                    report,
+                    topic,
+                    regenerate=(action == "regenerate"),
+                )
+                messages.success(
+                    request,
+                    "Topic content generation started in the background.",
+                )
 
             return redirect(request.path)
 
@@ -226,6 +204,7 @@ def generate_topic_content_view(
             "topic": topic,
             "content": content_obj,
             "limitations": limitations,
+            "is_generating": is_generating,
         },
     )
 

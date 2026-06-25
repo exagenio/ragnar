@@ -17,11 +17,12 @@ class ProjectService:
             password=data["password"],
         )
 
-    def create_project_with_db(self, data):
+    def create_project_with_db(self, data, owner):
         """Create project with database connection"""
 
         # Create project entity
         project = Project.objects.create(
+            owner=owner,
             name=data["project_name"],
             description=data["project_description"],
             is_initialized=False,
@@ -66,3 +67,4 @@ class ProjectService:
         project.save()
 
         return project
+

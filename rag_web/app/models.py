@@ -13,6 +13,11 @@ class Project(models.Model):
         ("ollama", "Ollama (Local)"),
     ]
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="projects",
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     is_initialized = models.BooleanField(default=False)
@@ -544,3 +549,4 @@ class BackgroundTaskLog(models.Model):
 
     def __str__(self):
         return f"{self.task.title}: {self.message[:60]}"
+

@@ -8,6 +8,7 @@ from app.models import (
     Section,
     SubSection,
 )
+from app.views.access import get_user_project, get_user_report
 
 def get_manager():
     return ManagerAgent()
@@ -16,7 +17,8 @@ def get_manager():
 def generate_topics(request, project_id, report_id, subsection_id):
     manager = get_manager()
 
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
     section = subsection.section
 
@@ -100,8 +102,8 @@ def generate_topics(request, project_id, report_id, subsection_id):
 
 
 def subtopic_dashboard(request, project_id, report_id):
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
 
     sections = (
         Section.objects.filter(report=report)
@@ -134,8 +136,8 @@ def subtopic_dashboard(request, project_id, report_id):
 
 
 def view_topics(request, project_id, report_id, subsection_id):
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
 
     topics = subsection.topics.filter(is_approved=True)
@@ -165,4 +167,7 @@ def view_topics(request, project_id, report_id, subsection_id):
             "has_auto_generated_topics": has_auto_generated_topics,
         },
     )
+
+
+
 

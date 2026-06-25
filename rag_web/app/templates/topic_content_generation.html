@@ -138,11 +138,18 @@ function decodeBData(bdata, dtype) {
     </div>
     {% endif %}
 
+    {% if is_generating %}
+    <div class="notice notice--brand">
+        <p class="notice__title">Topic content generation is running</p>
+        <p>You can leave this page and come back later.</p>
+    </div>
+    {% endif %}
+
     <div class="form__actions">
         <form method="post">
             {% csrf_token %}
             {% if content.status != "generated" %}
-            <button type="submit" name="action" value="generate" class="button button--primary">Generate</button>
+            <button type="submit" name="action" value="generate" class="button button--primary" {% if is_generating %}disabled{% endif %}>Generate</button>
             {% else %}
             <span class="status-pill status-pill--success">Content generation complete</span>
             {% endif %}
@@ -150,10 +157,11 @@ function decodeBData(bdata, dtype) {
 
         <form method="post">
             {% csrf_token %}
-            <button type="submit" name="action" value="regenerate" class="button button--accent">Regenerate Content</button>
+            <button type="submit" name="action" value="regenerate" class="button button--accent" {% if is_generating %}disabled{% endif %}>Regenerate Content</button>
         </form>
 
         <a href="{% url 'view_topics' project.id report.id topic.subsection.id %}" class="button button--secondary">Back to Topics</a>
     </div>
 </div>
 {% endblock %}
+

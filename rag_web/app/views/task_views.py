@@ -5,6 +5,7 @@ from django.urls import reverse
 from app.models import BackgroundTask
 from app.services.document_export_job import resolve_export_path
 from app.services.task_tracker import recent_tasks_queryset, running_tasks_queryset
+from app.views.access import get_user_background_task, user_background_tasks
 
 
 def background_task_list(request):
@@ -12,23 +13,14 @@ def background_task_list(request):
         request,
         "background_tasks.html",
         {
-            "running_tasks": running_tasks_queryset(),
-            "recent_tasks": recent_tasks_queryset(),
+            "running_tasks": user_background_tasks(request.user).filter(status__in=["pending", "running"]),
+            "recent_tasks": user_background_tasks(request.user).exclude(status__in=["pending", "running"])[:30],
         },
     )
 
 
 def background_task_detail(request, task_id):
-    task = get_object_or_404(
-        BackgroundTask.objects.select_related(
-            "project",
-            "report",
-            "subsection",
-            "topic",
-            "parent",
-        ),
-        id=task_id,
-    )
+    task = get_user_background_task(request.user, task_id)
     child_tasks = task.children.select_related("topic", "subsection").all()
     initial_logs = list(task.logs.order_by("-id")[:120])
     initial_logs.reverse()
@@ -45,7 +37,7 @@ def background_task_detail(request, task_id):
 
 
 def background_task_logs_api(request, task_id):
-    task = get_object_or_404(BackgroundTask, id=task_id)
+    task = get_user_background_task(request.user, task_id)
     after_id = request.GET.get("after_id")
     logs = task.logs.all()
 
@@ -77,7 +69,7 @@ def background_task_logs_api(request, task_id):
 
 
 def background_task_download(request, task_id):
-    task = get_object_or_404(BackgroundTask, id=task_id)
+    task = get_user_background_task(request.user, task_id)
     download_url = _task_download_url(task)
 
     if not download_url:
@@ -104,3 +96,4 @@ def _task_download_url(task):
         return None
 
     return reverse("background_task_download", args=[task.id])
+

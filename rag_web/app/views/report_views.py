@@ -10,6 +10,7 @@ from app.models import (
     SubSection,
 )
 from app.services.document_export_job import create_document_export_task
+from app.views.access import get_user_project, get_user_report
 
 def get_manager():
     return ManagerAgent()
@@ -22,8 +23,8 @@ def generate_subsection_content_view(
 ):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
 
     try:
@@ -93,8 +94,8 @@ def generate_section_content_view(
 ):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     section = get_object_or_404(Section, id=section_id, report=report)
 
     try:
@@ -155,8 +156,8 @@ def generate_section_content_view(
 
 
 def generate_document_view(request, project_id, report_id):
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
 
     try:
         task = create_document_export_task(
@@ -184,8 +185,8 @@ def generate_document_view(request, project_id, report_id):
 def trigger_auto_generate_subsection(request, project_id, report_id, subsection_id):
     manager = get_manager()
 
-    project = get_object_or_404(Project, id=project_id)
-    report = get_object_or_404(Report, id=report_id)
+    project = get_user_project(request.user, project_id)
+    report = get_user_report(request.user, report_id, project)
     subsection = get_object_or_404(SubSection, id=subsection_id, report=report)
 
     if request.POST.get("action") == "re_auto_generate":
@@ -236,4 +237,5 @@ def trigger_auto_generate_subsection(request, project_id, report_id, subsection_
             "task_id": started.id if started else None,
         }
     )
+
 
